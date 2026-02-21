@@ -1,0 +1,45 @@
+[
+  {
+    "id": "MATH 20A",
+    "title": "Calculus for Science and Engineering",
+    "units": 4,
+    "prerequisites": [],
+    "termsOffered": [
+      "Fall",
+      "Winter"
+    ],
+    "historicalTermsOffered": [
+      "Fall 2025",
+      "Winter 2025"
+    ]
+  },
+  {
+    "id": "MATH 20B",
+    "title": "Calculus for Science and Engineering II",
+    "units": 4,
+    "prerequisites": [
+      "MATH 20A"
+    ],
+    "termsOffered": [
+      "Winter",
+      "Spring"
+    ],
+    "historicalTermsOffered": [
+      "Fall 2025",
+      "Winter 2025"
+    ]
+  },
+  {
+    "id": "CSE 11",
+    "title": "Introduction to Programming",
+    "units": 4,
+    "prerequisites": [],
+    "termsOffered": [
+      "Fall"
+    ],
+    "historicalTermsOffered": [
+      "Fall 2025",
+      "Winter 2025"
+    ]
+  }
+]

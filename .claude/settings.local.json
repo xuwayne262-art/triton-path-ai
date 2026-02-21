@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd /c/Users/xuway/triton-path-ai && npx shadcn@latest init --defaults 2>&1)"
+    ]
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "Revelle": {
+    "math": "3 courses (MATH 10A/B/C or 20A/B/C)",
+    "humanities": "5 courses (HUM 1, 2, 3, 4, 5)",
+    "writing": "Handled within HUM sequences",
+    "dei": "1 course required"
+  },
+  "Muir": {
+    "writing": "MCWP 40 and MCWP 50",
+    "sequences": "Two year-long sequences from different areas",
+    "dei": "1 course required"
+  }
+}
