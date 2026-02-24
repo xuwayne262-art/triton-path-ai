@@ -2,20 +2,22 @@
 
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, X, BookOpen } from "lucide-react";
+import { GripVertical, X, BookOpen, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Course } from "./types";
+import type { Course, Quarter } from "./types";
 
 interface CourseCardProps {
   course: Course;
   onRemove?: () => void;
   isDragging?: boolean;
   compact?: boolean;
+  activeQuarter?: Quarter;
 }
 
 export function DraggableCourseCard({
   course,
   onRemove,
+  activeQuarter,
 }: CourseCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } =
     useDraggable({ id: course.id });
@@ -23,6 +25,12 @@ export function DraggableCourseCard({
   const style = {
     transform: CSS.Translate.toString(transform),
   };
+
+  const isWrongQuarter =
+    !!activeQuarter &&
+    Array.isArray(course.termsOffered) &&
+    course.termsOffered.length > 0 &&
+    !course.termsOffered.includes(activeQuarter);
 
   return (
     <div
@@ -33,6 +41,7 @@ export function DraggableCourseCard({
       className={cn(
         "group relative flex items-start gap-1.5 px-2.5 py-2 rounded-lg border text-xs font-medium select-none cursor-grab active:cursor-grabbing transition-all duration-150",
         course.color ?? "bg-blue-50 border-blue-200 text-blue-800",
+        isWrongQuarter && "bg-red-50 border-red-400 text-red-900",
         isDragging && "opacity-50 scale-95 shadow-xl ring-2 ring-blue-400"
       )}
     >
@@ -40,9 +49,35 @@ export function DraggableCourseCard({
         <GripVertical className="w-3 h-3" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="font-bold leading-tight truncate">{course.code}</p>
+        <p className="font-bold leading-tight truncate">{course.code || course.id}</p>
         <p className="leading-tight truncate opacity-70 text-[10px] mt-0.5">{course.title}</p>
         <p className="opacity-50 text-[10px] mt-0.5">{course.units}u</p>
+        
+        {/* NEW TAGS SECTION */}
+        {course.tags && course.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1.5">
+            {course.tags.map((tag: string) => (
+              <span 
+                key={tag} 
+                className={cn(
+                  "px-1.5 py-0.5 text-[9px] font-bold rounded-full uppercase tracking-wider",
+                  tag === 'Major' ? 'bg-blue-200 text-blue-800' : '',
+                  tag === 'GE' ? 'bg-green-200 text-green-800' : '',
+                  tag === 'Overlap' ? 'bg-purple-200 text-purple-800' : ''
+                )}
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {isWrongQuarter && (
+          <div className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-red-700">
+            <TriangleAlert className="w-3 h-3" />
+            <span className="truncate">Not offered in {activeQuarter}</span>
+          </div>
+        )}
       </div>
       {onRemove && (
         <button
@@ -56,22 +91,60 @@ export function DraggableCourseCard({
   );
 }
 
-export function StaticCourseCard({ course, onRemove, compact = false }: CourseCardProps) {
+export function StaticCourseCard({
+  course,
+  onRemove,
+  compact = false,
+  activeQuarter,
+}: CourseCardProps) {
+  const isWrongQuarter =
+    !!activeQuarter &&
+    Array.isArray(course.termsOffered) &&
+    course.termsOffered.length > 0 &&
+    !course.termsOffered.includes(activeQuarter);
+
   return (
     <div
       className={cn(
         "group relative flex items-start gap-1.5 rounded-lg border text-xs font-medium select-none",
         compact ? "px-2 py-1.5" : "px-2.5 py-2",
-        course.color ?? "bg-blue-50 border-blue-200 text-blue-800"
+        course.color ?? "bg-blue-50 border-blue-200 text-blue-800",
+        isWrongQuarter && "bg-red-50 border-red-400 text-red-900"
       )}
     >
       <BookOpen className={cn("shrink-0 opacity-40", compact ? "w-2.5 h-2.5 mt-0.5" : "w-3 h-3 mt-0.5")} />
       <div className="flex-1 min-w-0">
-        <p className="font-bold leading-tight truncate">{course.code}</p>
+        <p className="font-bold leading-tight truncate">{course.code || course.id}</p>
         {!compact && (
           <p className="leading-tight truncate opacity-70 text-[10px] mt-0.5">{course.title}</p>
         )}
         <p className="opacity-50 text-[10px] mt-0.5">{course.units}u</p>
+        
+        {/* NEW TAGS SECTION */}
+        {course.tags && course.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1.5">
+            {course.tags.map((tag: string) => (
+              <span 
+                key={tag} 
+                className={cn(
+                  "px-1.5 py-0.5 text-[9px] font-bold rounded-full uppercase tracking-wider",
+                  tag === 'Major' ? 'bg-blue-200 text-blue-800' : '',
+                  tag === 'GE' ? 'bg-green-200 text-green-800' : '',
+                  tag === 'Overlap' ? 'bg-purple-200 text-purple-800' : ''
+                )}
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {isWrongQuarter && (
+          <div className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-red-700">
+            <TriangleAlert className="w-3 h-3" />
+            <span className="truncate">Not offered in {activeQuarter}</span>
+          </div>
+        )}
       </div>
       {onRemove && (
         <button

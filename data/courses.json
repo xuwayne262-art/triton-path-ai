@@ -11,7 +11,8 @@
     "historicalTermsOffered": [
       "Fall 2025",
       "Winter 2025"
-    ]
+    ],
+    "tags": ["GE", "Major", "Overlap"]
   },
   {
     "id": "MATH 20B",
@@ -27,7 +28,8 @@
     "historicalTermsOffered": [
       "Fall 2025",
       "Winter 2025"
-    ]
+    ],
+    "tags": ["GE", "Major"]
   },
   {
     "id": "CSE 11",
@@ -40,6 +42,7 @@
     "historicalTermsOffered": [
       "Fall 2025",
       "Winter 2025"
-    ]
+    ],
+    "tags": ["Major"]
   }
 ]

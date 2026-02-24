@@ -34,18 +34,6 @@ interface GridState {
 const YEARS = [1, 2, 3, 4] as const;
 const QUARTERS: Quarter[] = ["Fall", "Winter", "Spring"];
 
-const QUARTER_COLORS: Record<Quarter, string> = {
-  Fall: "bg-orange-50 border-orange-200",
-  Winter: "bg-sky-50 border-sky-200",
-  Spring: "bg-green-50 border-green-200",
-};
-
-const QUARTER_HEADER_COLORS: Record<Quarter, string> = {
-  Fall: "text-orange-700 bg-orange-100",
-  Winter: "text-sky-700 bg-sky-100",
-  Spring: "text-green-700 bg-green-100",
-};
-
 function DroppableQuarter({
   slotKey,
   courses,
@@ -64,33 +52,42 @@ function DroppableQuarter({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex-1 min-h-[130px] rounded-lg border-2 border-dashed p-2 transition-all duration-150",
-        QUARTER_COLORS[quarter],
-        isOver && "border-solid ring-2 ring-offset-1",
-        isOver && quarter === "Fall" && "ring-orange-400 border-orange-400",
-        isOver && quarter === "Winter" && "ring-sky-400 border-sky-400",
-        isOver && quarter === "Spring" && "ring-green-400 border-green-400"
+        "flex flex-col min-h-[200px] rounded-xl border border-slate-200 bg-slate-50 transition-colors duration-150",
+        "hover:border-slate-300 hover:bg-slate-50/80",
+        isOver && "border-slate-300 bg-slate-100 ring-1 ring-slate-300 shadow-sm"
       )}
     >
-      <div className="space-y-1.5">
-        {courses.map((course) => (
-          <DraggableCourseCard
-            key={course.id}
-            course={course}
-            onRemove={() => onRemoveCourse(course.id)}
-          />
-        ))}
-      </div>
-      {courses.length === 0 && (
-        <div className="h-full flex items-center justify-center">
-          <p className="text-xs text-gray-400">Drop courses here</p>
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-slate-200/70">
+        <div className="flex items-center gap-2 min-w-0">
+          <p className="text-xs font-semibold text-slate-700 truncate">
+            {quarter}
+          </p>
+          {totalUnits > 0 && (
+            <span className="inline-flex items-center rounded-full bg-white/70 border border-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+              {totalUnits}u
+            </span>
+          )}
         </div>
-      )}
-      {courses.length > 0 && (
-        <p className="text-[10px] text-gray-400 mt-1.5 text-right pr-0.5">
-          {totalUnits}u
-        </p>
-      )}
+      </div>
+
+      <div className="flex-1 p-2.5">
+        <div className="space-y-1.5">
+          {courses.map((course) => (
+            <DraggableCourseCard
+              key={course.id}
+              course={course}
+              activeQuarter={quarter}
+              onRemove={() => onRemoveCourse(course.id)}
+            />
+          ))}
+        </div>
+
+        {courses.length === 0 && (
+          <div className="h-full min-h-[140px] flex items-center justify-center">
+            <p className="text-xs text-slate-400">Drop courses here</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -272,21 +269,12 @@ export default function FourYearGrid() {
                     {QUARTERS.map((quarter) => {
                       const key = `${year}-${quarter}` as SlotKey;
                       return (
-                        <div key={quarter} className="flex flex-col gap-2">
-                          <div
-                            className={cn(
-                              "text-center text-xs font-semibold py-1 px-2 rounded-md",
-                              QUARTER_HEADER_COLORS[quarter]
-                            )}
-                          >
-                            {quarter}
-                          </div>
-                          <DroppableQuarter
-                            slotKey={key}
-                            courses={grid.slots[key] ?? []}
-                            onRemoveCourse={removeCourse}
-                          />
-                        </div>
+                        <DroppableQuarter
+                          key={key}
+                          slotKey={key}
+                          courses={grid.slots[key] ?? []}
+                          onRemoveCourse={removeCourse}
+                        />
                       );
                     })}
                   </div>

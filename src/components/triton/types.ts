@@ -16,6 +16,8 @@ export interface Course {
   title: string;
   units: number;
   color?: string;
+  tags?: string[];
+  termsOffered?: Quarter[];
 }
 
 export interface QuarterSlot {
