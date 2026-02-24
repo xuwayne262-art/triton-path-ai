@@ -12,7 +12,23 @@ export type Quarter = "Fall" | "Winter" | "Spring" | "Summer";
 
 export type DayOfWeek = "Mon" | "Tue" | "Wed" | "Thu" | "Fri";
 
-export type CourseCategory = "Lower Division" | "Upper Division" | "GE";
+export type CourseCategory =
+  // Legacy — used by existing sample CSE/MATH courses
+  | "Lower Division"
+  | "Upper Division"
+  | "GE"
+  // Business Economics Major
+  | "Lower Division Econ/Math"
+  | "Upper Division Core"
+  | "Major Electives"
+  // Warren College GEs
+  | "Warren Writing"
+  | "Ethics & Society"
+  | "PofC: Biology"
+  | "PofC: Humanities"
+  // General Biology Minor
+  | "Minor Lower Div"
+  | "Minor Upper Div";
 
 export interface CourseSection {
   id: string;

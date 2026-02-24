@@ -34,7 +34,7 @@ import {
   type College,
   type CourseTime
 } from "@/components/triton/types";
-import { DEGREE_REQUIREMENTS } from "@/data/requirements";
+import { REQUIREMENT_GROUPS } from "@/data/requirements";
 
 // Helper to generate sample course times
 function generateSampleTime(code: string): CourseTime[] {
@@ -216,7 +216,7 @@ export default function Home() {
     return groups;
   }, [filteredCourses]);
 
-  // Degree audit: tally selectedCourses units per requirement category
+  // Degree audit: tally selectedCourses units per category, then attach to groups
   const degreeProgress = useMemo(() => {
     const tally: Record<string, number> = {};
     selectedCourses.forEach(({ course }) => {
@@ -224,9 +224,12 @@ export default function Home() {
         tally[course.category] = (tally[course.category] ?? 0) + course.units;
       }
     });
-    return DEGREE_REQUIREMENTS.map(req => ({
-      ...req,
-      current: tally[req.category] ?? 0,
+    return REQUIREMENT_GROUPS.map(group => ({
+      ...group,
+      requirements: group.requirements.map(req => ({
+        ...req,
+        current: tally[req.category] ?? 0,
+      })),
     }));
   }, [selectedCourses]);
 
@@ -293,42 +296,68 @@ export default function Home() {
         }`}>
           <div className="h-full flex flex-col">
             {/* Degree Progress */}
-            <div className={`px-3 pt-3 pb-2.5 border-b ${darkMode ? "border-gray-700" : "border-gray-200"}`}>
-              <div className="flex items-center gap-1.5 mb-2.5">
+            <div className={`px-3 pt-2.5 pb-2 border-b ${darkMode ? "border-gray-700" : "border-gray-200"}`}>
+              {/* Section header */}
+              <div className="flex items-center gap-1.5 mb-2">
                 <GraduationCap className="w-3.5 h-3.5 text-yellow-500" />
                 <span className={`text-xs font-semibold ${darkMode ? "text-gray-200" : "text-gray-700"}`}>
                   Degree Progress
                 </span>
               </div>
+
+              {/* Requirement groups */}
               <div className="space-y-2.5">
-                {degreeProgress.map(req => {
-                  const pct = req.targetUnits > 0
-                    ? Math.min(100, Math.round((req.current / req.targetUnits) * 100))
-                    : 0;
-                  const complete = req.current >= req.targetUnits;
-                  return (
-                    <div key={req.category}>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className={`text-[11px] font-medium ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
-                          {req.label}
-                        </span>
-                        <span className={`text-[10px] font-semibold tabular-nums ml-2 flex-shrink-0 ${
-                          complete
-                            ? "text-green-500"
-                            : darkMode ? "text-gray-400" : "text-gray-500"
-                        }`}>
-                          {req.current} / {req.targetUnits}u
-                        </span>
-                      </div>
-                      <div className={`h-1.5 rounded-full overflow-hidden ${darkMode ? "bg-gray-700" : "bg-slate-200"}`}>
-                        <div
-                          className={`h-full rounded-full transition-all duration-500 ease-out ${req.color}${complete ? " opacity-80" : ""}`}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
+                {degreeProgress.map(group => (
+                  <div key={group.id}>
+                    {/* Group header */}
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${group.color}`} />
+                      <span className={`text-[9px] font-bold uppercase tracking-widest truncate ${
+                        darkMode ? "text-gray-500" : "text-gray-400"
+                      }`}>
+                        {group.groupLabel}
+                      </span>
                     </div>
-                  );
-                })}
+
+                    {/* Requirements */}
+                    <div className="space-y-1.5 pl-3">
+                      {group.requirements.map(req => {
+                        const pct = req.targetUnits > 0
+                          ? Math.min(100, Math.round((req.current / req.targetUnits) * 100))
+                          : 0;
+                        const complete = req.current >= req.targetUnits;
+                        return (
+                          <div key={req.category}>
+                            <div className="flex items-center justify-between mb-0.5">
+                              <span className={`text-[10px] font-medium truncate ${
+                                darkMode ? "text-gray-300" : "text-gray-600"
+                              }`}>
+                                {req.label}
+                              </span>
+                              <span className={`text-[10px] tabular-nums ml-1.5 flex-shrink-0 ${
+                                complete
+                                  ? "text-green-500 font-semibold"
+                                  : darkMode ? "text-gray-500" : "text-gray-400"
+                              }`}>
+                                {req.current}/{req.targetUnits}u
+                              </span>
+                            </div>
+                            <div className={`h-1 rounded-full overflow-hidden ${
+                              darkMode ? "bg-gray-700" : "bg-slate-200"
+                            }`}>
+                              <div
+                                className={`h-full rounded-full transition-all duration-500 ease-out ${group.color}${
+                                  complete ? " opacity-75" : ""
+                                }`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
