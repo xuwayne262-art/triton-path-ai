@@ -216,13 +216,13 @@ export default function Home() {
     return groups;
   }, [filteredCourses]);
 
-  // Degree audit: tally selectedCourses units per category, then attach to groups
+  // Degree audit: tally units per category — a course may satisfy multiple categories
   const degreeProgress = useMemo(() => {
     const tally: Record<string, number> = {};
     selectedCourses.forEach(({ course }) => {
-      if (course.category) {
-        tally[course.category] = (tally[course.category] ?? 0) + course.units;
-      }
+      course.categories?.forEach(cat => {
+        tally[cat] = (tally[cat] ?? 0) + course.units;
+      });
     });
     return REQUIREMENT_GROUPS.map(group => ({
       ...group,
