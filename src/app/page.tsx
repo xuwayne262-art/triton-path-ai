@@ -20,11 +20,11 @@ import {
   TooltipContent, 
   TooltipTrigger 
 } from "@/components/ui/tooltip";
-import { 
-  DEPARTMENTS, 
-  COLLEGES, 
-  MAJORS, 
-  SAMPLE_COURSES, 
+import {
+  DEPARTMENTS,
+  COLLEGES,
+  MAJORS,
+  SAMPLE_COURSES,
   COURSE_COLORS,
   COLLEGE_GE_REQUIREMENTS,
   DAYS,
@@ -34,6 +34,7 @@ import {
   type College,
   type CourseTime
 } from "@/components/triton/types";
+import { DEGREE_REQUIREMENTS } from "@/data/requirements";
 
 // Helper to generate sample course times
 function generateSampleTime(code: string): CourseTime[] {
@@ -215,6 +216,20 @@ export default function Home() {
     return groups;
   }, [filteredCourses]);
 
+  // Degree audit: tally selectedCourses units per requirement category
+  const degreeProgress = useMemo(() => {
+    const tally: Record<string, number> = {};
+    selectedCourses.forEach(({ course }) => {
+      if (course.category) {
+        tally[course.category] = (tally[course.category] ?? 0) + course.units;
+      }
+    });
+    return DEGREE_REQUIREMENTS.map(req => ({
+      ...req,
+      current: tally[req.category] ?? 0,
+    }));
+  }, [selectedCourses]);
+
   return (
     <div className={`h-screen flex flex-col ${darkMode ? "dark bg-gray-900" : "bg-gray-50"}`}>
       {/* Header */}
@@ -277,6 +292,46 @@ export default function Home() {
           darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
         }`}>
           <div className="h-full flex flex-col">
+            {/* Degree Progress */}
+            <div className={`px-3 pt-3 pb-2.5 border-b ${darkMode ? "border-gray-700" : "border-gray-200"}`}>
+              <div className="flex items-center gap-1.5 mb-2.5">
+                <GraduationCap className="w-3.5 h-3.5 text-yellow-500" />
+                <span className={`text-xs font-semibold ${darkMode ? "text-gray-200" : "text-gray-700"}`}>
+                  Degree Progress
+                </span>
+              </div>
+              <div className="space-y-2.5">
+                {degreeProgress.map(req => {
+                  const pct = req.targetUnits > 0
+                    ? Math.min(100, Math.round((req.current / req.targetUnits) * 100))
+                    : 0;
+                  const complete = req.current >= req.targetUnits;
+                  return (
+                    <div key={req.category}>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={`text-[11px] font-medium ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
+                          {req.label}
+                        </span>
+                        <span className={`text-[10px] font-semibold tabular-nums ml-2 flex-shrink-0 ${
+                          complete
+                            ? "text-green-500"
+                            : darkMode ? "text-gray-400" : "text-gray-500"
+                        }`}>
+                          {req.current} / {req.targetUnits}u
+                        </span>
+                      </div>
+                      <div className={`h-1.5 rounded-full overflow-hidden ${darkMode ? "bg-gray-700" : "bg-slate-200"}`}>
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ease-out ${req.color}${complete ? " opacity-80" : ""}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Search */}
             <div className="p-3 border-b dark:border-gray-700">
               <div className="relative">
