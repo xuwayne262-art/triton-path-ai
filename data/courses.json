@@ -1,48 +1,158 @@
 [
   {
+    "id": "CSE 11",
+    "title": "Introduction to Programming",
+    "units": 4,
+    "category": "Lower Division",
+    "departments": ["CSE"],
+    "description": "Introduction to programming fundamentals using Python. Topics include variables, control structures, functions, and basic object-oriented programming.",
+    "prerequisites": [],
+    "termsOffered": ["Fall"],
+    "historicalTermsOffered": ["Fall 2025"],
+    "tags": ["Major"]
+  },
+  {
+    "id": "CSE 12",
+    "title": "Basic Data Structures and Object-Oriented Design",
+    "units": 4,
+    "category": "Lower Division",
+    "departments": ["CSE"],
+    "description": "Fundamental data structures (arrays, linked lists, stacks, queues, trees, heaps, hash tables) and object-oriented design principles.",
+    "prerequisites": ["CSE 11"],
+    "termsOffered": ["Fall", "Winter", "Spring"],
+    "historicalTermsOffered": ["Fall 2025", "Winter 2025", "Spring 2025"],
+    "tags": ["Major"]
+  },
+  {
+    "id": "CSE 15L",
+    "title": "Software Tools and Techniques Laboratory",
+    "units": 2,
+    "category": "Lower Division",
+    "departments": ["CSE"],
+    "description": "Hands-on practice with Unix, shell scripting, version control (Git), debugging, and testing. Taken concurrently with CSE 12.",
+    "prerequisites": ["CSE 11"],
+    "termsOffered": ["Fall", "Winter", "Spring"],
+    "historicalTermsOffered": ["Fall 2025", "Winter 2025", "Spring 2025"],
+    "tags": ["Major"]
+  },
+  {
+    "id": "CSE 20",
+    "title": "Discrete Mathematics",
+    "units": 4,
+    "category": "Lower Division",
+    "departments": ["CSE", "MATH"],
+    "description": "Mathematical reasoning and discrete structures: propositional logic, sets, relations, functions, induction, combinatorics, and graph theory.",
+    "prerequisites": [],
+    "termsOffered": ["Fall", "Winter", "Spring"],
+    "historicalTermsOffered": ["Fall 2025", "Winter 2025", "Spring 2025"],
+    "tags": ["Major"]
+  },
+  {
+    "id": "CSE 21",
+    "title": "Mathematics for Algorithms and Systems",
+    "units": 4,
+    "category": "Lower Division",
+    "departments": ["CSE", "MATH"],
+    "description": "Mathematical foundations for algorithm analysis: recurrences, generating functions, and discrete probability.",
+    "prerequisites": ["CSE 20"],
+    "termsOffered": ["Fall", "Winter", "Spring"],
+    "historicalTermsOffered": ["Fall 2025", "Winter 2025"],
+    "tags": ["Major"]
+  },
+  {
     "id": "MATH 20A",
     "title": "Calculus for Science and Engineering",
     "units": 4,
+    "category": "GE",
+    "departments": ["MATH"],
+    "description": "Limits, continuity, and differential calculus of functions of one variable.",
     "prerequisites": [],
-    "termsOffered": [
-      "Fall",
-      "Winter"
-    ],
-    "historicalTermsOffered": [
-      "Fall 2025",
-      "Winter 2025"
-    ],
+    "termsOffered": ["Fall", "Winter"],
+    "historicalTermsOffered": ["Fall 2025", "Winter 2025"],
     "tags": ["GE", "Major", "Overlap"]
   },
   {
     "id": "MATH 20B",
     "title": "Calculus for Science and Engineering II",
     "units": 4,
-    "prerequisites": [
-      "MATH 20A"
-    ],
-    "termsOffered": [
-      "Winter",
-      "Spring"
-    ],
-    "historicalTermsOffered": [
-      "Fall 2025",
-      "Winter 2025"
-    ],
+    "category": "GE",
+    "departments": ["MATH"],
+    "description": "Integral calculus, techniques of integration, sequences, and series.",
+    "prerequisites": ["MATH 20A"],
+    "termsOffered": ["Winter", "Spring"],
+    "historicalTermsOffered": ["Winter 2025", "Spring 2025"],
     "tags": ["GE", "Major"]
   },
   {
-    "id": "CSE 11",
-    "title": "Introduction to Programming",
+    "id": "PHYS 2A",
+    "title": "Physics — Mechanics",
     "units": 4,
+    "category": "GE",
+    "departments": ["PHYS"],
+    "description": "Newtonian mechanics, kinematics, energy, momentum, and rotational motion. Laboratory included.",
+    "prerequisites": ["MATH 20A"],
+    "termsOffered": ["Fall", "Winter", "Spring"],
+    "historicalTermsOffered": ["Fall 2025", "Winter 2025", "Spring 2025"],
+    "tags": ["GE", "Major"]
+  },
+  {
+    "id": "COGS 1",
+    "title": "Introduction to Cognitive Science",
+    "units": 4,
+    "category": "GE",
+    "departments": ["COGS"],
+    "description": "Interdisciplinary study of mind, brain, and intelligent behavior — spanning AI, neuroscience, psychology, and linguistics.",
     "prerequisites": [],
-    "termsOffered": [
-      "Fall"
-    ],
-    "historicalTermsOffered": [
-      "Fall 2025",
-      "Winter 2025"
-    ],
+    "termsOffered": ["Fall", "Winter", "Spring"],
+    "historicalTermsOffered": ["Fall 2025", "Winter 2025"],
+    "tags": ["GE", "SS"]
+  },
+  {
+    "id": "CSE 100",
+    "title": "Advanced Data Structures",
+    "units": 4,
+    "category": "Upper Division",
+    "departments": ["CSE"],
+    "description": "Advanced data structures: balanced trees, heaps, hash tables, and graph algorithms. Analysis of time and space complexity.",
+    "prerequisites": ["CSE 12", "CSE 21"],
+    "termsOffered": ["Fall", "Winter", "Spring"],
+    "historicalTermsOffered": ["Fall 2025", "Winter 2025", "Spring 2025"],
+    "tags": ["Major"]
+  },
+  {
+    "id": "CSE 101",
+    "title": "Design and Analysis of Algorithms",
+    "units": 4,
+    "category": "Upper Division",
+    "departments": ["CSE"],
+    "description": "Divide and conquer, greedy algorithms, dynamic programming, network flow, NP-completeness, and approximation algorithms.",
+    "prerequisites": ["CSE 100"],
+    "termsOffered": ["Fall", "Winter", "Spring"],
+    "historicalTermsOffered": ["Fall 2025", "Winter 2025"],
+    "tags": ["Major"]
+  },
+  {
+    "id": "CSE 110",
+    "title": "Software Engineering",
+    "units": 4,
+    "category": "Upper Division",
+    "departments": ["CSE"],
+    "description": "Software development lifecycle: requirements, design patterns, testing, version control, and agile methodologies.",
+    "prerequisites": ["CSE 100"],
+    "termsOffered": ["Fall", "Winter", "Spring"],
+    "historicalTermsOffered": ["Fall 2025", "Winter 2025", "Spring 2025"],
+    "tags": ["Major"]
+  },
+  {
+    "id": "CSE 140",
+    "title": "Components and Design Techniques for Digital Systems",
+    "units": 4,
+    "category": "Upper Division",
+    "departments": ["CSE"],
+    "description": "Boolean algebra, logic gates, combinational and sequential circuits, FSMs, and hardware description languages.",
+    "prerequisites": ["CSE 20"],
+    "termsOffered": ["Fall", "Winter"],
+    "historicalTermsOffered": ["Fall 2025", "Winter 2025"],
     "tags": ["Major"]
   }
 ]

@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
 import type { Course, Quarter } from "./types";
 import {
   SAMPLE_COURSES,
-  COURSE_COLORS,
+  COURSE_COLORS_STRING as COURSE_COLORS,
 } from "./types";
 
 type SlotKey = `${number}-${Quarter}`;
@@ -99,14 +99,17 @@ export default function FourYearGrid() {
       initialSlots[`${y}-${q}` as SlotKey] = [];
     })
   );
-  // Pre-seed year 1 as an example
-  initialSlots["1-Fall"] = [SAMPLE_COURSES[0], SAMPLE_COURSES[6]];
-  initialSlots["1-Winter"] = [SAMPLE_COURSES[1], SAMPLE_COURSES[7]];
-  initialSlots["1-Spring"] = [SAMPLE_COURSES[2], SAMPLE_COURSES[8]];
+
+  // Pre-seed a realistic Year 1 schedule using stable IDs (never array indices)
+  const byId = (id: string) => SAMPLE_COURSES.find((c) => c.id === id)!;
+  const preSeeded = new Set(["cse11", "math20a", "cse12", "math20b", "cse15l", "cse20"]);
+  initialSlots["1-Fall"]   = [byId("cse11"),  byId("math20a")];
+  initialSlots["1-Winter"] = [byId("cse12"),  byId("math20b")];
+  initialSlots["1-Spring"] = [byId("cse15l"), byId("cse20")];
 
   const [grid, setGrid] = useState<GridState>({
     slots: initialSlots,
-    unplaced: SAMPLE_COURSES.slice(3, 6).concat(SAMPLE_COURSES.slice(9)),
+    unplaced: SAMPLE_COURSES.filter((c) => !preSeeded.has(c.id)),
   });
 
   const [activeId, setActiveId] = useState<string | null>(null);
