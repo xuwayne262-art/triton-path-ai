@@ -24,8 +24,41 @@ export type CourseCategory =
   // Warren College GEs
   | "Warren Writing"
   | "Ethics & Society"
-  | "PofC: Biology"
-  | "PofC: Humanities"
+  | "PofC 1"
+  | "PofC 2"
+  // Revelle College GEs
+  | "Humanities (HUM)"
+  | "Math"
+  | "Science"
+  | "Social Science"
+  | "Fine Arts"
+  | "Language"
+  // Muir College GEs
+  | "Muir Writing (MCWP)"
+  | "Social Science Seq"
+  | "Math/Science Seq"
+  | "Fine Arts/Humanities Seq"
+  // Marshall College GEs
+  | "DOC Sequence"
+  | "Math/Stats"
+  | "Natural Science"
+  | "Humanities/Culture"
+  | "Disciplinary Breadth"
+  // ERC GEs
+  | "MMW Sequence"
+  | "Quantitative"
+  | "Regional Spec"
+  // Sixth College GEs
+  | "CAT Sequence"
+  | "Info Tech"
+  | "Humanities"
+  | "Art"
+  | "Math/Logic"
+  // Seventh College GEs
+  | "Synthesis (SYN)"
+  | "Arts"
+  // Eighth College GEs
+  | "Eighth Core"
   // General Biology Minor
   | "Minor Lower Div"
   | "Minor Upper Div";
@@ -63,6 +96,11 @@ export interface Course {
   time?: CourseTime[];
   /** One or more requirement categories this course satisfies simultaneously */
   categories?: CourseCategory[];
+  /**
+   * If set, this course is only shown in the sidebar when the user's selected
+   * college is one of the listed values. Omit for universally available courses.
+   */
+  collegeLimit?: College[];
 }
 
 export interface ScheduledCourse {
@@ -197,6 +235,12 @@ export const DEPARTMENTS: Department[] = [
   { code: "BENG", name: "Bioengineering", courseCount: 56 },
   { code: "ECE", name: "Electrical & Computer Eng", courseCount: 134 },
   { code: "SE", name: "Structural Engineering", courseCount: 42 },
+  { code: "CAT", name: "Culture, Art & Technology (Sixth)", courseCount: 12 },
+  { code: "DOC", name: "Dimensions of Culture (Marshall)", courseCount: 12 },
+  { code: "MMW", name: "Making of the Modern World (ERC)", courseCount: 16 },
+  { code: "SYN", name: "Synthesis (Seventh)", courseCount: 8 },
+  { code: "WCWP", name: "Warren College Writing", courseCount: 10 },
+  { code: "EIGHTH", name: "Eighth College Core", courseCount: 12 },
 ];
 
 // Course colors for visual distinction
@@ -451,6 +495,7 @@ export const SAMPLE_COURSES: Course[] = [
     title: "Warren College Writing — The Essay",
     units: 4,
     categories: ["Warren Writing"],
+    collegeLimit: ["Warren"],
     description: "Expository and argumentative essay writing, critical reading, and research skills for university-level discourse.",
     prerequisites: [],
     departments: ["WCWP"],
@@ -464,6 +509,7 @@ export const SAMPLE_COURSES: Course[] = [
     title: "Warren College Writing — The Research Paper",
     units: 4,
     categories: ["Warren Writing"],
+    collegeLimit: ["Warren"],
     description: "Advanced academic research writing, source integration, citation practice, and scholarly argument.",
     prerequisites: ["WCWP 10A"],
     departments: ["WCWP"],
@@ -487,13 +533,14 @@ export const SAMPLE_COURSES: Course[] = [
     tags: ["ETH", "AH"],
   },
 
-  // ── PofC: Biology + Minor Lower Div (dual-credit) ────────────────────────────
+  // ── Biology — multi-college overlap ─────────────────────────────────────────
   {
     id: "bild3",
     code: "BILD 3",
     title: "Organismal and Evolutionary Biology",
     units: 4,
-    categories: ["PofC: Biology", "Minor Lower Div"],
+    // Satisfies: Warren PofC 1 · Revelle/Sixth Science · Marshall/ERC/Seventh/Eighth Natural Science · Bio Minor lower-div
+    categories: ["Minor Lower Div", "PofC 1", "Natural Science", "Science"],
     description: "Plant and animal diversity, organismal physiology, evolutionary mechanisms, and ecological relationships.",
     prerequisites: [],
     departments: ["BILD"],
@@ -506,7 +553,7 @@ export const SAMPLE_COURSES: Course[] = [
     code: "BIEB 174",
     title: "Ecology",
     units: 4,
-    categories: ["PofC: Biology", "Minor Lower Div"],
+    categories: ["Minor Lower Div", "Natural Science", "PofC 1"],
     description: "Population dynamics, community structure, ecosystem processes, and the interaction of organisms with their environment.",
     prerequisites: ["BILD 3"],
     departments: ["BIEB"],
@@ -515,13 +562,13 @@ export const SAMPLE_COURSES: Course[] = [
     tags: ["GE", "Science"],
   },
 
-  // ── PofC: Humanities ─────────────────────────────────────────────────────────
+  // ── Humanities / Arts — multi-college overlap ────────────────────────────────
   {
     id: "mus19r",
     code: "MUS 19R",
     title: "History of Rock",
     units: 4,
-    categories: ["PofC: Humanities"],
+    categories: ["PofC 2", "Fine Arts", "Arts"],
     description: "Survey of American popular music from the 1950s to the present, with attention to cultural, social, and political context.",
     prerequisites: [],
     departments: ["MUS"],
@@ -534,13 +581,379 @@ export const SAMPLE_COURSES: Course[] = [
     code: "LTEA 138",
     title: "Modern Chinese Literature",
     units: 4,
-    categories: ["PofC: Humanities"],
+    categories: ["PofC 2", "Humanities/Culture", "Humanities"],
     description: "Literary texts from 20th-century China read in translation: fiction, poetry, and drama in historical context.",
     prerequisites: [],
     departments: ["LTEA"],
     genEd: ["GE", "AH"],
     termsOffered: ["Fall", "Spring"],
     tags: ["GE", "AH"],
+  },
+
+  // ── New GE seed courses (FA25 / WI25) ────────────────────────────────────────
+  {
+    id: "mcwp40",
+    code: "MCWP 40",
+    title: "The Craft of Scientific Writing",
+    units: 4,
+    categories: ["Muir Writing (MCWP)"],
+    collegeLimit: ["Muir"],
+    description: "Scientific writing fundamentals for Muir College students; genre analysis, argumentation, and revision practices.",
+    prerequisites: [],
+    departments: ["MCWP"],
+    genEd: ["Writing"],
+    termsOffered: ["Fall", "Winter", "Spring"],
+    tags: ["Writing"],
+  },
+  {
+    id: "hum1",
+    code: "HUM 1",
+    title: "Humanities I: Ancient Civilizations",
+    units: 4,
+    categories: ["Humanities (HUM)"],
+    collegeLimit: ["Revelle"],
+    description: "Revelle College humanities sequence — ancient Greece, Rome, and the medieval world through primary texts.",
+    prerequisites: [],
+    departments: ["HUM"],
+    genEd: ["AH"],
+    termsOffered: ["Fall"],
+    tags: ["AH"],
+  },
+  {
+    id: "cat1",
+    code: "CAT 1",
+    title: "Culture, Art, and Technology I",
+    units: 4,
+    categories: ["CAT Sequence"],
+    collegeLimit: ["Sixth"],
+    description: "First in the Sixth College CAT sequence; inquiry into connections between culture, art, and technology in modern society.",
+    prerequisites: [],
+    departments: ["CAT"],
+    genEd: ["AH"],
+    termsOffered: ["Fall"],
+    tags: ["AH"],
+  },
+  {
+    id: "doc1",
+    code: "DOC 1",
+    title: "Dimensions of Culture I",
+    units: 4,
+    categories: ["DOC Sequence"],
+    collegeLimit: ["Marshall"],
+    description: "First in Marshall College's DOC sequence; democratic citizenship, justice, and the foundations of American society.",
+    prerequisites: [],
+    departments: ["DOC"],
+    genEd: ["SS", "AH"],
+    termsOffered: ["Fall"],
+    tags: ["SS", "AH"],
+  },
+
+  // ── Revelle: HUM sequence (HUM 2–5) ──────────────────────────────────────────
+  {
+    id: "hum2",
+    code: "HUM 2",
+    title: "Humanities II: Medieval Europe",
+    units: 4,
+    categories: ["Humanities (HUM)"],
+    collegeLimit: ["Revelle"],
+    description: "Revelle humanities sequence — medieval Christendom, Islamic civilization, and the emergence of European culture.",
+    prerequisites: ["HUM 1"],
+    departments: ["HUM"],
+    genEd: ["AH"],
+    termsOffered: ["Winter"],
+    tags: ["AH"],
+  },
+  {
+    id: "hum3",
+    code: "HUM 3",
+    title: "Humanities III: Renaissance and Reformation",
+    units: 4,
+    categories: ["Humanities (HUM)"],
+    collegeLimit: ["Revelle"],
+    description: "Revelle humanities sequence — humanism, the print revolution, religious reform, and scientific new worlds.",
+    prerequisites: ["HUM 2"],
+    departments: ["HUM"],
+    genEd: ["AH"],
+    termsOffered: ["Spring"],
+    tags: ["AH"],
+  },
+  {
+    id: "hum4",
+    code: "HUM 4",
+    title: "Humanities IV: Enlightenment to Modernity",
+    units: 4,
+    categories: ["Humanities (HUM)"],
+    collegeLimit: ["Revelle"],
+    description: "Revelle humanities sequence — reason, revolution, romanticism, and the birth of modern political thought.",
+    prerequisites: ["HUM 3"],
+    departments: ["HUM"],
+    genEd: ["AH"],
+    termsOffered: ["Fall"],
+    tags: ["AH"],
+  },
+  {
+    id: "hum5",
+    code: "HUM 5",
+    title: "Humanities V: The Contemporary World",
+    units: 4,
+    categories: ["Humanities (HUM)"],
+    collegeLimit: ["Revelle"],
+    description: "Revelle humanities sequence — modernism, totalitarianism, decolonization, and globalization through primary texts.",
+    prerequisites: ["HUM 4"],
+    departments: ["HUM"],
+    genEd: ["AH"],
+    termsOffered: ["Winter"],
+    tags: ["AH"],
+  },
+
+  // ── Muir: MCWP sequence (MCWP 50) ────────────────────────────────────────────
+  {
+    id: "mcwp50",
+    code: "MCWP 50",
+    title: "The Craft of Academic Writing",
+    units: 4,
+    categories: ["Muir Writing (MCWP)"],
+    collegeLimit: ["Muir"],
+    description: "Advanced research writing for Muir College — argument synthesis, scholarly conversation, and revision across disciplines.",
+    prerequisites: ["MCWP 40"],
+    departments: ["MCWP"],
+    genEd: ["Writing"],
+    termsOffered: ["Winter", "Spring"],
+    tags: ["Writing"],
+  },
+
+  // ── Marshall: DOC sequence (DOC 2–3) ─────────────────────────────────────────
+  {
+    id: "doc2",
+    code: "DOC 2",
+    title: "Dimensions of Culture II: Power, Inequality, and Freedom",
+    units: 4,
+    categories: ["DOC Sequence"],
+    collegeLimit: ["Marshall"],
+    description: "Second quarter of Marshall's DOC sequence — examining race, class, gender, and the structures of social power in American life.",
+    prerequisites: ["DOC 1"],
+    departments: ["DOC"],
+    genEd: ["SS", "AH"],
+    termsOffered: ["Winter"],
+    tags: ["SS", "AH"],
+  },
+  {
+    id: "doc3",
+    code: "DOC 3",
+    title: "Dimensions of Culture III: Modernity and Its Discontents",
+    units: 4,
+    categories: ["DOC Sequence"],
+    collegeLimit: ["Marshall"],
+    description: "Third quarter of Marshall's DOC sequence — global modernities, empire, resistance movements, and contemporary justice.",
+    prerequisites: ["DOC 2"],
+    departments: ["DOC"],
+    genEd: ["SS", "AH"],
+    termsOffered: ["Spring"],
+    tags: ["SS", "AH"],
+  },
+
+  // ── ERC: MMW sequence (MMW 11–15, 4u each = 20u) ─────────────────────────────
+  {
+    id: "mmw11",
+    code: "MMW 11",
+    title: "Making of the Modern World: Origins to 600 CE",
+    units: 4,
+    categories: ["MMW Sequence"],
+    collegeLimit: ["ERC"],
+    description: "ERC foundational sequence — ancient civilizations of Mesopotamia, Egypt, Greece, Rome, and early China through primary sources.",
+    prerequisites: [],
+    departments: ["MMW"],
+    genEd: ["AH"],
+    termsOffered: ["Fall"],
+    tags: ["AH"],
+  },
+  {
+    id: "mmw12",
+    code: "MMW 12",
+    title: "Making of the Modern World: 600–1450",
+    units: 4,
+    categories: ["MMW Sequence"],
+    collegeLimit: ["ERC"],
+    description: "ERC sequence — Islamic expansion, Tang and Song China, Mongol world-system, and cross-cultural exchange in the pre-modern era.",
+    prerequisites: ["MMW 11"],
+    departments: ["MMW"],
+    genEd: ["AH"],
+    termsOffered: ["Winter"],
+    tags: ["AH"],
+  },
+  {
+    id: "mmw13",
+    code: "MMW 13",
+    title: "Making of the Modern World: 1350–1700",
+    units: 4,
+    categories: ["MMW Sequence"],
+    collegeLimit: ["ERC"],
+    description: "ERC sequence — Renaissance, Reformation, Atlantic exploration, colonial encounter, and early capitalism.",
+    prerequisites: ["MMW 12"],
+    departments: ["MMW"],
+    genEd: ["AH"],
+    termsOffered: ["Spring"],
+    tags: ["AH"],
+  },
+  {
+    id: "mmw14",
+    code: "MMW 14",
+    title: "Making of the Modern World: 1700–1914",
+    units: 4,
+    categories: ["MMW Sequence"],
+    collegeLimit: ["ERC"],
+    description: "ERC sequence — Enlightenment, industrialization, nationalism, empire, and the restructuring of global society.",
+    prerequisites: ["MMW 13"],
+    departments: ["MMW"],
+    genEd: ["AH"],
+    termsOffered: ["Fall"],
+    tags: ["AH"],
+  },
+  {
+    id: "mmw15",
+    code: "MMW 15",
+    title: "Making of the Modern World: 1914–Present",
+    units: 4,
+    categories: ["MMW Sequence"],
+    collegeLimit: ["ERC"],
+    description: "ERC sequence — world wars, decolonization, Cold War, globalization, and contemporary challenges facing an interconnected world.",
+    prerequisites: ["MMW 14"],
+    departments: ["MMW"],
+    genEd: ["AH"],
+    termsOffered: ["Winter"],
+    tags: ["AH"],
+  },
+
+  // ── Sixth: CAT sequence (CAT 2–3) ────────────────────────────────────────────
+  {
+    id: "cat2",
+    code: "CAT 2",
+    title: "Culture, Art, and Technology II",
+    units: 4,
+    categories: ["CAT Sequence"],
+    collegeLimit: ["Sixth"],
+    description: "Second quarter of Sixth College's CAT sequence — deeper inquiry into technology's role in shaping culture, identity, and society.",
+    prerequisites: ["CAT 1"],
+    departments: ["CAT"],
+    genEd: ["AH"],
+    termsOffered: ["Winter"],
+    tags: ["AH"],
+  },
+  {
+    id: "cat3",
+    code: "CAT 3",
+    title: "Culture, Art, and Technology III",
+    units: 4,
+    categories: ["CAT Sequence"],
+    collegeLimit: ["Sixth"],
+    description: "Third quarter of Sixth College's CAT sequence — research-intensive exploration of technology ethics, policy, and civic engagement.",
+    prerequisites: ["CAT 2"],
+    departments: ["CAT"],
+    genEd: ["AH"],
+    termsOffered: ["Spring"],
+    tags: ["AH"],
+  },
+
+  // ── Seventh: SYN sequence (SYN 1–3, 4u each = 12u) ──────────────────────────
+  {
+    id: "syn1",
+    code: "SYN 1",
+    title: "Synthesis I: Systems Thinking",
+    units: 4,
+    categories: ["Synthesis (SYN)"],
+    collegeLimit: ["Seventh"],
+    description: "First in Seventh College's Synthesis sequence — interdisciplinary frameworks, systems thinking, and complex problem formulation.",
+    prerequisites: [],
+    departments: ["SYN"],
+    genEd: ["AH"],
+    termsOffered: ["Fall"],
+    tags: ["AH"],
+  },
+  {
+    id: "syn2",
+    code: "SYN 2",
+    title: "Synthesis II: Theory and Method",
+    units: 4,
+    categories: ["Synthesis (SYN)"],
+    collegeLimit: ["Seventh"],
+    description: "Second in Seventh College's Synthesis sequence — research methodologies across disciplines; data, argument, and evidence.",
+    prerequisites: ["SYN 1"],
+    departments: ["SYN"],
+    genEd: ["AH"],
+    termsOffered: ["Winter"],
+    tags: ["AH"],
+  },
+  {
+    id: "syn3",
+    code: "SYN 3",
+    title: "Synthesis III: Capstone",
+    units: 4,
+    categories: ["Synthesis (SYN)"],
+    collegeLimit: ["Seventh"],
+    description: "Third in Seventh College's Synthesis sequence — capstone project integrating prior coursework into an original interdisciplinary inquiry.",
+    prerequisites: ["SYN 2"],
+    departments: ["SYN"],
+    genEd: ["AH"],
+    termsOffered: ["Spring"],
+    tags: ["AH"],
+  },
+
+  // ── Eighth: Core sequence (EIGHTH 1–4, 4u each = 16u) ───────────────────────
+  {
+    id: "eighth1",
+    code: "EIGHTH 1",
+    title: "Eighth College Core I: Foundations of Innovation",
+    units: 4,
+    categories: ["Eighth Core"],
+    collegeLimit: ["Eighth"],
+    description: "First in Eighth College's core sequence — entrepreneurial thinking, design principles, and the ethics of innovation.",
+    prerequisites: [],
+    departments: ["EIGHTH"],
+    genEd: ["AH"],
+    termsOffered: ["Fall"],
+    tags: ["AH"],
+  },
+  {
+    id: "eighth2",
+    code: "EIGHTH 2",
+    title: "Eighth College Core II: Systems and Society",
+    units: 4,
+    categories: ["Eighth Core"],
+    collegeLimit: ["Eighth"],
+    description: "Second in Eighth College's core sequence — sociotechnical systems, organizational behavior, and responsible leadership.",
+    prerequisites: ["EIGHTH 1"],
+    departments: ["EIGHTH"],
+    genEd: ["AH"],
+    termsOffered: ["Winter"],
+    tags: ["AH"],
+  },
+  {
+    id: "eighth3",
+    code: "EIGHTH 3",
+    title: "Eighth College Core III: Critique and Culture",
+    units: 4,
+    categories: ["Eighth Core"],
+    collegeLimit: ["Eighth"],
+    description: "Third in Eighth College's core sequence — critical analysis of technological change, power, and cultural transformation.",
+    prerequisites: ["EIGHTH 2"],
+    departments: ["EIGHTH"],
+    genEd: ["AH"],
+    termsOffered: ["Spring"],
+    tags: ["AH"],
+  },
+  {
+    id: "eighth4",
+    code: "EIGHTH 4",
+    title: "Eighth College Core IV: Synthesis and Impact",
+    units: 4,
+    categories: ["Eighth Core"],
+    collegeLimit: ["Eighth"],
+    description: "Fourth in Eighth College's core sequence — capstone synthesis project connecting innovation, ethics, and real-world impact.",
+    prerequisites: ["EIGHTH 3"],
+    departments: ["EIGHTH"],
+    genEd: ["AH"],
+    termsOffered: ["Fall"],
+    tags: ["AH"],
   },
 
   // ── Minor Upper Div ──────────────────────────────────────────────────────────
@@ -592,92 +1005,91 @@ export const COLLEGE_GE_REQUIREMENTS: Record<College, {
   category: string;
   items: { name: string; courses: string; units: number }[];
 }> = {
+  // Each entry mirrors COLLEGE_REQUIREMENTS in requirements.ts exactly.
+  // "courses" is a human-readable hint shown in the 4-Year Planner tile.
+  Warren: {
+    category: "Warren College Requirements",
+    items: [
+      { name: "Warren Writing",   courses: "WCWP 10A, WCWP 10B",                    units: 8  },
+      { name: "Ethics & Society", courses: "PHIL 27 or approved ethics course",      units: 8  },
+      { name: "PofC 1",           courses: "Approved Program of Concentration (1)",  units: 24 },
+      { name: "PofC 2",           courses: "Approved Program of Concentration (2)",  units: 24 },
+    ],
+  },
   Revelle: {
     category: "Revelle College Requirements",
     items: [
-      { name: "Mathematics", courses: "MATH 10A/B/C or 20A/B/C", units: 12 },
-      { name: "Humanities", courses: "HUM 1, 2, 3, 4, 5", units: 20 },
-      { name: "Natural Science", courses: "CHEM, PHYS, or BIOL sequence", units: 12 },
-      { name: "Social Science", courses: "2 courses", units: 8 },
-      { name: "Foreign Language", courses: "2 courses (4th semester level)", units: 8 },
-      { name: "DEI", courses: "1 course", units: 4 },
+      { name: "Humanities (HUM)", courses: "HUM 1, 2, 3, 4, 5",                     units: 24 },
+      { name: "Math",             courses: "MATH 10A/B/C or 20A/B/C",               units: 12 },
+      { name: "Science",          courses: "CHEM, PHYS, or BIOL sequence",           units: 20 },
+      { name: "Social Science",   courses: "2 social science courses",               units: 8  },
+      { name: "Fine Arts",        courses: "1 fine arts course",                     units: 4  },
+      { name: "Language",         courses: "2 courses (4th-semester level)",         units: 16 },
     ],
   },
   Muir: {
     category: "Muir College Requirements",
     items: [
-      { name: "Writing", courses: "MCWP 40, 50", units: 8 },
-      { name: "Natural Science", courses: "1 sequence + 1 additional", units: 12 },
-      { name: "Social Science", courses: "2 sequences from different areas", units: 12 },
-      { name: "Humanities", courses: "2 courses", units: 8 },
-      { name: "Arts", courses: "1 course", units: 4 },
-      { name: "DEI", courses: "1 course", units: 4 },
+      { name: "Muir Writing (MCWP)",      courses: "MCWP 40, MCWP 50",                     units: 8  },
+      { name: "Social Science Seq",       courses: "2 social science sequences",             units: 12 },
+      { name: "Math/Science Seq",         courses: "1 math + 1 science sequence",            units: 12 },
+      { name: "Fine Arts/Humanities Seq", courses: "2 fine arts or humanities sequences",    units: 12 },
     ],
   },
   Marshall: {
     category: "Marshall College Requirements",
     items: [
-      { name: "Writing", courses: "WCWP 10A/B", units: 8 },
-      { name: "Mathematics", courses: "MATH 10, 11, or 20A", units: 4 },
-      { name: "Natural Science", courses: "1 sequence", units: 8-12 },
-      { name: "Social Science", courses: "3 courses from 2 disciplines", units: 12 },
-      { name: "Humanities", courses: "3 courses from 2 disciplines", units: 12 },
-      { name: "DEI", courses: "1 course", units: 4 },
-    ],
-  },
-  Warren: {
-    category: "Warren College Requirements",
-    items: [
-      { name: "Writing", courses: "CAT 125 or equivalent", units: 4 },
-      { name: "Mathematics", courses: "MATH 10, 11, or 20A", units: 4 },
-      { name: "Natural Science", courses: "1 sequence + 1 additional", units: 12 },
-      { name: "Social Science", courses: "3 courses", units: 12 },
-      { name: "Humanities", courses: "3 courses", units: 12 },
-      { name: "DEI", courses: "1 course", units: 4 },
+      { name: "DOC Sequence",         courses: "DOC 1, DOC 2, DOC 3",              units: 12 },
+      { name: "Math/Stats",           courses: "2 math or statistics courses",      units: 8  },
+      { name: "Natural Science",      courses: "3 natural science courses",         units: 12 },
+      { name: "Humanities/Culture",   courses: "2 humanities courses",              units: 8  },
+      { name: "Fine Arts",            courses: "1 fine arts course",                units: 4  },
+      { name: "Disciplinary Breadth", courses: "4 breadth courses",                 units: 16 },
     ],
   },
   ERC: {
     category: "Eleanor Roosevelt College Requirements",
     items: [
-      { name: "Writing", courses: "ERC 30, 31, 32", units: 12 },
-      { name: "Natural Science", courses: "1 sequence", units: 8-12 },
-      { name: "Social Science", courses: "3 courses", units: 12 },
-      { name: "Humanities", courses: "3 courses", units: 12 },
-      { name: "Regional", courses: "1 region focus (Asia, Europe, Americas)", units: 8 },
-      { name: "DEI", courses: "1 course", units: 4 },
+      { name: "MMW Sequence",    courses: "MMW 11, 12, 13, 14, 15",                units: 20 },
+      { name: "Quantitative",    courses: "2 quantitative reasoning courses",       units: 8  },
+      { name: "Natural Science", courses: "2 natural science courses",              units: 8  },
+      { name: "Fine Arts",       courses: "1 fine arts course",                     units: 4  },
+      { name: "Language",        courses: "2 language courses (4th-semester)",      units: 16 },
+      { name: "Regional Spec",   courses: "3 regional specialization courses",      units: 12 },
     ],
   },
   Sixth: {
     category: "Sixth College Requirements",
     items: [
-      { name: "Writing", courses: "SIX 10A/B/C", units: 12 },
-      { name: "Natural Science", courses: "1 sequence", units: 8-12 },
-      { name: "Social Science", courses: "3 courses", units: 12 },
-      { name: "Humanities", courses: "3 courses", units: 12 },
-      { name: "Culture & Technology", courses: "2 courses", units: 8 },
-      { name: "DEI", courses: "1 course", units: 4 },
+      { name: "CAT Sequence",   courses: "CAT 1, CAT 2, CAT 3",             units: 12 },
+      { name: "Info Tech",      courses: "1 information technology course",  units: 4  },
+      { name: "Social Science", courses: "2 social science courses",         units: 8  },
+      { name: "Humanities",     courses: "2 humanities courses",             units: 8  },
+      { name: "Science",        courses: "2 science courses",                units: 8  },
+      { name: "Math/Logic",     courses: "2 math or logic courses",          units: 8  },
+      { name: "Art",            courses: "1 art course",                     units: 4  },
     ],
   },
   Seventh: {
     category: "Seventh College Requirements",
     items: [
-      { name: "Foundations", courses: "SE 10, 20, 30", units: 12 },
-      { name: "Natural Science", courses: "1 sequence", units: 8-12 },
-      { name: "Social Science", courses: "3 courses", units: 12 },
-      { name: "Humanities", courses: "3 courses", units: 12 },
-      { name: "Data & Technology", courses: "2 courses", units: 8 },
-      { name: "DEI", courses: "1 course", units: 4 },
+      { name: "Synthesis (SYN)", courses: "SYN 1, SYN 2, SYN 3",           units: 12 },
+      { name: "Arts",            courses: "2 arts courses",                  units: 8  },
+      { name: "Humanities",      courses: "2 humanities courses",            units: 8  },
+      { name: "Natural Science", courses: "2 natural science courses",       units: 8  },
+      { name: "Quantitative",    courses: "2 quantitative courses",          units: 8  },
+      { name: "Social Science",  courses: "2 social science courses",        units: 8  },
     ],
   },
   Eighth: {
     category: "Eighth College Requirements",
     items: [
-      { name: "Foundations", courses: "EIGHT 10, 20, 30", units: 12 },
-      { name: "Natural Science", courses: "1 sequence", units: 8-12 },
-      { name: "Social Science", courses: "3 courses", units: 12 },
-      { name: "Humanities", courses: "3 courses", units: 12 },
-      { name: "Innovation & Entrepreneurship", courses: "2 courses", units: 8 },
-      { name: "DEI", courses: "1 course", units: 4 },
+      { name: "Eighth Core",     courses: "EIGHTH 1, EIGHTH 2, EIGHTH 3, EIGHTH 4", units: 16 },
+      { name: "Arts",            courses: "1 arts course",                           units: 4  },
+      { name: "Humanities",      courses: "1 humanities course",                     units: 4  },
+      { name: "Natural Science", courses: "2 natural science courses",               units: 8  },
+      { name: "Quantitative",    courses: "2 quantitative courses",                  units: 8  },
+      { name: "Social Science",  courses: "2 social science courses",                units: 8  },
     ],
   },
 };

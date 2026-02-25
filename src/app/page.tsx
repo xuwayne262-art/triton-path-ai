@@ -26,7 +26,6 @@ import {
   MAJORS,
   SAMPLE_COURSES,
   COURSE_COLORS,
-  COLLEGE_GE_REQUIREMENTS,
   DAYS,
   TIME_SLOTS,
   type Course,
@@ -34,7 +33,7 @@ import {
   type College,
   type CourseTime
 } from "@/components/triton/types";
-import { REQUIREMENT_GROUPS } from "@/data/requirements";
+import { COLLEGE_REQUIREMENTS, MAJOR_REQUIREMENTS, MINOR_REQUIREMENTS, MAJOR_GROUP, MINOR_GROUP } from "@/data/requirements";
 
 // Helper to generate sample course times
 function generateSampleTime(code: string): CourseTime[] {
@@ -110,20 +109,26 @@ export default function Home() {
     }
   }, [darkMode]);
 
-  // Filter courses based on search and department
+  // Filter courses based on search, department, and college
   const filteredCourses = useMemo(() => {
     return coursesWithTimes.filter(course => {
-      const matchesSearch = searchQuery === "" || 
+      const matchesSearch = searchQuery === "" ||
         course.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
         course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         course.tags?.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
-      
-      const matchesDept = selectedDepartment === null || 
+
+      const matchesDept = selectedDepartment === null ||
         course.departments?.includes(selectedDepartment);
-      
-      return matchesSearch && matchesDept;
+
+      // College-specific sequences are hidden unless the matching college is selected.
+      // Courses with no collegeLimit are always visible.
+      const matchesCollege = !course.collegeLimit ||
+        selectedCollege === null ||
+        course.collegeLimit.includes(selectedCollege);
+
+      return matchesSearch && matchesDept && matchesCollege;
     });
-  }, [searchQuery, selectedDepartment]);
+  }, [searchQuery, selectedDepartment, selectedCollege]);
 
   // Check for conflicts
   useEffect(() => {
@@ -216,22 +221,41 @@ export default function Home() {
     return groups;
   }, [filteredCourses]);
 
-  // Degree audit: tally units per category — a course may satisfy multiple categories
+  // Merged flat dict of every active requirement: { [category]: targetUnits }
+  // Major + Minor are always present; College GEs swap in when a college is selected.
+  const activeRequirements = useMemo((): Record<string, number> => {
+    const collegeReqs = selectedCollege
+      ? Object.fromEntries(
+          COLLEGE_REQUIREMENTS[selectedCollege].requirements.map(r => [r.category, r.targetUnits])
+        )
+      : {};
+    return { ...MAJOR_REQUIREMENTS, ...MINOR_REQUIREMENTS, ...collegeReqs };
+  }, [selectedCollege]);
+
+  // Degree audit: tally units only for categories present in activeRequirements
   const degreeProgress = useMemo(() => {
     const tally: Record<string, number> = {};
     selectedCourses.forEach(({ course }) => {
       course.categories?.forEach(cat => {
-        tally[cat] = (tally[cat] ?? 0) + course.units;
+        if (cat in activeRequirements) {
+          tally[cat] = (tally[cat] ?? 0) + course.units;
+        }
       });
     });
-    return REQUIREMENT_GROUPS.map(group => ({
+    // Render as three named groups: Major | College GEs | Minor
+    const groups = [
+      MAJOR_GROUP,
+      ...(selectedCollege ? [COLLEGE_REQUIREMENTS[selectedCollege]] : []),
+      MINOR_GROUP,
+    ];
+    return groups.map(group => ({
       ...group,
       requirements: group.requirements.map(req => ({
         ...req,
         current: tally[req.category] ?? 0,
       })),
     }));
-  }, [selectedCourses]);
+  }, [selectedCourses, selectedCollege, activeRequirements]);
 
   return (
     <div className={`h-screen flex flex-col ${darkMode ? "dark bg-gray-900" : "bg-gray-50"}`}>
@@ -304,6 +328,13 @@ export default function Home() {
                   Degree Progress
                 </span>
               </div>
+
+              {/* College GE hint */}
+              {!selectedCollege && (
+                <p className={`text-[10px] mb-2 px-1 ${darkMode ? "text-gray-500" : "text-gray-400"}`}>
+                  Select a college below to see GE progress
+                </p>
+              )}
 
               {/* Requirement groups */}
               <div className="space-y-2.5">
@@ -726,7 +757,7 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* GE Requirements */}
+                {/* GE Requirements — driven by COLLEGE_REQUIREMENTS (single source of truth) */}
                 {selectedCollege && (
                   <div className={`mb-4 p-4 rounded-xl ${
                     darkMode ? "bg-gray-800" : "bg-white"
@@ -737,9 +768,9 @@ export default function Home() {
                       {selectedCollege} College GE Requirements
                     </h3>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                      {COLLEGE_GE_REQUIREMENTS[selectedCollege].items.map((req, idx) => (
-                        <div 
-                          key={idx}
+                      {COLLEGE_REQUIREMENTS[selectedCollege].requirements.map((req) => (
+                        <div
+                          key={req.category}
                           className={`p-2 rounded-lg ${
                             darkMode ? "bg-gray-700" : "bg-gray-50"
                           }`}
@@ -747,17 +778,12 @@ export default function Home() {
                           <p className={`text-xs font-medium ${
                             darkMode ? "text-gray-300" : "text-gray-700"
                           }`}>
-                            {req.name}
-                          </p>
-                          <p className={`text-[10px] mt-0.5 ${
-                            darkMode ? "text-gray-500" : "text-gray-400"
-                          }`}>
-                            {req.courses}
+                            {req.label}
                           </p>
                           <p className={`text-[10px] mt-0.5 ${
                             darkMode ? "text-gray-400" : "text-gray-500"
                           }`}>
-                            {req.units} units
+                            {req.targetUnits} units
                           </p>
                         </div>
                       ))}
