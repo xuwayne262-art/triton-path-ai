@@ -147,41 +147,36 @@ export const COLLEGE_REQUIREMENTS: Record<College, RequirementGroup> = {
   },
 };
 
-// ── Static Major / Minor flat dicts (category → targetUnits) ─────────────────
-// Flat format makes merging into activeRequirements trivial.
-// Swap out when real major/minor engine is wired up.
+// ── Major requirements: majorName → { category: targetUnits } ─────────────────
+// page.tsx spreads MAJOR_REQUIREMENTS[selectedMajor] into activeRequirements.
 
-export const MAJOR_REQUIREMENTS: Record<string, number> = {
-  "Lower Division Econ/Math": 24,
-  "Upper Division Core":      36,
-  "Major Electives":          12,
+export const MAJOR_REQUIREMENTS: Record<string, Record<string, number>> = {
+  "Business Economics (BS)": {
+    "Lower Division Econ/Math": 24,
+    "Upper Division Core":      36,
+    "Major Electives":          12,
+  },
+  "Computer Science (BS)": {
+    "Lower Division": 20,
+    "Upper Division": 36,
+  },
+  "Data Science (BS)": {
+    "DS Lower Division": 16,
+    "DS Upper Division": 28,
+  },
 };
 
-export const MINOR_REQUIREMENTS: Record<string, number> = {
-  "Minor Lower Div": 8,
-  "Minor Upper Div": 20,
-};
+// ── Minor requirements: minorName → { category: targetUnits } ─────────────────
+// "None" maps to {} so spreading is always safe regardless of selection.
 
-// ── RequirementGroup wrappers (for progress-bar rendering) ────────────────────
-// Derived from the flat dicts above so they stay in sync.
-
-export const MAJOR_GROUP: RequirementGroup = {
-  id: "major",
-  groupLabel: "Major — Business Economics",
-  color: "bg-blue-500",
-  requirements: [
-    { category: "Lower Division Econ/Math", label: "Lower Div Econ/Math", targetUnits: MAJOR_REQUIREMENTS["Lower Division Econ/Math"] },
-    { category: "Upper Division Core",      label: "Upper Division Core", targetUnits: MAJOR_REQUIREMENTS["Upper Division Core"]      },
-    { category: "Major Electives",          label: "Major Electives",     targetUnits: MAJOR_REQUIREMENTS["Major Electives"]          },
-  ],
-};
-
-export const MINOR_GROUP: RequirementGroup = {
-  id: "minor",
-  groupLabel: "Minor — General Biology",
-  color: "bg-teal-500",
-  requirements: [
-    { category: "Minor Lower Div", label: "Minor Lower Div", targetUnits: MINOR_REQUIREMENTS["Minor Lower Div"] },
-    { category: "Minor Upper Div", label: "Minor Upper Div", targetUnits: MINOR_REQUIREMENTS["Minor Upper Div"] },
-  ],
+export const MINOR_REQUIREMENTS: Record<string, Record<string, number>> = {
+  "General Biology": {
+    "Minor Lower Div": 8,
+    "Minor Upper Div": 20,
+  },
+  "Data Science": {
+    "DS Lower Division": 12,
+    "DS Upper Division": 8,
+  },
+  "None": {},
 };

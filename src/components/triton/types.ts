@@ -61,7 +61,10 @@ export type CourseCategory =
   | "Eighth Core"
   // General Biology Minor
   | "Minor Lower Div"
-  | "Minor Upper Div";
+  | "Minor Upper Div"
+  // Data Science Major / Minor
+  | "DS Lower Division"
+  | "DS Upper Division";
 
 export interface CourseSection {
   id: string;
@@ -206,6 +209,7 @@ export const MAJORS: Record<string, string[]> = {
 // UCSD Departments with course counts
 export const DEPARTMENTS: Department[] = [
   { code: "CSE", name: "Computer Science & Engineering", courseCount: 156 },
+  { code: "DSC", name: "Data Science", courseCount: 48 },
   { code: "MATH", name: "Mathematics", courseCount: 89 },
   { code: "PHYS", name: "Physics", courseCount: 112 },
   { code: "CHEM", name: "Chemistry & Biochemistry", courseCount: 98 },
@@ -954,6 +958,75 @@ export const SAMPLE_COURSES: Course[] = [
     genEd: ["AH"],
     termsOffered: ["Fall"],
     tags: ["AH"],
+  },
+
+  // ── Data Science Lower Division ──────────────────────────────────────────────
+  {
+    id: "dsc10",
+    code: "DSC 10",
+    title: "Principles of Data Science",
+    units: 4,
+    categories: ["DS Lower Division"],
+    description: "Introduction to data science using Python. Data wrangling, exploratory analysis, and basic statistical inference on real datasets.",
+    prerequisites: [],
+    departments: ["DSC"],
+    genEd: ["Major"],
+    termsOffered: ["Fall", "Winter", "Spring"],
+    tags: ["Major"],
+  },
+  {
+    id: "dsc20",
+    code: "DSC 20",
+    title: "Programming and Basic Data Structures for Data Scientists",
+    units: 4,
+    categories: ["DS Lower Division"],
+    description: "Python programming, data structures (lists, dictionaries, trees), and recursion for data science applications.",
+    prerequisites: ["DSC 10"],
+    departments: ["DSC"],
+    genEd: ["Major"],
+    termsOffered: ["Fall", "Winter", "Spring"],
+    tags: ["Major"],
+  },
+  {
+    id: "dsc30",
+    code: "DSC 30",
+    title: "Data Structures and Algorithms for Data Science",
+    units: 4,
+    categories: ["DS Lower Division"],
+    description: "Linked lists, trees, heaps, hash maps, and sorting/searching algorithms analyzed for time and space complexity.",
+    prerequisites: ["DSC 20"],
+    departments: ["DSC"],
+    genEd: ["Major"],
+    termsOffered: ["Fall", "Winter", "Spring"],
+    tags: ["Major"],
+  },
+
+  // ── Data Science Upper Division ───────────────────────────────────────────────
+  {
+    id: "dsc40a",
+    code: "DSC 40A",
+    title: "Theoretical Foundations of Data Science I",
+    units: 4,
+    categories: ["DS Upper Division"],
+    description: "Mathematical foundations: probability, statistics, optimization, and the geometry of high-dimensional data.",
+    prerequisites: ["DSC 10", "MATH 20A"],
+    departments: ["DSC"],
+    genEd: ["Major"],
+    termsOffered: ["Fall", "Winter", "Spring"],
+    tags: ["Major"],
+  },
+  {
+    id: "dsc80",
+    code: "DSC 80",
+    title: "Practice and Application of Data Science",
+    units: 4,
+    categories: ["DS Upper Division"],
+    description: "Data cleaning, feature engineering, model selection, and the full data science workflow on messy real-world datasets.",
+    prerequisites: ["DSC 30", "DSC 40A"],
+    departments: ["DSC"],
+    genEd: ["Major"],
+    termsOffered: ["Fall", "Winter", "Spring"],
+    tags: ["Major"],
   },
 
   // ── Minor Upper Div ──────────────────────────────────────────────────────────
