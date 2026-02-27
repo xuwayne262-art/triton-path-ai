@@ -453,6 +453,8 @@ export default function Home() {
           addToSchedule={addToSchedule}
           removeFromSchedule={removeFromSchedule}
           getColorForCourse={getColorForCourse}
+          activeRequirements={activeRequirements}
+          allCourses={coursesWithTimes}
         />
 
         {/* Center Pane ── Weekly Schedule / 4-Year Planner */}
