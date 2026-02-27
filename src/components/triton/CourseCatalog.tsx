@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Search, ChevronRight, CheckCircle2, Plus, Sparkles, BookOpen } from "lucide-react";
+import { Search, ChevronRight, CheckCircle2, Plus, Sparkles, BookOpen, Bot } from "lucide-react";
 import {
   Collapsible,
   CollapsibleContent,
@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/collapsible";
 import type { Course } from "./types";
 import type { COURSE_COLORS } from "./types";
+import AIAuditUploader from "./AIAuditUploader";
 
 interface Department {
   code: string;
@@ -40,6 +41,12 @@ interface CourseCatalogProps {
   activeRequirements: Record<string, number>;
   /** Full course list (used to compute recommendations) */
   allCourses: Course[];
+  selectedMajor: string;
+  selectedMinor: string;
+  selectedCollege: string | null;
+  plannedCourses: Array<{ courseId: string; course: Course }>;
+  addAICourseToPlan: (course: Course, year: 1 | 2 | 3 | 4, quarter: "Fall" | "Winter" | "Spring") => void;
+  removePlannedCourse: (courseId: string) => void;
 }
 
 export default function CourseCatalog({
@@ -57,8 +64,14 @@ export default function CourseCatalog({
   getColorForCourse,
   activeRequirements,
   allCourses,
+  selectedMajor,
+  selectedMinor,
+  selectedCollege,
+  plannedCourses,
+  addAICourseToPlan,
+  removePlannedCourse,
 }: CourseCatalogProps) {
-  const [activeTab, setActiveTab] = useState<"catalog" | "recommended">("catalog");
+  const [activeTab, setActiveTab] = useState<"catalog" | "recommended" | "advisor">("catalog");
 
   // ── Recommendation logic ──────────────────────────────────────────────────────
   const recommendedCourses = useMemo(() => {
@@ -95,8 +108,8 @@ export default function CourseCatalog({
   }, [allCourses, activeRequirements, selectedCourses]);
 
   // ── Shared tab button styles ──────────────────────────────────────────────────
-  const tabCls = (tab: "catalog" | "recommended") =>
-    `flex items-center gap-1.5 px-3 py-2 text-xs font-semibold transition-colors border-b-2 ${
+  const tabCls = (tab: "catalog" | "recommended" | "advisor") =>
+    `flex-1 flex items-center justify-center gap-1 px-1.5 py-2 text-[11px] font-semibold transition-colors border-b-2 ${
       activeTab === tab
         ? darkMode
           ? "border-blue-400 text-blue-400"
@@ -139,6 +152,13 @@ export default function CourseCatalog({
               {recommendedCourses.length}
             </span>
           )}
+        </button>
+        <button
+          className={tabCls("advisor")}
+          onClick={() => setActiveTab("advisor")}
+        >
+          <Bot className="w-3.5 h-3.5" />
+          AI Advisor
         </button>
       </div>
 
@@ -446,6 +466,24 @@ export default function CourseCatalog({
             {recommendedCourses.length !== 1 ? "s" : ""} recommended
           </div>
         </>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════════
+          AI ADVISOR TAB
+         ════════════════════════════════════════════════════════════════════════ */}
+      {activeTab === "advisor" && (
+        <AIAuditUploader
+          darkMode={darkMode}
+          selectedMajor={selectedMajor}
+          selectedMinor={selectedMinor}
+          selectedCollege={selectedCollege}
+          selectedCourses={selectedCourses}
+          addToSchedule={addToSchedule}
+          removeFromSchedule={removeFromSchedule}
+          plannedCourses={plannedCourses}
+          addAICourseToPlan={addAICourseToPlan}
+          removePlannedCourse={removePlannedCourse}
+        />
       )}
     </aside>
   );

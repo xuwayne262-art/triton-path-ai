@@ -173,6 +173,32 @@ export default function Home() {
     setSelectedCourses(selectedCourses.filter((c) => c.id !== id));
   };
 
+  const addAICourseToPlan = (
+    course: Course,
+    year: 1 | 2 | 3 | 4,
+    quarter: "Fall" | "Winter" | "Spring"
+  ) => {
+    const instanceId = `${course.id}-${Date.now()}`;
+    // Give the course a generated time slot so it renders on the weekly calendar grid
+    const courseWithTime: Course = { ...course, time: generateSampleTime(course.code) };
+    // Add to the 4-Year Planner
+    setPlannedCourses((prev) => [
+      ...prev,
+      { courseId: instanceId, course: courseWithTime, year, quarter },
+    ]);
+    // Add to the weekly schedule (skip if already present by original course.id)
+    setSelectedCourses((prev) => {
+      if (prev.find((sc) => sc.course.id === course.id)) return prev;
+      return [...prev, { course: courseWithTime, id: instanceId }];
+    });
+  };
+
+  const removePlannedCourse = (courseId: string) => {
+    // Remove from both the planner and the weekly schedule
+    setPlannedCourses((prev) => prev.filter((pc) => pc.courseId !== courseId));
+    setSelectedCourses((prev) => prev.filter((sc) => sc.id !== courseId));
+  };
+
   const addToPlanner = () => {
     selectedCourses.forEach((sc) => {
       if (!plannedCourses.find((pc) => pc.courseId === sc.course.id)) {
@@ -455,6 +481,12 @@ export default function Home() {
           getColorForCourse={getColorForCourse}
           activeRequirements={activeRequirements}
           allCourses={coursesWithTimes}
+          selectedMajor={selectedMajor}
+          selectedMinor={selectedMinor}
+          selectedCollege={selectedCollege}
+          plannedCourses={plannedCourses}
+          addAICourseToPlan={addAICourseToPlan}
+          removePlannedCourse={removePlannedCourse}
         />
 
         {/* Center Pane ── Weekly Schedule / 4-Year Planner */}
