@@ -3,12 +3,11 @@
 import { useState, useMemo, useEffect } from "react";
 import {
   Moon, Sun, Plus, X, Calendar, BookOpen,
-  GraduationCap, RotateCcw,
+  GraduationCap, RotateCcw, Sparkles, Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
-  DEPARTMENTS,
   COLLEGES,
   SAMPLE_COURSES,
   COURSE_COLORS,
@@ -24,8 +23,10 @@ import {
   MAJOR_REQUIREMENTS,
   MINOR_REQUIREMENTS,
 } from "@/data/requirements";
+import { UCSD_MAJORS, UCSD_MINORS } from "@/data/ucsdMajorsMinors";
 import CourseCatalog from "@/components/triton/CourseCatalog";
 import RightSidebar from "@/components/triton/RightSidebar";
+import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 
 // ── Module-level helpers ───────────────────────────────────────────────────────
 
@@ -52,21 +53,6 @@ const coursesWithTimes: Course[] = SAMPLE_COURSES.map((c) => ({
   time: generateSampleTime(c.code),
 }));
 
-const MORE_DEPARTMENTS = [
-  { code: "DS",   name: "Data Science",                courseCount: 45  },
-  { code: "ECE",  name: "Electrical & Computer Eng",   courseCount: 134 },
-  { code: "MAE",  name: "Mechanical & Aerospace Eng",  courseCount: 78  },
-  { code: "BENG", name: "Bioengineering",               courseCount: 56  },
-  { code: "NENG", name: "NanoEngineering",              courseCount: 45  },
-  { code: "SE",   name: "Structural Engineering",       courseCount: 42  },
-  { code: "CENG", name: "Chemical Engineering",         courseCount: 52  },
-  { code: "JAMS", name: "Media",                        courseCount: 38  },
-];
-
-const ALL_DEPARTMENTS = [...DEPARTMENTS, ...MORE_DEPARTMENTS].sort((a, b) =>
-  a.name.localeCompare(b.name)
-);
-
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 interface ScheduleCourse {
@@ -89,14 +75,14 @@ export default function Home() {
   const [selectedMajor, setSelectedMajor] = useState<string>("Computer Science (BS)");
   const [selectedMinor, setSelectedMinor] = useState<string>("None");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedDepartment] = useState<string | null>(null);
   const [selectedCourses, setSelectedCourses] = useState<ScheduleCourse[]>([]);
   const [plannedCourses, setPlannedCourses] = useState<PlannedCourse[]>([]);
-  const [expandedDepts, setExpandedDepts] = useState<string[]>(["CSE", "MATH", "DSC"]);
   const [showPlanner, setShowPlanner] = useState(false);
   const [plannerYear, setPlannerYear] = useState<1 | 2 | 3 | 4>(1);
   const [plannerQuarter, setPlannerQuarter] = useState<"Fall" | "Winter" | "Spring">("Fall");
   const [conflicts, setConflicts] = useState<string[]>([]);
+  const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+  const [planError, setPlanError] = useState<string | null>(null);
 
   // Dark mode class toggle
   useEffect(() => {
@@ -106,30 +92,6 @@ export default function Home() {
       document.documentElement.classList.remove("dark");
     }
   }, [darkMode]);
-
-  // Filtered course list
-  const filteredCourses = useMemo(() => {
-    return coursesWithTimes.filter((course) => {
-      const matchesSearch =
-        searchQuery === "" ||
-        course.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        course.tags?.some((tag) =>
-          tag.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-
-      const matchesDept =
-        selectedDepartment === null ||
-        course.departments?.includes(selectedDepartment);
-
-      const matchesCollege =
-        !course.collegeLimit ||
-        selectedCollege === null ||
-        course.collegeLimit.includes(selectedCollege);
-
-      return matchesSearch && matchesDept && matchesCollege;
-    });
-  }, [searchQuery, selectedDepartment, selectedCollege]);
 
   // Time-conflict detection
   useEffect(() => {
@@ -199,6 +161,20 @@ export default function Home() {
     setSelectedCourses((prev) => prev.filter((sc) => sc.id !== courseId));
   };
 
+  const onDragEnd = (result: DropResult) => {
+    const { source, destination, draggableId } = result;
+    if (!destination || destination.droppableId === source.droppableId) return;
+    const [yearStr, quarter] = destination.droppableId.split("-");
+    const year = Number(yearStr) as 1 | 2 | 3 | 4;
+    setPlannedCourses((prev) =>
+      prev.map((pc) =>
+        pc.courseId === draggableId
+          ? { ...pc, year, quarter: quarter as "Fall" | "Winter" | "Spring" }
+          : pc
+      )
+    );
+  };
+
   const addToPlanner = () => {
     selectedCourses.forEach((sc) => {
       if (!plannedCourses.find((pc) => pc.courseId === sc.course.id)) {
@@ -215,25 +191,89 @@ export default function Home() {
     });
   };
 
-  const getColorForCourse = (index: number) =>
-    COURSE_COLORS[index % COURSE_COLORS.length];
+  // ── AI 4-Year Plan Generator ──────────────────────────────────────────────────
 
-  const toggleDept = (code: string) => {
-    setExpandedDepts((prev) =>
-      prev.includes(code) ? prev.filter((d) => d !== code) : [...prev, code]
-    );
+  interface AICourse {
+    id: string;
+    name: string;
+    units: number;
+    term: string;
+    year: string | number;
+  }
+
+  const generateFourYearPlan = async () => {
+    setIsGeneratingPlan(true);
+    setPlanError(null);
+    try {
+      const res = await fetch("/api/generate-plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ selectedMajor, selectedCollege }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error ?? "Server error");
+      }
+
+      const data = await res.json();
+      const raw: unknown = JSON.parse(data.text);
+
+      // Accept both a bare array and { courses: [...] }
+      const aiCourses: AICourse[] = Array.isArray(raw)
+        ? (raw as AICourse[])
+        : ((raw as { courses?: AICourse[] }).courses ?? []);
+
+      const validQuarters = ["Fall", "Winter", "Spring"] as const;
+
+      const newPlanned: PlannedCourse[] = aiCourses.map((c, i) => {
+        // Normalize year → 1 | 2 | 3 | 4
+        const yearRaw =
+          typeof c.year === "number"
+            ? c.year
+            : parseInt(String(c.year).replace(/\D/g, ""), 10);
+        const year = ([1, 2, 3, 4] as const).includes(yearRaw as 1 | 2 | 3 | 4)
+          ? (yearRaw as 1 | 2 | 3 | 4)
+          : 1;
+
+        // Normalize quarter — capitalize first letter
+        const termNorm =
+          c.term.charAt(0).toUpperCase() + c.term.slice(1).toLowerCase();
+        const quarter = (
+          validQuarters as readonly string[]
+        ).includes(termNorm)
+          ? (termNorm as "Fall" | "Winter" | "Spring")
+          : "Fall";
+
+        const courseWithTime: Course = {
+          id: c.id.toLowerCase().replace(/\s+/g, ""),
+          code: c.id,
+          title: c.name,
+          units: c.units ?? 4,
+          departments: [c.id.split(" ")[0]],
+          time: generateSampleTime(c.id),
+        };
+
+        return {
+          courseId: `ai-${courseWithTime.id}-${i}`,
+          course: courseWithTime,
+          year,
+          quarter,
+        };
+      });
+
+      setPlannedCourses(newPlanned);
+      setShowPlanner(true);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unknown error";
+      setPlanError(msg);
+    } finally {
+      setIsGeneratingPlan(false);
+    }
   };
 
-  // Courses grouped by primary department (for CourseCatalog)
-  const groupedCourses = useMemo(() => {
-    const groups: Record<string, typeof filteredCourses> = {};
-    filteredCourses.forEach((course) => {
-      const dept = course.departments?.[0] ?? "Other";
-      if (!groups[dept]) groups[dept] = [];
-      groups[dept].push(course);
-    });
-    return groups;
-  }, [filteredCourses]);
+  const getColorForCourse = (index: number) =>
+    COURSE_COLORS[index % COURSE_COLORS.length];
 
   // Merged flat dict: category → targetUnits
   const activeRequirements = useMemo((): Record<string, number> => {
@@ -375,7 +415,8 @@ export default function Home() {
               onChange={(e) => setSelectedMajor(e.target.value)}
               className={selectCls}
             >
-              {Object.keys(MAJOR_REQUIREMENTS).map((m) => (
+              <option value="">— Select a Major —</option>
+              {UCSD_MAJORS.map((m) => (
                 <option key={m} value={m}>
                   {m}
                 </option>
@@ -393,9 +434,9 @@ export default function Home() {
               onChange={(e) => setSelectedMinor(e.target.value)}
               className={selectCls}
             >
-              {Object.keys(MINOR_REQUIREMENTS).map((m) => (
+              {UCSD_MINORS.map((m) => (
                 <option key={m} value={m}>
-                  {m}
+                  {m === "None" ? "— None / Select a Minor —" : m}
                 </option>
               ))}
             </select>
@@ -470,11 +511,6 @@ export default function Home() {
           darkMode={darkMode}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
-          filteredCourses={filteredCourses}
-          groupedCourses={groupedCourses}
-          allDepartments={ALL_DEPARTMENTS}
-          expandedDepts={expandedDepts}
-          toggleDept={toggleDept}
           selectedCourses={selectedCourses}
           addToSchedule={addToSchedule}
           removeFromSchedule={removeFromSchedule}
@@ -525,6 +561,33 @@ export default function Home() {
               <BookOpen className="w-4 h-4 inline-block mr-1.5" />
               4-Year Planner
             </button>
+
+            {/* ── Auto-Fill 4-Year Plan ─────────────────────────────────────── */}
+            <div className="ml-auto flex items-center gap-2">
+              {planError && (
+                <span className="text-xs text-red-500 max-w-[180px] truncate">
+                  {planError}
+                </span>
+              )}
+              <button
+                onClick={generateFourYearPlan}
+                disabled={isGeneratingPlan}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold rounded-lg transition-all disabled:opacity-60 disabled:cursor-not-allowed
+                  bg-gradient-to-r from-violet-500 to-indigo-500 hover:from-violet-600 hover:to-indigo-600 text-white shadow-sm hover:shadow-md`}
+              >
+                {isGeneratingPlan ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Generating…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Auto-Fill 4-Year Plan
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
           {/* ── Weekly Schedule View ───────────────────────────────────────── */}
@@ -832,97 +895,127 @@ export default function Home() {
                 )}
 
                 {/* Planned courses grid */}
-                <div
-                  className={`rounded-xl overflow-hidden border ${
-                    darkMode
-                      ? "border-gray-700 bg-gray-800"
-                      : "border-gray-200 bg-white"
-                  }`}
-                >
-                  <div className="grid grid-cols-4 gap-2 p-2">
-                    {[1, 2, 3, 4].map((year) => (
-                      <div
-                        key={year}
-                        className={`p-2 rounded-lg text-center ${
-                          darkMode ? "bg-gray-700" : "bg-gray-50"
-                        }`}
-                      >
-                        <p
-                          className={`font-semibold ${
-                            darkMode ? "text-white" : "text-gray-900"
+                <DragDropContext onDragEnd={onDragEnd}>
+                  <div
+                    className={`rounded-xl overflow-hidden border ${
+                      darkMode
+                        ? "border-gray-700 bg-gray-800"
+                        : "border-gray-200 bg-white"
+                    }`}
+                  >
+                    {/* Year header row */}
+                    <div className="grid grid-cols-4 gap-2 p-2">
+                      {[1, 2, 3, 4].map((year) => (
+                        <div
+                          key={year}
+                          className={`p-2 rounded-lg text-center ${
+                            darkMode ? "bg-gray-700" : "bg-gray-50"
                           }`}
                         >
-                          Year {year}
-                        </p>
-                        <p
-                          className={`text-xs ${
-                            darkMode ? "text-gray-400" : "text-gray-500"
-                          }`}
-                        >
-                          {year === 1
-                            ? "Freshman"
-                            : year === 2
-                            ? "Sophomore"
-                            : year === 3
-                            ? "Junior"
-                            : "Senior"}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-4 gap-2 p-2">
-                    {[1, 2, 3, 4].map((year) => (
-                      <div key={year} className="space-y-2">
-                        {["Fall", "Winter", "Spring"].map((quarter) => {
-                          const courses = plannedCourses.filter(
-                            (p) => p.year === year && p.quarter === quarter
-                          );
-                          return (
-                            <div
-                              key={quarter}
-                              className={`p-2 rounded-lg min-h-[80px] ${
-                                darkMode ? "bg-gray-700/50" : "bg-gray-50/50"
-                              }`}
-                            >
-                              <p
-                                className={`text-[10px] font-medium mb-1 ${
-                                  darkMode ? "text-gray-400" : "text-gray-400"
-                                }`}
-                              >
-                                {quarter}
-                              </p>
-                              {courses.length === 0 ? (
-                                <p
-                                  className={`text-[10px] ${
-                                    darkMode
-                                      ? "text-gray-600"
-                                      : "text-gray-300"
-                                  }`}
-                                >
-                                  No courses
-                                </p>
-                              ) : (
-                                <div className="space-y-1">
-                                  {courses.map((pc, idx) => {
-                                    const color = getColorForCourse(idx);
-                                    return (
-                                      <div
-                                        key={pc.courseId}
-                                        className={`text-[10px] px-1.5 py-0.5 rounded ${color.bg} ${color.text}`}
+                          <p
+                            className={`font-semibold ${
+                              darkMode ? "text-white" : "text-gray-900"
+                            }`}
+                          >
+                            Year {year}
+                          </p>
+                          <p
+                            className={`text-xs ${
+                              darkMode ? "text-gray-400" : "text-gray-500"
+                            }`}
+                          >
+                            {year === 1
+                              ? "Freshman"
+                              : year === 2
+                              ? "Sophomore"
+                              : year === 3
+                              ? "Junior"
+                              : "Senior"}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Quarter columns */}
+                    <div className="grid grid-cols-4 gap-2 p-2">
+                      {[1, 2, 3, 4].map((year) => (
+                        <div key={year} className="space-y-2">
+                          {(["Fall", "Winter", "Spring"] as const).map((quarter) => {
+                            const courses = plannedCourses.filter(
+                              (p) => p.year === year && p.quarter === quarter
+                            );
+                            const droppableId = `${year}-${quarter}`;
+                            return (
+                              <Droppable droppableId={droppableId} key={droppableId}>
+                                {(provided, snapshot) => (
+                                  <div
+                                    ref={provided.innerRef}
+                                    {...provided.droppableProps}
+                                    className={`p-2 rounded-lg min-h-[80px] transition-colors ${
+                                      snapshot.isDraggingOver
+                                        ? darkMode
+                                          ? "bg-blue-900/40 ring-1 ring-blue-500"
+                                          : "bg-blue-50 ring-1 ring-blue-400"
+                                        : darkMode
+                                        ? "bg-gray-700/50"
+                                        : "bg-gray-50/50"
+                                    }`}
+                                  >
+                                    <p
+                                      className={`text-[10px] font-medium mb-1 ${
+                                        darkMode ? "text-gray-400" : "text-gray-400"
+                                      }`}
+                                    >
+                                      {quarter}
+                                    </p>
+                                    {courses.length === 0 && !snapshot.isDraggingOver && (
+                                      <p
+                                        className={`text-[10px] ${
+                                          darkMode ? "text-gray-600" : "text-gray-300"
+                                        }`}
                                       >
-                                        {pc.course.code}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ))}
+                                        No courses
+                                      </p>
+                                    )}
+                                    <div className="space-y-1">
+                                      {courses.map((pc, idx) => {
+                                        const color = getColorForCourse(idx);
+                                        return (
+                                          <Draggable
+                                            key={pc.courseId}
+                                            draggableId={pc.courseId}
+                                            index={idx}
+                                          >
+                                            {(dragProvided, dragSnapshot) => (
+                                              <div
+                                                ref={dragProvided.innerRef}
+                                                {...dragProvided.draggableProps}
+                                                {...dragProvided.dragHandleProps}
+                                                className={`text-[10px] px-1.5 py-1 rounded cursor-grab active:cursor-grabbing select-none transition-shadow ${color.bg} ${color.text} ${
+                                                  dragSnapshot.isDragging
+                                                    ? "shadow-lg ring-2 ring-white/50 scale-105"
+                                                    : "hover:shadow-sm"
+                                                }`}
+                                              >
+                                                <span className="font-semibold">{pc.course.code}</span>
+                                                <span className="opacity-70 ml-1">· {pc.course.units}u</span>
+                                              </div>
+                                            )}
+                                          </Draggable>
+                                        );
+                                      })}
+                                    </div>
+                                    {provided.placeholder}
+                                  </div>
+                                )}
+                              </Droppable>
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                </DragDropContext>
               </div>
             </div>
           )}

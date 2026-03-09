@@ -4,7 +4,8 @@
       "Bash(cd /c/Users/xuway/triton-path-ai && npx shadcn@latest init --defaults 2>&1)",
       "Bash(head:*)",
       "Bash(npm install:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(node:*)"
     ]
   }
 }

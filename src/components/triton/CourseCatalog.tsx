@@ -10,12 +10,8 @@ import {
 import type { Course } from "./types";
 import type { COURSE_COLORS } from "./types";
 import AIAuditUploader from "./AIAuditUploader";
-
-interface Department {
-  code: string;
-  name: string;
-  courseCount: number;
-}
+import { CATEGORIZED_COURSES } from "@/data/categorizedCourses";
+import type { HistoricalCourse } from "@/data/categorizedCourses";
 
 interface ScheduleCourse {
   course: Course;
@@ -28,11 +24,6 @@ interface CourseCatalogProps {
   darkMode: boolean;
   searchQuery: string;
   setSearchQuery: (q: string) => void;
-  filteredCourses: Course[];
-  groupedCourses: Record<string, Course[]>;
-  allDepartments: Department[];
-  expandedDepts: string[];
-  toggleDept: (code: string) => void;
   selectedCourses: ScheduleCourse[];
   addToSchedule: (course: Course) => void;
   removeFromSchedule: (id: string) => void;
@@ -53,11 +44,6 @@ export default function CourseCatalog({
   darkMode,
   searchQuery,
   setSearchQuery,
-  filteredCourses,
-  groupedCourses,
-  allDepartments,
-  expandedDepts,
-  toggleDept,
   selectedCourses,
   addToSchedule,
   removeFromSchedule,
@@ -72,6 +58,12 @@ export default function CourseCatalog({
   removePlannedCourse,
 }: CourseCatalogProps) {
   const [activeTab, setActiveTab] = useState<"catalog" | "recommended" | "advisor">("catalog");
+  const [expandedDepts, setExpandedDepts] = useState<string[]>(["CSE", "MATH", "DSC"]);
+
+  const toggleDept = (code: string) =>
+    setExpandedDepts((prev) =>
+      prev.includes(code) ? prev.filter((d) => d !== code) : [...prev, code]
+    );
 
   // ── Recommendation logic ──────────────────────────────────────────────────────
   const recommendedCourses = useMemo(() => {
@@ -106,6 +98,23 @@ export default function CourseCatalog({
         ),
       }));
   }, [allCourses, activeRequirements, selectedCourses]);
+
+  // ── Catalog tab: filter CATEGORIZED_COURSES by search query ──────────────────
+  const filteredCategorized = useMemo((): Record<string, HistoricalCourse[]> => {
+    if (!searchQuery.trim()) return CATEGORIZED_COURSES;
+    const q = searchQuery.toLowerCase();
+    const result: Record<string, HistoricalCourse[]> = {};
+    for (const [dept, courses] of Object.entries(CATEGORIZED_COURSES)) {
+      const filtered = courses.filter((c) => c.id.toLowerCase().includes(q));
+      if (filtered.length > 0) result[dept] = filtered;
+    }
+    return result;
+  }, [searchQuery]);
+
+  const totalFilteredCount = useMemo(
+    () => Object.values(filteredCategorized).reduce((n, arr) => n + arr.length, 0),
+    [filteredCategorized]
+  );
 
   // ── Shared tab button styles ──────────────────────────────────────────────────
   const tabCls = (tab: "catalog" | "recommended" | "advisor") =>
@@ -192,15 +201,13 @@ export default function CourseCatalog({
           {/* Scrollable course list */}
           <div className="flex-1 overflow-y-auto">
             <div className="p-2">
-              {filteredCourses.length === 0 ? (
+              {Object.keys(filteredCategorized).length === 0 ? (
                 <div className="text-center py-8 text-gray-400 text-sm">
                   No courses found
                 </div>
               ) : (
                 <div className="space-y-0.5">
-                  {Object.entries(groupedCourses).map(([dept, courses]) => {
-                    const deptName =
-                      allDepartments.find((d) => d.code === dept)?.name ?? dept;
+                  {Object.entries(filteredCategorized).map(([dept, courses]) => {
                     const isExpanded = expandedDepts.includes(dept);
                     return (
                       <Collapsible
@@ -221,7 +228,7 @@ export default function CourseCatalog({
                                 isExpanded ? "rotate-90" : ""
                               }`}
                             />
-                            <span className="truncate">{deptName}</span>
+                            <span className="truncate">{dept}</span>
                           </div>
                           <span
                             className={`ml-1 flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full ${
@@ -236,16 +243,15 @@ export default function CourseCatalog({
 
                         <CollapsibleContent>
                           <div className="ml-2 mt-0.5 space-y-0.5 pb-1">
-                            {courses.map((course) => {
-                              const globalIdx = filteredCourses.indexOf(course);
-                              const color = getColorForCourse(globalIdx);
+                            {courses.map((hc, idx) => {
+                              const color = getColorForCourse(idx);
                               const scheduledItem = selectedCourses.find(
-                                (s) => s.course.id === course.id
+                                (s) => s.course.code === hc.id
                               );
                               const isAdded = !!scheduledItem;
                               return (
                                 <div
-                                  key={course.id}
+                                  key={hc.id}
                                   className={`flex items-center justify-between px-2 py-1.5 rounded-md transition-colors ${
                                     darkMode
                                       ? "hover:bg-gray-700"
@@ -257,7 +263,7 @@ export default function CourseCatalog({
                                       <span
                                         className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${color.bg} ${color.text}`}
                                       >
-                                        {course.code}
+                                        {hc.id}
                                       </span>
                                       <span
                                         className={`text-[10px] ${
@@ -266,25 +272,24 @@ export default function CourseCatalog({
                                             : "text-gray-400"
                                         }`}
                                       >
-                                        {course.units}u
+                                        {hc.termsOffered.join(" · ")}
                                       </span>
                                     </div>
-                                    <p
-                                      className={`text-xs truncate mt-0.5 ${
-                                        darkMode
-                                          ? "text-gray-200"
-                                          : "text-gray-700"
-                                      }`}
-                                    >
-                                      {course.title}
-                                    </p>
                                   </div>
                                   <button
-                                    onClick={() =>
-                                      isAdded
-                                        ? removeFromSchedule(scheduledItem!.id)
-                                        : addToSchedule(course)
-                                    }
+                                    onClick={() => {
+                                      if (isAdded) {
+                                        removeFromSchedule(scheduledItem!.id);
+                                      } else {
+                                        addToSchedule({
+                                          id: hc.id.toLowerCase().replace(/\s+/g, ""),
+                                          code: hc.id,
+                                          title: hc.id,
+                                          units: 4,
+                                          departments: [dept],
+                                        });
+                                      }
+                                    }}
                                     className={`ml-1.5 flex-shrink-0 p-1 rounded transition-colors ${
                                       isAdded
                                         ? "text-green-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
@@ -318,7 +323,7 @@ export default function CourseCatalog({
                 : "border-gray-200 text-gray-400"
             }`}
           >
-            {filteredCourses.length} course{filteredCourses.length !== 1 ? "s" : ""}{" "}
+            {totalFilteredCount} course{totalFilteredCount !== 1 ? "s" : ""}{" "}
             available
           </div>
         </>
