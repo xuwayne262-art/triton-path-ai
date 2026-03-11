@@ -60,6 +60,16 @@ export default function CourseCatalog({
   const [activeTab, setActiveTab] = useState<"catalog" | "recommended" | "advisor">("catalog");
   const [expandedDepts, setExpandedDepts] = useState<string[]>(["CSE", "MATH", "DSC"]);
 
+  // Split "MATH 20A" → dept="MATH", courseNumStr="20A"
+  // Strip non-digits: "20A" → "20", then parseInt → 20
+  const getCourseNumber = (id: string): number => {
+    const parts = id.split(" ");
+    if (parts.length < 2) return 0;
+    const courseNumStr = parts[1];
+    const n = parseInt(courseNumStr.replace(/[^0-9]/g, ""), 10);
+    return isNaN(n) ? 0 : n;
+  };
+
   const toggleDept = (code: string) =>
     setExpandedDepts((prev) =>
       prev.includes(code) ? prev.filter((d) => d !== code) : [...prev, code]
@@ -115,6 +125,76 @@ export default function CourseCatalog({
     () => Object.values(filteredCategorized).reduce((n, arr) => n + arr.length, 0),
     [filteredCategorized]
   );
+
+  // ── Group each department's courses into Lower / Upper / Graduate divisions ───
+  const groupedCatalog = useMemo((): Record<string, Record<string, HistoricalCourse[]>> => {
+    const result: Record<string, Record<string, HistoricalCourse[]>> = {};
+    for (const [dept, courses] of Object.entries(filteredCategorized)) {
+      const divisions: Record<string, HistoricalCourse[]> = {
+        "Lower Division": [],
+        "Upper Division": [],
+        "Graduate": [],
+      };
+      for (const hc of courses) {
+        const parts = hc.id.split(" ");
+        const courseNumStr = parts.length >= 2 ? parts[1] : "";
+        const num = parseInt(courseNumStr.replace(/[^0-9]/g, ""), 10);
+        if (num > 0 && num < 100) divisions["Lower Division"].push(hc);
+        else if (num >= 100 && num < 200) divisions["Upper Division"].push(hc);
+        else divisions["Graduate"].push(hc);
+      }
+      result[dept] = divisions;
+    }
+    return result;
+  }, [filteredCategorized]);
+
+  // ── Course row renderer (component-scope so CollapsibleContent can call it) ───
+  const renderCourseRow = (hc: HistoricalCourse, globalIdx: number, dept: string) => {
+    const color = getColorForCourse(globalIdx);
+    const scheduledItem = selectedCourses.find((s) => s.course.code === hc.id);
+    const isAdded = !!scheduledItem;
+    return (
+      <div
+        key={hc.id}
+        className={`flex items-center justify-between px-2 py-1.5 rounded-md transition-colors ${
+          darkMode ? "hover:bg-gray-700" : "hover:bg-gray-50"
+        }`}
+      >
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${color.bg} ${color.text}`}>
+              {hc.id}
+            </span>
+            <span className={`text-[10px] ${darkMode ? "text-gray-500" : "text-gray-400"}`}>
+              {hc.termsOffered.join(" · ")}
+            </span>
+          </div>
+        </div>
+        <button
+          onClick={() => {
+            if (isAdded) {
+              removeFromSchedule(scheduledItem!.id);
+            } else {
+              addToSchedule({
+                id: hc.id.toLowerCase().replace(/\s+/g, ""),
+                code: hc.id,
+                title: hc.id,
+                units: 4,
+                departments: [dept],
+              });
+            }
+          }}
+          className={`ml-1.5 flex-shrink-0 p-1 rounded transition-colors ${
+            isAdded
+              ? "text-green-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
+              : "text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
+          }`}
+        >
+          {isAdded ? <CheckCircle2 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+        </button>
+      </div>
+    );
+  };
 
   // ── Shared tab button styles ──────────────────────────────────────────────────
   const tabCls = (tab: "catalog" | "recommended" | "advisor") =>
@@ -242,69 +322,25 @@ export default function CourseCatalog({
                         </CollapsibleTrigger>
 
                         <CollapsibleContent>
-                          <div className="ml-2 mt-0.5 space-y-0.5 pb-1">
-                            {courses.map((hc, idx) => {
-                              const color = getColorForCourse(idx);
-                              const scheduledItem = selectedCourses.find(
-                                (s) => s.course.code === hc.id
-                              );
-                              const isAdded = !!scheduledItem;
-                              return (
-                                <div
-                                  key={hc.id}
-                                  className={`flex items-center justify-between px-2 py-1.5 rounded-md transition-colors ${
-                                    darkMode
-                                      ? "hover:bg-gray-700"
-                                      : "hover:bg-gray-50"
-                                  }`}
-                                >
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1.5">
-                                      <span
-                                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${color.bg} ${color.text}`}
-                                      >
-                                        {hc.id}
-                                      </span>
-                                      <span
-                                        className={`text-[10px] ${
-                                          darkMode
-                                            ? "text-gray-500"
-                                            : "text-gray-400"
-                                        }`}
-                                      >
-                                        {hc.termsOffered.join(" · ")}
-                                      </span>
-                                    </div>
-                                  </div>
-                                  <button
-                                    onClick={() => {
-                                      if (isAdded) {
-                                        removeFromSchedule(scheduledItem!.id);
-                                      } else {
-                                        addToSchedule({
-                                          id: hc.id.toLowerCase().replace(/\s+/g, ""),
-                                          code: hc.id,
-                                          title: hc.id,
-                                          units: 4,
-                                          departments: [dept],
-                                        });
-                                      }
-                                    }}
-                                    className={`ml-1.5 flex-shrink-0 p-1 rounded transition-colors ${
-                                      isAdded
-                                        ? "text-green-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-                                        : "text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
+                          <div className="ml-2 mt-0.5 pb-1">
+                            {Object.entries(groupedCatalog[dept] ?? {})
+                              .filter(([, divCourses]) => divCourses.length > 0)
+                              .map(([divisionName, divCourses], divIdx) => (
+                                <div key={divisionName} className={divIdx > 0 ? "mt-1" : ""}>
+                                  <div
+                                    className={`px-2 pt-1 pb-0.5 text-[9px] font-bold uppercase tracking-wider ${
+                                      darkMode ? "text-gray-600" : "text-gray-400"
                                     }`}
                                   >
-                                    {isAdded ? (
-                                      <CheckCircle2 className="w-4 h-4" />
-                                    ) : (
-                                      <Plus className="w-4 h-4" />
+                                    {divisionName}
+                                  </div>
+                                  <div className="space-y-0.5">
+                                    {divCourses.map((hc) =>
+                                      renderCourseRow(hc, courses.indexOf(hc), dept)
                                     )}
-                                  </button>
+                                  </div>
                                 </div>
-                              );
-                            })}
+                              ))}
                           </div>
                         </CollapsibleContent>
                       </Collapsible>

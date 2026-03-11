@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   Moon, Sun, Plus, X, Calendar, BookOpen,
   GraduationCap, RotateCcw, Sparkles, Loader2,
@@ -84,6 +84,30 @@ export default function Home() {
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
 
+  // Combobox state for Major / Minor search
+  const [majorSearch, setMajorSearch] = useState("");
+  const [majorOpen, setMajorOpen] = useState(false);
+  const [minorSearch, setMinorSearch] = useState("");
+  const [minorOpen, setMinorOpen] = useState(false);
+  const majorRef = useRef<HTMLDivElement>(null);
+  const minorRef = useRef<HTMLDivElement>(null);
+
+  // Close comboboxes on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (majorRef.current && !majorRef.current.contains(e.target as Node)) {
+        setMajorOpen(false);
+        setMajorSearch("");
+      }
+      if (minorRef.current && !minorRef.current.contains(e.target as Node)) {
+        setMinorOpen(false);
+        setMinorSearch("");
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
   // Dark mode class toggle
   useEffect(() => {
     if (darkMode) {
@@ -124,9 +148,13 @@ export default function Home() {
 
   const addToSchedule = (course: Course) => {
     if (!selectedCourses.find((c) => c.course.id === course.id)) {
+      // Inject time data so the weekly calendar can render the course block
+      const courseWithTime: Course = course.time
+        ? course
+        : { ...course, time: generateSampleTime(course.code) };
       setSelectedCourses([
         ...selectedCourses,
-        { course, id: `${course.id}-${Date.now()}` },
+        { course: courseWithTime, id: `${course.id}-${Date.now()}` },
       ]);
     }
   };
@@ -345,6 +373,19 @@ export default function Home() {
     return groups;
   }, [selectedCourses, selectedCollege, selectedMajor, selectedMinor, activeRequirements]);
 
+  // ── Combobox selection handlers ────────────────────────────────────────────
+  const handleSelectMajor = (major: string) => {
+    setSelectedMajor(major);
+    setMajorOpen(false);
+    setMajorSearch("");
+  };
+
+  const handleSelectMinor = (minor: string) => {
+    setSelectedMinor(minor);
+    setMinorOpen(false);
+    setMinorSearch("");
+  };
+
   // ── Shared select class helper ─────────────────────────────────────────────
   const selectCls = `text-sm rounded-lg border px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500 ${
     darkMode
@@ -405,41 +446,98 @@ export default function Home() {
         <div className={dividerCls} />
 
         {/* Academic profile selectors — Major / Minor / College */}
-        <div className="flex items-center gap-3 flex-1 min-w-0 overflow-x-auto">
-          {/* Major */}
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          {/* Major — searchable combobox */}
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <BookOpen className="w-3.5 h-3.5 text-gray-400" />
             <span className={labelCls}>Major</span>
-            <select
-              value={selectedMajor}
-              onChange={(e) => setSelectedMajor(e.target.value)}
-              className={selectCls}
-            >
-              <option value="">— Select a Major —</option>
-              {UCSD_MAJORS.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="— Select a Major —"
+                value={majorOpen ? majorSearch : selectedMajor}
+                onFocus={() => { setMajorOpen(true); setMajorSearch(""); }}
+                onBlur={() => setMajorOpen(false)}
+                onChange={(e) => setMajorSearch(e.target.value)}
+                className={`${selectCls} w-44 cursor-pointer`}
+              />
+              {majorOpen && (
+                <ul
+                  className={`absolute top-full left-0 z-50 mt-0.5 w-80 max-h-72 overflow-y-auto rounded-lg border shadow-lg m-0 p-0 list-none ${
+                    darkMode ? "bg-gray-800 border-gray-600" : "bg-white border-gray-200"
+                  }`}
+                >
+                  {(() => {
+                    const filtered = !majorSearch
+                      ? UCSD_MAJORS
+                      : UCSD_MAJORS.filter((m) => m?.toLowerCase().includes(majorSearch.toLowerCase()));
+                    if (filtered.length === 0) {
+                      return (
+                        <li className={`px-3 py-3 text-sm text-center list-none ${darkMode ? "text-gray-500" : "text-gray-400"}`}>
+                          No majors found
+                        </li>
+                      );
+                    }
+                    return filtered.map((major) => (
+                      <li
+                        key={major}
+                        onMouseDown={(e) => { e.preventDefault(); handleSelectMajor(major); }}
+                        className={`px-3 py-1.5 text-sm cursor-pointer transition-colors list-none ${
+                          major === selectedMajor
+                            ? darkMode ? "bg-blue-800 text-blue-200" : "bg-blue-50 text-blue-700"
+                            : darkMode ? "text-gray-200 hover:bg-gray-700" : "text-gray-700 hover:bg-gray-50"
+                        }`}
+                      >
+                        {major}
+                      </li>
+                    ));
+                  })()}
+                </ul>
+              )}
+            </div>
           </div>
 
           <div className={dividerCls} />
 
-          {/* Minor */}
+          {/* Minor — searchable combobox */}
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <span className={labelCls}>Minor</span>
-            <select
-              value={selectedMinor}
-              onChange={(e) => setSelectedMinor(e.target.value)}
-              className={selectCls}
-            >
-              {UCSD_MINORS.map((m) => (
-                <option key={m} value={m}>
-                  {m === "None" ? "— None / Select a Minor —" : m}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="— None / Select a Minor —"
+                value={minorOpen ? minorSearch : selectedMinor === "None" ? "" : selectedMinor}
+                onFocus={() => { setMinorOpen(true); setMinorSearch(""); }}
+                onBlur={() => setMinorOpen(false)}
+                onChange={(e) => setMinorSearch(e.target.value)}
+                className={`${selectCls} w-36 cursor-pointer`}
+              />
+              {minorOpen && (
+                <ul
+                  className={`absolute top-full left-0 z-50 mt-0.5 w-64 max-h-64 overflow-y-auto rounded-lg border shadow-lg m-0 p-0 list-none ${
+                    darkMode ? "bg-gray-800 border-gray-600" : "bg-white border-gray-200"
+                  }`}
+                >
+                  {UCSD_MINORS.filter(
+                    (m) => m === "None" || m.toLowerCase().includes(minorSearch.toLowerCase())
+                  ).map((minor) => (
+                    <li
+                      key={minor}
+                      onMouseDown={(e) => { e.preventDefault(); handleSelectMinor(minor); }}
+                      className={`px-3 py-1.5 text-sm cursor-pointer transition-colors list-none ${
+                        minor === selectedMinor
+                          ? darkMode ? "bg-blue-800 text-blue-200" : "bg-blue-50 text-blue-700"
+                          : minor === "None"
+                          ? darkMode ? "text-gray-500 hover:bg-gray-700 italic" : "text-gray-400 hover:bg-gray-50 italic"
+                          : darkMode ? "text-gray-200 hover:bg-gray-700" : "text-gray-700 hover:bg-gray-50"
+                      }`}
+                    >
+                      {minor === "None" ? "— None / No Minor —" : minor}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
 
           <div className={dividerCls} />
