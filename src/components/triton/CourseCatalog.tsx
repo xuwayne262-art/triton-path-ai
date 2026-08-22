@@ -8,17 +8,22 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import type { Course } from "./types";
-import type { COURSE_COLORS } from "./types";
 import AIAuditUploader from "./AIAuditUploader";
-import { CATEGORIZED_COURSES } from "@/data/categorizedCourses";
-import type { HistoricalCourse } from "@/data/categorizedCourses";
+import { GradeBadge } from "@/components/plat/Grade";
+import { byPopularity, majorSubjects, platRowToCourse } from "@/lib/plannerBridge";
+import type { CourseRow as PlatRow } from "@/lib/plat";
 
 interface ScheduleCourse {
   course: Course;
   id: string;
 }
 
-type CourseColor = (typeof COURSE_COLORS)[number];
+interface CourseColor {
+  bg: string;
+  border: string;
+  text: string;
+  hex: string;
+}
 
 interface CourseCatalogProps {
   darkMode: boolean;
@@ -27,7 +32,7 @@ interface CourseCatalogProps {
   selectedCourses: ScheduleCourse[];
   addToSchedule: (course: Course) => void;
   removeFromSchedule: (id: string) => void;
-  getColorForCourse: (idx: number) => CourseColor;
+  getColorForCourse: (course: Course) => CourseColor;
   /** Merged { category → targetUnits } from major + minor + college */
   activeRequirements: Record<string, number>;
   /** Full course list (used to compute recommendations) */
@@ -38,6 +43,11 @@ interface CourseCatalogProps {
   plannedCourses: Array<{ courseId: string; course: Course }>;
   addAICourseToPlan: (course: Course, year: 1 | 2 | 3 | 4, quarter: "Fall" | "Winter" | "Spring") => void;
   removePlannedCourse: (courseId: string) => void;
+  /** The shared TritonPlat dataset — same courses the explorer shows. */
+  platRows: PlatRow[];
+  /** Rendered above the catalog so saved courses are the first thing you see. */
+  savedPanel?: React.ReactNode;
+  legend?: React.ReactNode;
 }
 
 export default function CourseCatalog({
@@ -56,6 +66,9 @@ export default function CourseCatalog({
   plannedCourses,
   addAICourseToPlan,
   removePlannedCourse,
+  platRows,
+  savedPanel,
+  legend,
 }: CourseCatalogProps) {
   const [activeTab, setActiveTab] = useState<"catalog" | "recommended" | "advisor">("catalog");
   const [expandedDepts, setExpandedDepts] = useState<string[]>(["CSE", "MATH", "DSC"]);
@@ -109,82 +122,109 @@ export default function CourseCatalog({
       }));
   }, [allCourses, activeRequirements, selectedCourses]);
 
-  // ── Catalog tab: filter CATEGORIZED_COURSES by search query ──────────────────
-  const filteredCategorized = useMemo((): Record<string, HistoricalCourse[]> => {
-    if (!searchQuery.trim()) return CATEGORIZED_COURSES;
-    const q = searchQuery.toLowerCase();
-    const result: Record<string, HistoricalCourse[]> = {};
-    for (const [dept, courses] of Object.entries(CATEGORIZED_COURSES)) {
-      const filtered = courses.filter((c) => c.id.toLowerCase().includes(q));
-      if (filtered.length > 0) result[dept] = filtered;
+  // ── Catalog tab: the shared dataset, filtered and grouped by department ─────
+  const filteredCategorized = useMemo((): Record<string, PlatRow[]> => {
+    const q = searchQuery.trim().toLowerCase();
+    const result: Record<string, PlatRow[]> = {};
+    for (const row of platRows) {
+      if (q && !`${row.k} ${row.t}`.toLowerCase().includes(q)) continue;
+      (result[row.s] ??= []).push(row);
     }
     return result;
-  }, [searchQuery]);
+  }, [platRows, searchQuery]);
 
   const totalFilteredCount = useMemo(
     () => Object.values(filteredCategorized).reduce((n, arr) => n + arr.length, 0),
     [filteredCategorized]
   );
 
-  // ── Group each department's courses into Lower / Upper / Graduate divisions ───
-  const groupedCatalog = useMemo((): Record<string, Record<string, HistoricalCourse[]>> => {
-    const result: Record<string, Record<string, HistoricalCourse[]>> = {};
+  /**
+   * Departments with the most courses on offer surface first, and within each
+   * department the courses students actually take lead. Alphabetical order put
+   * AAPI and AIP above CSE, which is not how anyone browses a catalog.
+   */
+  const myDepts = useMemo(() => majorSubjects(selectedMajor), [selectedMajor]);
+
+  const orderedDepts = useMemo(
+    () =>
+      Object.entries(filteredCategorized)
+        .sort(([da, a], [db, b]) => {
+          // Your own major first — that is what you are here to plan.
+          const mine = (d: string) => (myDepts.has(d) ? 1 : 0);
+          if (mine(da) !== mine(db)) return mine(db) - mine(da);
+          const offered = (x: PlatRow[]) => x.filter((r) => r.o).length;
+          return offered(b) - offered(a) || b.length - a.length;
+        })
+        .map(([dept]) => dept),
+    [filteredCategorized, myDepts]
+  );
+
+  // Lower division first, then upper, then graduate — and inside each, by how
+  // commonly the course is taken, so niche upper-division seminars sink.
+  const groupedCatalog = useMemo((): Record<string, Record<string, PlatRow[]>> => {
+    const result: Record<string, Record<string, PlatRow[]>> = {};
     for (const [dept, courses] of Object.entries(filteredCategorized)) {
-      const divisions: Record<string, HistoricalCourse[]> = {
+      const divisions: Record<string, PlatRow[]> = {
         "Lower Division": [],
         "Upper Division": [],
         "Graduate": [],
       };
-      for (const hc of courses) {
-        const parts = hc.id.split(" ");
-        const courseNumStr = parts.length >= 2 ? parts[1] : "";
-        const num = parseInt(courseNumStr.replace(/[^0-9]/g, ""), 10);
-        if (num > 0 && num < 100) divisions["Lower Division"].push(hc);
-        else if (num >= 100 && num < 200) divisions["Upper Division"].push(hc);
-        else divisions["Graduate"].push(hc);
+      for (const row of courses) {
+        const num = parseInt(row.c.replace(/[^0-9]/g, ""), 10);
+        if (num > 0 && num < 100) divisions["Lower Division"].push(row);
+        else if (num >= 100 && num < 200) divisions["Upper Division"].push(row);
+        else divisions["Graduate"].push(row);
       }
+      for (const key of Object.keys(divisions)) divisions[key].sort(byPopularity);
       result[dept] = divisions;
     }
     return result;
   }, [filteredCategorized]);
 
   // ── Course row renderer (component-scope so CollapsibleContent can call it) ───
-  const renderCourseRow = (hc: HistoricalCourse, globalIdx: number, dept: string) => {
-    const color = getColorForCourse(globalIdx);
-    const scheduledItem = selectedCourses.find((s) => s.course.code === hc.id);
+  /**
+   * A catalog line now carries what it actually is: the typical grade, the real
+   * title and unit count, and a colour bar for what it counts toward. It used to
+   * show the course code as its own title with units hardcoded to 4.
+   */
+  const renderCourseRow = (row: PlatRow) => {
+    const course = platRowToCourse(row, myDepts);
+    const color = getColorForCourse(course);
+    const scheduledItem = selectedCourses.find((s) => s.course.code === row.k);
     const isAdded = !!scheduledItem;
     return (
       <div
-        key={hc.id}
-        className={`flex items-center justify-between px-2 py-1.5 rounded-md transition-colors ${
+        key={row.k}
+        className={`flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors ${
           darkMode ? "hover:bg-gray-700" : "hover:bg-gray-50"
         }`}
       >
+        <span
+          className="h-7 w-1 flex-shrink-0 rounded-full"
+          style={{ background: color.hex }}
+          title={course.genEd?.length ? "Counts toward a requirement" : undefined}
+        />
+        <GradeBadge gpa={row.g} terms={row.r} size="sm" />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${color.bg} ${color.text}`}>
-              {hc.id}
+            <span className="text-[10px] font-bold truncate">{row.k}</span>
+            <span className={`text-[10px] flex-shrink-0 ${darkMode ? "text-gray-500" : "text-gray-400"}`}>
+              {course.units}u
             </span>
-            <span className={`text-[10px] ${darkMode ? "text-gray-500" : "text-gray-400"}`}>
-              {hc.termsOffered.join(" · ")}
-            </span>
+            {!row.o && (
+              <span className="text-[9px] text-gray-400 flex-shrink-0">not this term</span>
+            )}
+          </div>
+          <div className={`text-[10px] truncate ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+            {row.t}
           </div>
         </div>
         <button
           onClick={() => {
-            if (isAdded) {
-              removeFromSchedule(scheduledItem!.id);
-            } else {
-              addToSchedule({
-                id: hc.id.toLowerCase().replace(/\s+/g, ""),
-                code: hc.id,
-                title: hc.id,
-                units: 4,
-                departments: [dept],
-              });
-            }
+            if (isAdded) removeFromSchedule(scheduledItem!.id);
+            else addToSchedule(course);
           }}
-          className={`ml-1.5 flex-shrink-0 p-1 rounded transition-colors ${
+          className={`ml-1 flex-shrink-0 p-1 rounded transition-colors ${
             isAdded
               ? "text-green-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
               : "text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
@@ -280,6 +320,8 @@ export default function CourseCatalog({
 
           {/* Scrollable course list */}
           <div className="flex-1 overflow-y-auto">
+            {savedPanel && <div className="px-2 pt-2">{savedPanel}</div>}
+            {legend}
             <div className="p-2">
               {Object.keys(filteredCategorized).length === 0 ? (
                 <div className="text-center py-8 text-gray-400 text-sm">
@@ -287,7 +329,8 @@ export default function CourseCatalog({
                 </div>
               ) : (
                 <div className="space-y-0.5">
-                  {Object.entries(filteredCategorized).map(([dept, courses]) => {
+                  {orderedDepts.map((dept) => {
+                    const courses = filteredCategorized[dept];
                     const isExpanded = expandedDepts.includes(dept);
                     return (
                       <Collapsible
@@ -335,9 +378,7 @@ export default function CourseCatalog({
                                     {divisionName}
                                   </div>
                                   <div className="space-y-0.5">
-                                    {divCourses.map((hc) =>
-                                      renderCourseRow(hc, courses.indexOf(hc), dept)
-                                    )}
+                                    {divCourses.map((row) => renderCourseRow(row))}
                                   </div>
                                 </div>
                               ))}
@@ -420,7 +461,7 @@ export default function CourseCatalog({
                     (s) => s.course.id === course.id
                   );
                   const isAdded = !!scheduledItem;
-                  const color = getColorForCourse(idx);
+                  const color = getColorForCourse(course);
                   return (
                     <div
                       key={course.id}
