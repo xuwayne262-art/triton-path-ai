@@ -12,6 +12,7 @@ import {
   noopSubscribe, searchCourses,
   type CourseRow as Row, type PlatIndex,
 } from "@/lib/plat";
+import { DEPARTMENTS } from "@/data/ucsdStructure";
 
 /** Departments worth a shortcut chip; the rest are one click further in. */
 const QUICK_DEPTS = ["CSE", "MATH", "COGS", "ECON", "BILD", "PHYS", "CHEM", "PSYC", "POLI", "DSC"];
@@ -163,7 +164,7 @@ export default function HomePage() {
               </Link>
             ))}
             <Link href="/courses" className="px-2 text-xs font-semibold text-gray-500 hover:underline dark:text-gray-400">
-              all {data?.subjects.length ?? ""} departments →
+              all {DEPARTMENTS.length} departments →
             </Link>
           </div>
 
