@@ -112,12 +112,17 @@ export const DEPARTMENTS: Department[] = [
     id: "ethnic-studies", name: "Ethnic Studies", schoolId: "social",
     subjects: ["ETHN", "AAS", "AAPI", "TWS"],
   },
+  // CLX is its own department in the registrar's listing, not a Psychology code.
+  {
+    id: "chicanx-latinx", name: "Chicanx and Latinx Studies", schoolId: "social",
+    subjects: ["CLX"],
+  },
   {
     id: "linguistics", name: "Linguistics", schoolId: "social",
     subjects: ["LIGN", "LING", "LIAB", "LIDS", "LIFR", "LIGM", "LIHL", "LIIT", "LIPO", "LISL", "LISP"],
   },
   { id: "political-science", name: "Political Science", schoolId: "social", subjects: ["POLI"] },
-  { id: "psychology", name: "Psychology", schoolId: "social", subjects: ["PSYC", "CLIN", "CLX"] },
+  { id: "psychology", name: "Psychology", schoolId: "social", subjects: ["PSYC", "CLIN"] },
   { id: "sociology", name: "Sociology", schoolId: "social", subjects: ["SOCI", "SOC", "SOCE", "SOCG"] },
   { id: "urban-studies", name: "Urban Studies and Planning", schoolId: "social", subjects: ["USP"] },
   { id: "human-development", name: "Human Developmental Sciences", schoolId: "social", subjects: ["HDS", "HDP"] },
@@ -187,7 +192,8 @@ export const DEPARTMENTS: Department[] = [
   },
   {
     id: "campus-programs", name: "Campus-Wide Programs", schoolId: "interdisciplinary",
-    subjects: ["AIP", "EAP", "CCE", "CONT", "COM GEN", "SDCC"],
+    // CCE is not campus-wide — it is Eighth College's core sequence, listed below.
+    subjects: ["AIP", "EAP", "CONT", "COM GEN", "SDCC"],
   },
 ];
 
@@ -203,7 +209,9 @@ export const COLLEGE_UNITS: CollegeUnit[] = [
   { id: "erc", name: "Eleanor Roosevelt College", subjects: ["ERC", "MMW"] },
   { id: "sixth", name: "Sixth College", subjects: ["SXTH", "CAT"] },
   { id: "seventh", name: "Seventh College", subjects: ["SEV", "SYN"] },
-  { id: "eighth", name: "Eighth College", subjects: ["EIGHT"] },
+  // Eighth's core is the CCE sequence — CCE 1, then CCE 2 and 3 for writing,
+  // then the CCE 120 project. There is no "EIGHT" prefix in the catalogue.
+  { id: "eighth", name: "Eighth College", subjects: ["CCE"] },
 ];
 
 // ── Lookups ──────────────────────────────────────────────────────────────────

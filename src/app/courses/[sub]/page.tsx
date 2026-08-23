@@ -2,13 +2,14 @@
 
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Star } from "lucide-react";
+import { ChevronLeft, ExternalLink, Star } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import CourseResults, { DEFAULT_FILTERS, type ResultFilters } from "@/components/plat/CourseResults";
 import { loadIndex, loadSubject, type CourseRow, type PlatIndex, type ProfRecord } from "@/lib/plat";
 import {
-  collegeForSubject, departmentById, departmentForSubject, schoolById,
+  collegeById, collegeForSubject, departmentById, departmentForSubject, schoolById,
 } from "@/data/ucsdStructure";
+import { offeringsForSubjects } from "@/data/departmentOfferings";
 
 interface ProfChip {
   name: string;
@@ -30,8 +31,15 @@ export default function DepartmentPage({ params }: { params: Promise<{ sub: stri
   const param = decodeURIComponent(raw);
 
   const dept = departmentById(param) ?? departmentForSubject(param.toUpperCase());
-  const college = dept ? null : collegeForSubject(param.toUpperCase());
-  const subjects = dept?.subjects ?? college?.subjects ?? [param.toUpperCase()];
+  // Colleges are reachable by their id ("eighth") as well as by a prefix they
+  // own ("CCE"), since the browse list links the former.
+  const college = dept ? null : (collegeById(param) ?? collegeForSubject(param.toUpperCase()));
+  // Held stable across renders so the memos and the fetch effect below key off
+  // one array identity rather than a fresh literal each time.
+  const subjects = useMemo(
+    () => dept?.subjects ?? college?.subjects ?? [param.toUpperCase()],
+    [dept, college, param],
+  );
   const title = dept?.name ?? college?.name ?? param.toUpperCase();
   const school = dept ? schoolById(dept.schoolId) : null;
 
@@ -71,6 +79,8 @@ export default function DepartmentPage({ params }: { params: Promise<{ sub: stri
     () => data?.courses.filter((c) => subjectSet.has(c.s)) ?? [],
     [data, subjectSet],
   );
+
+  const listing = useMemo(() => offeringsForSubjects(subjects), [subjects]);
 
   const offered = rows.filter((r) => r.o).length;
   const visible = showAllProfs ? profs : profs.slice(0, 8);
@@ -114,6 +124,29 @@ export default function DepartmentPage({ params }: { params: Promise<{ sub: stri
               </span>
             ))}
           </div>
+        )}
+
+        {/* Our schedule is a snapshot of a term the registrar was still
+            assembling, so the department's own list is the tie-breaker. */}
+        {listing && listing.url && (
+          <a
+            href={listing.url}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-5 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50/60 p-3 transition hover:border-amber-300 hover:bg-amber-50 dark:border-amber-500/25 dark:bg-amber-500/5 dark:hover:bg-amber-500/10"
+          >
+            <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <span className="min-w-0">
+              <span className="block text-xs font-semibold text-amber-900 dark:text-amber-200">
+                {data?.meta.termName} offerings published by {listing.department}
+              </span>
+              <span className="mt-0.5 block text-[11px] leading-relaxed text-amber-800/80 dark:text-amber-200/70">
+                {listing.note
+                  ?? listing.label
+                  ?? "Tentative and subject to change — check here before you plan around a section."}
+              </span>
+            </span>
+          </a>
         )}
 
         {profs.length > 0 && (
