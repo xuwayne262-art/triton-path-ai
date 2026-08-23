@@ -420,8 +420,25 @@ export function sortCourses(rows: CourseRow[], key: SortKey): CourseRow[] {
       return out.sort((a, b) => (b.pq ?? -1) - (a.pq ?? -1));
     case "code":
     default:
-      return out.sort((a, b) => a.s.localeCompare(b.s) || num(a) - num(b) || a.c.localeCompare(b.c));
+      // Level band first, so a department spanning several prefixes leads with
+      // lower-division undergraduate courses rather than whichever prefix
+      // happens to sort first alphabetically (Biology opened on graduate BGGN).
+      return out.sort(
+        (a, b) =>
+          levelBand(a) - levelBand(b) ||
+          a.s.localeCompare(b.s) ||
+          num(a) - num(b) ||
+          a.c.localeCompare(b.c),
+      );
   }
+}
+
+/** 0 = lower division, 1 = upper division, 2 = graduate. */
+export function levelBand(c: CourseRow): number {
+  const n = parseInt(c.c, 10) || 0;
+  if (n >= 200) return 2;
+  if (n >= 100) return 1;
+  return 0;
 }
 
 /** Average GPA shrunk toward the ~3.2 campus mean when the sample is small. */

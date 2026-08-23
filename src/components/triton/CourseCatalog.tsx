@@ -11,6 +11,7 @@ import type { Course } from "./types";
 import AIAuditUploader from "./AIAuditUploader";
 import { GradeBadge } from "@/components/plat/Grade";
 import { byPopularity, majorSubjects, platRowToCourse } from "@/lib/plannerBridge";
+import { collegeForSubject, departmentForSubject } from "@/data/ucsdStructure";
 import type { CourseRow as PlatRow } from "@/lib/plat";
 
 interface ScheduleCourse {
@@ -71,7 +72,7 @@ export default function CourseCatalog({
   legend,
 }: CourseCatalogProps) {
   const [activeTab, setActiveTab] = useState<"catalog" | "recommended" | "advisor">("catalog");
-  const [expandedDepts, setExpandedDepts] = useState<string[]>(["CSE", "MATH", "DSC"]);
+  const [expandedDepts, setExpandedDepts] = useState<string[]>(["Computer Science and Engineering"]);
 
   // Split "MATH 20A" → dept="MATH", courseNumStr="20A"
   // Strip non-digits: "20A" → "20", then parseInt → 20
@@ -123,12 +124,17 @@ export default function CourseCatalog({
   }, [allCourses, activeRequirements, selectedCourses]);
 
   // ── Catalog tab: the shared dataset, filtered and grouped by department ─────
+  // Grouped by real department, not by course prefix — Biology is one entry
+  // covering BILD/BICD/BIEB/BIMM/BIPN/BISP rather than six separate ones.
   const filteredCategorized = useMemo((): Record<string, PlatRow[]> => {
     const q = searchQuery.trim().toLowerCase();
     const result: Record<string, PlatRow[]> = {};
     for (const row of platRows) {
       if (q && !`${row.k} ${row.t}`.toLowerCase().includes(q)) continue;
-      (result[row.s] ??= []).push(row);
+      const dept = departmentForSubject(row.s);
+      const college = dept ? null : collegeForSubject(row.s);
+      const label = dept?.name ?? college?.name ?? row.s;
+      (result[label] ??= []).push(row);
     }
     return result;
   }, [platRows, searchQuery]);
@@ -148,10 +154,10 @@ export default function CourseCatalog({
   const orderedDepts = useMemo(
     () =>
       Object.entries(filteredCategorized)
-        .sort(([da, a], [db, b]) => {
+        .sort(([, a], [, b]) => {
           // Your own major first — that is what you are here to plan.
-          const mine = (d: string) => (myDepts.has(d) ? 1 : 0);
-          if (mine(da) !== mine(db)) return mine(db) - mine(da);
+          const mine = (rows: PlatRow[]) => (rows.some((r) => myDepts.has(r.s)) ? 1 : 0);
+          if (mine(a) !== mine(b)) return mine(b) - mine(a);
           const offered = (x: PlatRow[]) => x.filter((r) => r.o).length;
           return offered(b) - offered(a) || b.length - a.length;
         })
