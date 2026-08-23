@@ -2,7 +2,9 @@
 /**
  * Builds the TritonPlat course dataset from public UCSD sources.
  *
- *   data.json        ucsd-easy-a-radar  — 2015-2026 grade distributions + RateMyProfessors
+ *   as-grades.json   AS Instructor Grade Archive — 2015-2026 grade distributions (fetch-as-grades.mjs)
+ *   catalog.json     catalog.ucsd.edu   — every catalogued course + prerequisites (fetch-catalog.mjs)
+ *   data.json        ucsd-easy-a-radar  — RateMyProfessors scores, seat links
  *   schedule.json    ucsd-easy-a-radar  — Fall 2026 WebReg snapshot (sections, rooms, seats)
  *   ge-courses.json  ucsd-easy-a-radar  — approved GE lists per UCSD college
  *
@@ -33,7 +35,7 @@ const SUBJECT_NAMES = {
   BICD: "Biology: Genetics, Cellular & Developmental", BIEB: "Biology: Ecology, Behavior & Evolution",
   BILD: "Biology, Lower Division", BIMM: "Biology: Molecular & Microbiology",
   BIPN: "Biology: Physiology & Neuroscience", BISP: "Biology: Special Studies",
-  CAT: "Culture, Art & Technology (Sixth)", CCS: "Culture, Communication & Society",
+  CAT: "Culture, Art & Technology (Sixth)", CCS: "Climate Change Studies",
   CENG: "Chemical Engineering", CGS: "Critical Gender Studies", CHEM: "Chemistry & Biochemistry",
   CHIN: "Chinese Studies", CLAS: "Classical Studies", CLIN: "Clinical Psychology",
   COGS: "Cognitive Science", COMM: "Communication", CONT: "Contemporary Issues",
@@ -74,10 +76,23 @@ const SUBJECT_NAMES = {
   TDPR: "Theatre: Practicum", TDTR: "Theatre & Dance", TMC: "Thurgood Marshall College",
   USP: "Urban Studies & Planning", VIS: "Visual Arts", WARR: "Warren College",
   WCWP: "Warren College Writing Program", WES: "Warren Ethics & Society",
+  // Single-subject programs, named as the registrar lists them.
+  AAPI: "Asian American and Pacific Islander Studies",
+  AIP: "Academic Internship Program",
+  CCE: "Critical Community Engagement",
+  CLX: "Chicanx and Latinx Studies",
+  CSS: "Computational Social Science",
+  JWSP: "Jewish Studies",
+  PH: "Public Health",
 };
 
 async function download() {
   fs.mkdirSync(CACHE, { recursive: true });
+  for (const [file, script] of [["as-grades.json", "fetch-as-grades.mjs"], ["catalog.json", "fetch-catalog.mjs"]]) {
+    if (!fs.existsSync(path.join(CACHE, file))) {
+      throw new Error(`missing .data-cache/${file} — run: node scripts/${script}`);
+    }
+  }
   for (const f of SOURCES) {
     const dest = path.join(CACHE, f);
     if (fs.existsSync(dest) && fs.statSync(dest).size > 1000) {
@@ -122,13 +137,94 @@ function sameInstructor(a, b) {
   return pa[0][0] === pb[0][0];
 }
 
+/**
+ * Folds the per-term AS Instructor Grade Archive rows into one record per
+ * course x instructor — the grain the rest of this script expects.
+ *
+ * The GPA is averaged over the terms that actually reported one. Terms with no
+ * published GPA (fully P/NP offerings, tiny sections the registrar suppresses)
+ * carry a 0 in the archive, and averaging those in as if they were failing
+ * quarters is what dragged CSE 191/Micciancio down to a "C-" when its one
+ * graded term was a 3.88.
+ */
+function foldAsGrades(as) {
+  const byPair = new Map();
+
+  for (const [sub, num, yy, , title, instructor, gpa, A, B, C, D, F, W, P, NP] of as.rows) {
+    const key = `${sub} ${num}|${instructor}`;
+    if (!byPair.has(key)) {
+      byPair.set(key, {
+        sub, num, instructor, title,
+        terms: 0, gpaSum: 0, gpaTerms: 0, lastYear: null,
+        A: 0, B: 0, C: 0, D: 0, F: 0, W: 0, P: 0, NP: 0,
+      });
+    }
+    const p = byPair.get(key);
+    p.terms++;
+    if (gpa > 0) { p.gpaSum += gpa; p.gpaTerms++; }
+    const y = Number(yy);
+    if (Number.isFinite(y) && (p.lastYear == null || y > p.lastYear)) p.lastYear = y;
+    p.A += A; p.B += B; p.C += C; p.D += D; p.F += F; p.W += W; p.P += P; p.NP += NP;
+    if (title && title.length > p.title.length) p.title = title;
+  }
+
+  // Rebuilt in the column layout the downstream code indexes into, so the only
+  // thing that changed is where the numbers came from.
+  const cols = ["s", "c", "t", "i", "g", "gA", "gB", "gC", "gD", "gF", "gW", "gP", "gNP", "n", "y"];
+  const titles = [];
+  const titleIndex = new Map();
+  const recs = [];
+
+  for (const p of byPair.values()) {
+    if (!titleIndex.has(p.title)) { titleIndex.set(p.title, titles.length); titles.push(p.title); }
+    const avg = (v) => +(v / p.terms).toFixed(4);
+    recs.push([
+      p.sub, p.num, titleIndex.get(p.title), p.instructor,
+      p.gpaTerms ? +(p.gpaSum / p.gpaTerms).toFixed(3) : 0,
+      avg(p.A), avg(p.B), avg(p.C), avg(p.D), avg(p.F), avg(p.W), avg(p.P), avg(p.NP),
+      p.terms, p.lastYear,
+    ]);
+  }
+
+  return { cols, titles, recs, meta: as.meta };
+}
+
 function build() {
-  const grades = readCache("data.json");
+  // Grades come straight from UCSD Associated Students' own archive; the
+  // remaining extras (RateMyProfessors scores, prerequisites, seat links, FA26
+  // instructor lists) still ride along in data.json and each need their own
+  // first-party source before that file can be dropped entirely.
+  const asGrades = readCache("as-grades.json");
+  const extras = fs.existsSync(path.join(CACHE, "data.json")) ? readCache("data.json") : null;
+  const catalog = readCache("catalog.json");
   const sched = readCache("schedule.json");
   const ge = readCache("ge-courses.json");
 
+  const grades = foldAsGrades(asGrades);
   const col = Object.fromEntries(grades.cols.map((c, i) => [c, i]));
   const titles = grades.titles;
+
+  // RateMyProfessors scores are keyed by instructor, so they can be joined onto
+  // the AS records without depending on that file's grade numbers.
+  const rmp = new Map();
+  if (extras) {
+    const ec = Object.fromEntries(extras.cols.map((c, i) => [c, i]));
+    for (const r of extras.recs) {
+      const name = r[ec.i];
+      if (!name || rmp.has(name)) continue;
+      if (r[ec.rq] == null && r[ec.rid] == null) continue;
+      rmp.set(name, {
+        rq: r[ec.rq] ?? null, rd: r[ec.rd] ?? null,
+        rw: r[ec.rw] ?? null, rn: r[ec.rn] ?? null, rid: r[ec.rid] ?? null,
+      });
+    }
+    console.log(`  joined RateMyProfessors scores for ${rmp.size} instructors`);
+  } else {
+    console.log("  no data.json — building without RateMyProfessors, prereqs or seat links");
+  }
+  const currentFa = new Set(
+    extras ? Object.values(extras.fa || {}).flat().map((n) => String(n)) : [],
+  );
 
   // ── course code -> GE areas it satisfies ──────────────────────────────────
   // Some colleges nest a level deeper (ERC "Regional Specialization" -> "Africa"),
@@ -171,11 +267,23 @@ function build() {
     return byCourse.get(code);
   };
 
+  // The catalog is the roster of what exists. Seeding from it first means a
+  // course keeps its entry through the quarters it is not offered and has no
+  // grade history yet — which is most of the catalogue most of the time.
+  for (const [code, , , title, units, prereq] of catalog.courses) {
+    const c = upsert(code);
+    c.title = title || "";
+    c.units = units || "";
+    if (prereq) c.pre = prereq;
+    c.inCatalog = 1;
+  }
+
   for (const r of grades.recs) {
     const code = `${r[col.s]} ${r[col.c]}`;
     const c = upsert(code);
     const t = titles[r[col.t]];
     if (t && (!c.title || t.length > c.title.length)) c.title = t;
+    const rating = rmp.get(r[col.i]) || {};
     c.profs.push({
       i: displayName(r[col.i]),
       g: r[col.g] || 0,
@@ -184,30 +292,32 @@ function build() {
       P: r[col.gP] || 0, NP: r[col.gNP] || 0,
       n: r[col.n] || 0,
       y: r[col.y] ?? null,
-      cur: r[col.cur] || 0,
-      rq: r[col.rq] ?? null, rd: r[col.rd] ?? null,
-      rw: r[col.rw] ?? null, rn: r[col.rn] ?? null, rid: r[col.rid] ?? null,
+      cur: currentFa.has(r[col.i]) ? 1 : 0,
+      rq: rating.rq ?? null, rd: rating.rd ?? null,
+      rw: rating.rw ?? null, rn: rating.rn ?? null, rid: rating.rid ?? null,
     });
-    if (r[col.off]) c.offered = 1;
   }
 
   // ── Fall 2026 schedule: authoritative titles, units, sections ─────────────
   for (const [code, s] of Object.entries(sched.courses)) {
     const c = upsert(code);
-    if (s.t) c.title = s.t;
+    if (s.t && s.t.length > c.title.length) c.title = s.t;
     c.units = s.u || "";
     c.sec = s.sec || [];
     c.offered = 1;
   }
 
   // ── prerequisites, seat links, FA26 instructor names ──────────────────────
-  for (const [code, text] of Object.entries(grades.pre || {})) {
-    if (byCourse.has(code)) byCourse.get(code).pre = text;
+  // Prerequisites ride along on the catalog entries above; data.json only fills
+  // gaps for courses the catalog no longer lists.
+  for (const [code, text] of Object.entries((extras && extras.pre) || {})) {
+    const c = byCourse.get(code);
+    if (c && !c.pre) c.pre = text;
   }
-  for (const [code, v] of Object.entries(grades.seats || {})) {
+  for (const [code, v] of Object.entries((extras && extras.seats) || {})) {
     if (byCourse.has(code) && v && v.u) byCourse.get(code).seatUrl = v.u;
   }
-  for (const [code, list] of Object.entries(grades.fa || {})) {
+  for (const [code, list] of Object.entries((extras && extras.fa) || {})) {
     if (byCourse.has(code)) byCourse.get(code).faInstructors = list;
   }
 
@@ -318,16 +428,18 @@ function build() {
   const meta = {
     term: sched.term,
     termName: sched.termName,
-    generated: grades.meta.generated,
+    generated: grades.meta.retrieved,
     years: grades.meta.years,
-    gradeRecords: grades.meta.gradeRecords,
+    gradeRecords: grades.recs.length,
+    gradeTerms: grades.meta.rows,
     catalogCourses: index.length,
     offered: index.filter((c) => c.o).length,
     buildings: sched.buildings,
     sources: [
-      "Edwardwang66/ucsd-easy-a-radar — 2015-2026 grade distributions + RateMyProfessors",
-      grades.meta.catalogSource,
-      grades.meta.prereqs && grades.meta.prereqs.source,
+      `${grades.meta.source} (${grades.meta.url}) — ${grades.meta.years} grade distributions`,
+      extras && "RateMyProfessors scores, prerequisites and seat links via data.json",
+      `${catalog.meta.source} (${catalog.meta.url}) — ${catalog.meta.courses} courses, ${catalog.meta.withPrereq} with prerequisites`,
+
     ].filter(Boolean),
   };
 
