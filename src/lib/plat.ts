@@ -453,3 +453,90 @@ export const courseHref = (code: string) => {
   const i = code.lastIndexOf(" ");
   return `/course/${encodeURIComponent(code.slice(0, i))}/${encodeURIComponent(code.slice(i + 1))}`;
 };
+
+// ── Professors ───────────────────────────────────────────────────────────────
+// Search used to look only at `row.p`, the instructor named on this term's
+// schedule, which made roughly four in five instructors in the grade history
+// unfindable. This index covers everyone who has ever appeared.
+
+/** [course code, avg GPA, graded terms, teaching now, A rate] */
+export type ProfCourse = [string, number | null, number, 0 | 1, number | null];
+
+export interface ProfessorRecord {
+  n: string;
+  /** Other spellings, e.g. the schedule's "Joe Politz". */
+  a?: string[];
+  q: number | null;   // RateMyProfessors quality
+  nr: number | null;  // number of ratings
+  d: number | null;   // difficulty
+  w: number | null;   // would take again, percent
+  id: number | null;  // RateMyProfessors id
+  cur: 0 | 1;         // teaching this term
+  terms: number;
+  gpa: number | null;
+  c: ProfCourse[];
+}
+
+export interface ProfessorFile {
+  meta: { term: string };
+  professors: ProfessorRecord[];
+}
+
+export const loadProfessors = () =>
+  loadJSON<ProfessorFile>("/data/plat/professors.json");
+
+/** URL-safe slug for a professor page. */
+export const professorSlug = (name: string) =>
+  name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+export const professorHref = (name: string) => `/professor/${professorSlug(name)}`;
+
+export interface ProfHit {
+  prof: ProfessorRecord;
+  score: number;
+}
+
+/**
+ * Ranks instructors by name, matching any recorded spelling. Surname matches
+ * rank above scattered first-name matches, and someone teaching this term
+ * outranks an identically-named person who is not.
+ */
+export function searchProfessors(
+  profs: ProfessorRecord[],
+  query: string,
+  limit = 5,
+): ProfHit[] {
+  const q = query.trim().toLowerCase();
+  if (q.length < 2) return [];
+  const words = q.split(/\s+/).filter(Boolean);
+  const hits: ProfHit[] = [];
+
+  for (const prof of profs) {
+    const names = [prof.n, ...(prof.a ?? [])];
+    let best = 0;
+
+    for (const name of names) {
+      const lower = name.toLowerCase();
+      const surname = lower.split(/\s+/).pop() ?? "";
+      let score = 0;
+
+      if (lower === q) score = 1000;
+      else if (surname === q) score = 900;
+      else if (surname.startsWith(q)) score = 800;
+      else if (lower.startsWith(q)) score = 700;
+      else if (words.length > 1 && words.every((w) => lower.includes(w))) score = 600;
+      else if (words.length === 1 && lower.includes(q)) score = 400;
+
+      best = Math.max(best, score);
+    }
+
+    if (!best) continue;
+    // Prefer people you can actually enrol with, and better-evidenced records.
+    best += prof.cur ? 120 : 0;
+    best += Math.min(prof.nr ?? 0, 100) / 10;
+    best += Math.min(prof.terms, 20);
+    hits.push({ prof, score: best });
+  }
+
+  return hits.sort((a, b) => b.score - a.score).slice(0, limit);
+}

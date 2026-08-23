@@ -6,11 +6,11 @@ import { useRouter } from "next/navigation";
 import { CalendarClock, GraduationCap, Layers, Search, Sparkles, Star, TrendingUp } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import CourseRow from "@/components/plat/CourseRow";
-import { GradeBadge } from "@/components/plat/Grade";
+import SearchResults, { type Combined } from "@/components/plat/SearchResults";
 import {
-  confidentGpa, countdownServerSnapshot, countdownSnapshot, courseHref, loadIndex,
-  noopSubscribe, searchCourses,
-  type CourseRow as Row, type PlatIndex,
+  confidentGpa, countdownServerSnapshot, countdownSnapshot, loadIndex, loadProfessors,
+  noopSubscribe, professorHref, searchCourses, searchProfessors,
+  type CourseRow as Row, type PlatIndex, type ProfessorRecord,
 } from "@/lib/plat";
 import { DEPARTMENTS } from "@/data/ucsdStructure";
 
@@ -58,9 +58,28 @@ export default function HomePage() {
 
   const countdown = useSyncExternalStore(noopSubscribe, countdownSnapshot, countdownServerSnapshot);
 
+  const [profs, setProfs] = useState<ProfessorRecord[]>([]);
   useEffect(() => { loadIndex().then(setData).catch(() => {}); }, []);
+  useEffect(() => { loadProfessors().then((d) => setProfs(d.professors)).catch(() => {}); }, []);
 
-  const hits = useMemo(() => searchCourses(data?.courses ?? [], q, 6), [data, q]);
+  const results = useMemo<Combined>(
+    () => ({
+      profs: searchProfessors(profs, q, 4),
+      courses: searchCourses(data?.courses ?? [], q, 6),
+    }),
+    [data, profs, q],
+  );
+
+  const flat = useMemo(
+    () => [
+      ...results.profs.map((p) => professorHref(p.prof.n)),
+      ...results.courses.map(({ row }) => {
+        const i = row.k.lastIndexOf(" ");
+        return `/course/${encodeURIComponent(row.k.slice(0, i))}/${encodeURIComponent(row.k.slice(i + 1))}`;
+      }),
+    ],
+    [results],
+  );
   const [activeFor, setActiveFor] = useState(q);
   if (activeFor !== q) { setActiveFor(q); setActive(0); }
 
@@ -93,7 +112,7 @@ export default function HomePage() {
     return { easiest, bestTaught, openToAll };
   }, [data]);
 
-  const go = (row: Row | undefined) => row && router.push(courseHref(row.k));
+  const go = (href: string | undefined) => { if (href) router.push(href); };
 
   return (
     <PlatShell hideSearch>
@@ -115,9 +134,9 @@ export default function HomePage() {
               value={q}
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "ArrowDown") { e.preventDefault(); setActive((i) => Math.min(i + 1, hits.length - 1)); }
+                if (e.key === "ArrowDown") { e.preventDefault(); setActive((i) => Math.min(i + 1, flat.length - 1)); }
                 else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
-                else if (e.key === "Enter") { e.preventDefault(); go(hits[active]?.row); }
+                else if (e.key === "Enter") { e.preventDefault(); go(flat[active]); }
               }}
               placeholder="CSE 11, organic chemistry, Joe Politz…"
               className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-12 pr-4 text-sm shadow-sm outline-none transition
@@ -125,30 +144,15 @@ export default function HomePage() {
                          dark:border-white/10 dark:bg-white/5 dark:text-gray-100 dark:focus:border-[#FFCD00]"
             />
             {q.trim().length >= 2 && (
-              <ul className="absolute left-0 right-0 top-full z-40 mt-2 list-none overflow-hidden rounded-xl border border-gray-200 bg-white p-1 shadow-xl dark:border-white/10 dark:bg-[#101a2b]">
-                {hits.length === 0 ? (
-                  <li className="px-4 py-6 text-center text-sm text-gray-400">Nothing matched “{q}”</li>
-                ) : (
-                  hits.map(({ row }, i) => (
-                    <li key={row.k}>
-                      <button
-                        type="button"
-                        onMouseEnter={() => setActive(i)}
-                        onClick={() => go(row)}
-                        className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition ${
-                          i === active ? "bg-gray-100 dark:bg-white/10" : ""
-                        }`}
-                      >
-                        <GradeBadge gpa={row.g} terms={row.r} size="sm" />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-medium">{row.t}</span>
-                          <span className="block font-mono text-xs text-gray-500 dark:text-gray-400">{row.k}</span>
-                        </span>
-                      </button>
-                    </li>
-                  ))
-                )}
-              </ul>
+              <div className="absolute left-0 right-0 top-full z-40 mt-2 max-h-[26rem] overflow-y-auto rounded-xl border border-gray-200 bg-white p-1 shadow-xl dark:border-white/10 dark:bg-[#101a2b]">
+                <SearchResults
+                  results={results}
+                  query={q}
+                  active={active}
+                  onHover={setActive}
+                  onPick={go}
+                />
+              </div>
             )}
           </div>
 

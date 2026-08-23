@@ -337,8 +337,85 @@ function build() {
     return fs.statSync(p).size;
   };
 
+  // ── Professor index ───────────────────────────────────────────────────────
+  // Search previously only knew instructors named on this term's schedule, so
+  // roughly four in five professors in the grade history were unfindable. This
+  // indexes every instructor who has ever appeared, with the courses they
+  // taught, and records the schedule's spelling of their name as an alias so
+  // "Joe Politz" and "Joseph Gibbs Politz" both resolve.
+  const profMap = new Map();
+  for (const c of byCourse.values()) {
+    for (const p of c.profs) {
+      let rec = profMap.get(p.i);
+      if (!rec) {
+        rec = {
+          n: p.i, aliases: new Set(),
+          q: p.rq ?? null, nr: p.rn ?? null, d: p.rd ?? null, w: p.rw ?? null,
+          id: p.rid ?? null, cur: 0, terms: 0, courses: [],
+        };
+        profMap.set(p.i, rec);
+      }
+      // Keep the richest RateMyProfessors record we see for this person.
+      if ((p.rn ?? 0) > (rec.nr ?? 0)) {
+        rec.q = p.rq ?? null; rec.nr = p.rn ?? null;
+        rec.d = p.rd ?? null; rec.w = p.rw ?? null; rec.id = p.rid ?? null;
+      }
+      if (p.cur) rec.cur = 1;
+      rec.terms += p.n;
+      rec.courses.push([c.code, p.g > 0 ? p.g : null, p.n, p.cur ? 1 : 0, p.A || null]);
+      const sched = (c.sec.find((x) => x[1] !== "FI" && x[7]) || [])[7];
+      if (sched && sameInstructor(p.i, sched) && sched !== p.i) rec.aliases.add(sched);
+      for (const fa of c.faInstructors || []) {
+        if (sameInstructor(p.i, fa) && fa !== p.i) rec.aliases.add(fa);
+      }
+    }
+  }
+
+  // The source lists some instructors twice — once under the schedule's short
+  // spelling with no grade history, once under the full name that carries it.
+  // Fold the empty one into the real record so a search for "Politz" returns one
+  // person, not two. Only records with no grade history are folded, so two
+  // genuinely different people who share a surname and initial stay separate.
+  for (const rec of [...profMap.values()]) {
+    if (rec.terms > 0) continue;
+    const matches = [...profMap.values()].filter(
+      (o) => o !== rec && o.terms > 0 && sameInstructor(o.n, rec.n),
+    );
+    if (matches.length !== 1) continue;
+    const target = matches[0];
+    target.aliases.add(rec.n);
+    for (const a of rec.aliases) target.aliases.add(a);
+    if (rec.cur) target.cur = 1;
+    for (const row of rec.courses) {
+      if (!target.courses.some((x) => x[0] === row[0])) target.courses.push(row);
+    }
+    profMap.delete(rec.n);
+  }
+
+  const professors = [...profMap.values()]
+    .map((r) => {
+      // Weighted mean GPA across everything they have taught.
+      let num = 0, den = 0;
+      for (const [, gpa, terms] of r.courses) {
+        if (gpa == null) continue;
+        const wgt = Math.max(terms, 1);
+        num += gpa * wgt; den += wgt;
+      }
+      r.courses.sort((a, b) => b[3] - a[3] || b[2] - a[2]);
+      return {
+        n: r.n,
+        a: r.aliases.size ? [...r.aliases] : undefined,
+        q: r.q, nr: r.nr, d: r.d, w: r.w, id: r.id,
+        cur: r.cur, terms: r.terms,
+        gpa: den ? +(num / den).toFixed(3) : null,
+        c: r.courses,
+      };
+    })
+    .sort((a, b) => a.n.localeCompare(b.n));
+
   const sizeIndex = write("index.json", { meta, subjects, courses: index });
   const sizeGe = write("ge.json", { meta: ge.meta, areas: geAreas, lists: geLists });
+  const sizeProfs = write("professors.json", { meta: { term: sched.term }, professors });
   let sizeSubjects = 0;
   for (const [sub, courses] of bySubject) {
     sizeSubjects += write(path.join("subject", `${sub}.json`), {
@@ -353,6 +430,7 @@ function build() {
   const mb = (n) => `${(n / 1024 / 1024).toFixed(2)} MB`;
   console.log(`\n  index.json      ${index.length} courses    ${mb(sizeIndex)}`);
   console.log(`  ge.json         ${geAreas.length} GE areas    ${mb(sizeGe)}`);
+  console.log(`  professors.json ${professors.length} instructors ${mb(sizeProfs)}`);
   console.log(`  subject/*.json  ${bySubject.size} subjects   ${mb(sizeSubjects)}`);
   console.log(`  ${meta.offered} offered in ${meta.termName} · ${meta.gradeRecords} grade records\n`);
 }
