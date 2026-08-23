@@ -71,14 +71,56 @@ export default function PlatShell({
       <main>{children}</main>
 
       <footer className="mt-20 border-t border-gray-200 py-8 dark:border-white/10">
-        <div className="mx-auto max-w-5xl px-4 text-xs leading-relaxed text-gray-400">
+        <div className="mx-auto max-w-5xl space-y-3 px-4 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
           {meta && (
             <p>
-              {meta.gradeRecords.toLocaleString()} published UCSD grade distributions, {meta.years},
-              matched to RateMyProfessors. Snapshot {meta.generated}. Historical grades describe the
-              past, not your quarter — confirm requirements with your college advisor.
+              {meta.gradeRecords.toLocaleString()} course–instructor grade distributions, {meta.years},
+              from the{" "}
+              <a
+                href="https://asmain.ucsd.edu/Home/InstructorGradeArchive"
+                target="_blank"
+                rel="noreferrer"
+                className="underline underline-offset-2 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                UCSD Associated Students Instructor Grade Archive
+              </a>
+              , matched to{" "}
+              <a
+                href="https://www.ratemyprofessors.com"
+                target="_blank"
+                rel="noreferrer"
+                className="underline underline-offset-2 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                RateMyProfessors
+              </a>
+              . Course listings, units and prerequisites come from the{" "}
+              <a
+                href="https://catalog.ucsd.edu/front/courses.html"
+                target="_blank"
+                rel="noreferrer"
+                className="underline underline-offset-2 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                UCSD General Catalog
+              </a>
+              . Snapshot {meta.generated}. Historical grades describe the past, not your quarter —
+              confirm requirements with your college advisor.
             </p>
           )}
+          <p>
+            How the letter badge is worked out: it is not a grade anyone received. For each course we
+            take every published grade record (one per instructor per quarter), average their GPAs
+            weighted by the number of quarters each instructor taught it, and round that average to
+            the nearest official UCSD grade point — 3.85+ shows A, 3.50+ A−, 3.15+ B+, 2.85+ B, 2.50+
+            B−, 2.15+ C+, 1.85+ C, anything lower C−. Quarters the archive publishes without a GPA
+            (fully pass/no-pass offerings, sections too small to report) are left out of that average
+            rather than counted as zeros. The colour follows a coarser scale of the same
+            average (3.70+ very generous, 3.40+ generous, 3.00+ average, 2.60+ tough, below that
+            brutal), an amber dot means a single term of history stands behind the letter, and a dash
+            means no published history at all. Weighting counts terms taught rather than students
+            enrolled, so an instructor with many small sections pulls the average further than one
+            with a couple of large lectures. Professor badges apply the same rule to that professor’s
+            own records.
+          </p>
         </div>
       </footer>
     </div>
