@@ -141,20 +141,25 @@ export const loadSubject = (sub: string) =>
   loadJSON<SubjectFile>(`/data/plat/subject/${encodeURIComponent(sub)}.json`);
 
 // ── Enrollment calendar ──────────────────────────────────────────────────────
-// Placeholder dates modeled on a typical UCSD fall cycle. Swap for the real
-// Registrar dates before this goes in front of students.
 
 export interface Pass {
   label: string;
   date: Date;
 }
 
+/** The three Fall 2026 enrollment passes. Times are 8am Pacific. */
 export const ENROLLMENT_PASSES: Pass[] = [
-  { label: "First Pass", date: new Date("2026-05-18T08:00:00-07:00") },
-  { label: "Second Pass", date: new Date("2026-06-01T08:00:00-07:00") },
-  { label: "Open Enrollment", date: new Date("2026-08-24T08:00:00-07:00") },
-  { label: "Instruction Begins", date: new Date("2026-09-24T08:00:00-07:00") },
+  { label: "Pass 1", date: new Date("2026-07-22T08:00:00-07:00") },
+  { label: "Pass 2", date: new Date("2026-08-17T08:00:00-07:00") },
+  { label: "Pass 3", date: new Date("2026-09-12T08:00:00-07:00") },
 ];
+
+/** "Jul 22" — the label under each marker. */
+export function passDate(pass: Pass): string {
+  return pass.date.toLocaleDateString("en-US", {
+    month: "short", day: "numeric", timeZone: "America/Los_Angeles",
+  });
+}
 
 export function nextPass(now = new Date()): { pass: Pass; days: number } | null {
   const upcoming = ENROLLMENT_PASSES.find((p) => p.date.getTime() > now.getTime());
@@ -182,6 +187,44 @@ export function passProgress(now = new Date()): number {
   const last = ENROLLMENT_PASSES[ENROLLMENT_PASSES.length - 1].date.getTime();
   return Math.min(1, Math.max(0, (now.getTime() - first) / (last - first)));
 }
+
+export interface PassMark {
+  pass: Pass;
+  /** Already opened. */
+  done: boolean;
+  /** The one being counted down to. */
+  next: boolean;
+}
+
+export interface PassTimelineState {
+  marks: PassMark[];
+  /** 0-1 along the bar. */
+  progress: number;
+  countdown: { pass: Pass; days: number } | null;
+}
+
+// Same identity-stable trick as the countdown above: useSyncExternalStore
+// compares snapshots by reference, so this is computed once per page load.
+let timelineCache: PassTimelineState | undefined;
+
+/** Client snapshot of the whole timeline; the server renders nothing. */
+export function timelineSnapshot(): PassTimelineState {
+  if (timelineCache === undefined) {
+    const now = new Date();
+    const upcoming = nextPass(now);
+    timelineCache = {
+      marks: ENROLLMENT_PASSES.map((pass) => ({
+        pass,
+        done: pass.date.getTime() <= now.getTime(),
+        next: upcoming?.pass === pass,
+      })),
+      progress: passProgress(now),
+      countdown: upcoming,
+    };
+  }
+  return timelineCache;
+}
+export const timelineServerSnapshot = () => null;
 
 // ── Grade / rating presentation ──────────────────────────────────────────────
 

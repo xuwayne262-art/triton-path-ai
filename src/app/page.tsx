@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CalendarClock, GraduationCap, Layers, Search, Sparkles, Star, TrendingUp } from "lucide-react";
+import { GraduationCap, Layers, Search, Sparkles, Star, TrendingUp } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import CourseRow from "@/components/plat/CourseRow";
+import PassTimeline from "@/components/plat/PassTimeline";
 import SearchResults, { type Combined } from "@/components/plat/SearchResults";
 import {
-  confidentGpa, countdownServerSnapshot, countdownSnapshot, loadIndex, loadProfessors,
-  noopSubscribe, professorHref, searchCourses, searchProfessors,
+  confidentGpa, loadIndex, loadProfessors, professorHref, searchCourses, searchProfessors,
   type CourseRow as Row, type PlatIndex, type ProfessorRecord,
 } from "@/lib/plat";
 import { DEPARTMENTS } from "@/data/ucsdStructure";
@@ -56,7 +56,6 @@ export default function HomePage() {
   const [q, setQ] = useState("");
   const [active, setActive] = useState(0);
 
-  const countdown = useSyncExternalStore(noopSubscribe, countdownSnapshot, countdownServerSnapshot);
 
   const [profs, setProfs] = useState<ProfessorRecord[]>([]);
   useEffect(() => { loadIndex().then(setData).catch(() => {}); }, []);
@@ -172,12 +171,7 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {countdown && (
-            <p className="mt-6 flex items-center justify-center gap-1.5 text-xs text-gray-400">
-              <CalendarClock className="h-3.5 w-3.5" />
-              {countdown.days} days until {countdown.pass.label}
-            </p>
-          )}
+          <PassTimeline termName={data?.meta.termName} />
         </div>
       </section>
 
