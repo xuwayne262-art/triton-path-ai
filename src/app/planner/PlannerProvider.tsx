@@ -251,9 +251,18 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   const syncedRef = useRef<Set<string>>(new Set());
   /** Subjects whose section file has been requested, so each is fetched once. */
   const loadedSubjects = useRef<Set<string>>(new Set());
-  /** Guards state writes from in-flight fetches after the planner unmounts. */
+  /**
+   * Guards state writes from in-flight fetches after the planner unmounts.
+   *
+   * The setup line is load-bearing: Strict Mode mounts, unmounts and remounts,
+   * and a cleanup-only effect left this false for the rest of the session, so
+   * every section fetch resolved into a discarded result.
+   */
   const mounted = useRef(true);
-  useEffect(() => () => { mounted.current = false; }, []);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {

@@ -417,17 +417,22 @@ export function layoutDay(dayEvents: CalEvent[]): PlacedEvent[] {
   return placed;
 }
 
+/** The academic day the grid always shows, whatever is on it. */
+export const DAY_START = 8 * 60;
+export const DAY_END = 18 * 60;
+
 /**
  * The window the grid needs to draw, in minutes past midnight.
  *
- * A fixed 8am–10pm grid spends two thirds of its height on hours nobody has
- * class in. This snaps to the hours actually in use, with a sane default while
- * the schedule is empty.
+ * A fixed 8am–10pm grid spends a third of its height on hours nobody has class
+ * in, but snapping tightly to the events was worse: one 11am lecture produced a
+ * two-hour sliver that read as a broken calendar rather than a week. So the
+ * ordinary academic day is always drawn, and the window only ever grows — for
+ * an 8am lab or an evening lecture.
  */
 export function dayWindow(events: CalEvent[]): { startMin: number; endMin: number } {
-  if (!events.length) return { startMin: 8 * 60, endMin: 18 * 60 };
-  let lo = Infinity;
-  let hi = -Infinity;
+  let lo = DAY_START;
+  let hi = DAY_END;
   for (const e of events) {
     lo = Math.min(lo, e.startMin);
     hi = Math.max(hi, e.endMin);
