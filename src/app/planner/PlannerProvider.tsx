@@ -16,13 +16,33 @@ import {
   MAJOR_REQUIREMENTS,
   MINOR_REQUIREMENTS,
 } from "@/data/requirements";
-import { loadIndex, type CourseRow as PlatRow } from "@/lib/plat";
+import {
+  loadIndex, loadSubject, type CourseRow as PlatRow, type SectionTuple,
+} from "@/lib/plat";
 import { useShortlist } from "@/components/plat/useShortlist";
 import { useTheme } from "@/components/plat/theme";
 import {
   courseRole, majorSubjects, platRowToCourse, ROLE_STYLES,
   type CourseRole, type RoleContext,
 } from "@/lib/plannerBridge";
+import {
+  autoPick, buildEvents, busyFrom, groupSections, isComplete, missingParts,
+  sectionMeetings, selectedSections,
+  type CalEvent, type EventSource, type SectionSelection,
+} from "@/lib/sections";
+
+/**
+ * The planner's own `CourseTime` uses 24-hour "09:30"; the schedule snapshot
+ * uses "9:30a" and is parsed by plat.ts. Both end up as minutes past midnight.
+ */
+function clockToMinutes(t: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(t.trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (h > 23 || min > 59) return null;
+  return h * 60 + min;
+}
 
 /**
  * The planner is two pages — the term workspace and the four-year plan — and
@@ -53,6 +73,20 @@ export interface CourseColor {
   border: string;
   text: string;
   hex: string;
+}
+
+/** How far along a course's section choice is, for the rail to report. */
+export interface SectionStatus {
+  /** The term's schedule publishes sections for this course. */
+  available: boolean;
+  /** Still loading the subject file. */
+  loading: boolean;
+  /** A lecture family has been chosen. */
+  started: boolean;
+  /** Every required sub-section has a pick. */
+  complete: boolean;
+  /** "discussion", "lab" — what is still outstanding. */
+  missing: string[];
 }
 
 export interface DegreeProgressGroup {
@@ -104,6 +138,8 @@ interface Persisted {
   planned: PlannedCourse[];
   /** Saved codes already pushed onto the schedule, so removals stick. */
   synced: string[];
+  /** Chosen sections per course: { "CSE 11": { family: "A", parts: { DI: "A01" } } } */
+  sections: Record<string, SectionSelection>;
 }
 
 function readPersisted(): Partial<Persisted> | null {
@@ -139,7 +175,20 @@ interface PlannerValue {
   addToSchedule: (course: Course) => void;
   removeFromSchedule: (id: string) => void;
   clearSchedule: () => void;
-  conflicts: string[];
+
+  /** Real per-section rows, lazily fetched per subject. */
+  sectionsByCode: Record<string, SectionTuple[]>;
+  selections: Record<string, SectionSelection>;
+  setSelection: (code: string, next: SectionSelection) => void;
+  clearSelection: (code: string) => void;
+  /** Fill in sections that fit around everything already placed. */
+  autoPickFor: (code: string) => boolean;
+  autoPickAll: () => void;
+  sectionStatus: (code: string) => SectionStatus;
+  /** Every block the calendar draws, conflicts already marked. */
+  events: CalEvent[];
+  conflictCodes: Set<string>;
+  totalUnits: number;
 
   plannedCourses: PlannedCourse[];
   addAICourseToPlan: (course: Course, year: Year, quarter: Quarter) => void;
@@ -183,10 +232,12 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   const [plannedCourses, setPlannedCourses] = useState<PlannedCourse[]>([]);
   const [plannerYear, setPlannerYear] = useState<Year>(1);
   const [plannerQuarter, setPlannerQuarter] = useState<Quarter>("Fall");
-  const [conflicts, setConflicts] = useState<string[]>([]);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
   const [platRows, setPlatRows] = useState<PlatRow[]>([]);
+  const [sectionsByCode, setSectionsByCode] = useState<Record<string, SectionTuple[]>>({});
+  const [loadingSubjects, setLoadingSubjects] = useState<Set<string>>(() => new Set());
+  const [selections, setSelections] = useState<Record<string, SectionSelection>>({});
 
   const { codes: savedCodes, toggle: toggleSaved } = useShortlist();
   const majorSubjectSet = useMemo(() => majorSubjects(selectedMajor), [selectedMajor]);
@@ -198,6 +249,11 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   // agree. `hydrated` gates the writer below so an empty first render cannot
   // wipe a stored plan.
   const syncedRef = useRef<Set<string>>(new Set());
+  /** Subjects whose section file has been requested, so each is fetched once. */
+  const loadedSubjects = useRef<Set<string>>(new Set());
+  /** Guards state writes from in-flight fetches after the planner unmounts. */
+  const mounted = useRef(true);
+  useEffect(() => () => { mounted.current = false; }, []);
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
@@ -209,6 +265,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       if (Array.isArray(saved.schedule)) setSelectedCourses(saved.schedule);
       if (Array.isArray(saved.planned)) setPlannedCourses(saved.planned);
       if (Array.isArray(saved.synced)) syncedRef.current = new Set(saved.synced);
+      if (saved.sections && typeof saved.sections === "object") setSelections(saved.sections);
     }
     setHydrated(true);
   }, []);
@@ -222,9 +279,60 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       schedule: selectedCourses,
       planned: plannedCourses,
       synced: [...syncedRef.current],
+      sections: selections,
     };
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(payload)); } catch {}
-  }, [hydrated, selectedMajor, selectedMinor, selectedCollege, selectedCourses, plannedCourses]);
+  }, [
+    hydrated, selectedMajor, selectedMinor, selectedCollege,
+    selectedCourses, plannedCourses, selections,
+  ]);
+
+  // ── Section data ────────────────────────────────────────────────────────────
+  // Sections live in the per-subject files, not the index, so they are fetched
+  // only for subjects actually on the schedule. plat.ts memoizes each file, so
+  // adding a second CSE course costs nothing.
+
+  useEffect(() => {
+    const wanted = new Set<string>();
+    for (const { course } of selectedCourses) {
+      const subject = course.departments?.[0] ?? course.code.split(" ")[0];
+      if (subject && !loadedSubjects.current.has(subject)) wanted.add(subject);
+    }
+    if (!wanted.size) return;
+
+    for (const subject of wanted) loadedSubjects.current.add(subject);
+    setLoadingSubjects((prev) => new Set([...prev, ...wanted]));
+
+    Promise.all(
+      [...wanted].map((subject) =>
+        loadSubject(subject)
+          .then((file) => {
+            const rows: Record<string, SectionTuple[]> = {};
+            for (const [code, detail] of Object.entries(file.courses)) {
+              if (detail.sec?.length) rows[code] = detail.sec;
+            }
+            return rows;
+          })
+          // A missing subject file is a gap in the snapshot, not a broken page:
+          // the course keeps its catalog meeting time and simply cannot be
+          // broken down into sections.
+          .catch(() => ({}) as Record<string, SectionTuple[]>),
+      ),
+    ).then((results) => {
+      if (!mounted.current) return;
+      setSectionsByCode((prev) => Object.assign({}, prev, ...results));
+      setLoadingSubjects((prev) => {
+        const next = new Set(prev);
+        for (const subject of wanted) next.delete(subject);
+        return next;
+      });
+    });
+    // Deliberately no cleanup that cancels this. Adding a second course re-runs
+    // the effect, and a per-run cancel flag killed the only fetch in flight —
+    // while `loadedSubjects` had already marked the subject as requested, so
+    // nothing ever retried and the rail sat on "Loading sections…" forever.
+    // Results are merged by course code, so a late arrival is simply correct.
+  }, [selectedCourses]);
 
   // ── Saved courses from the explorer ─────────────────────────────────────────
 
@@ -245,31 +353,143 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     [savedCodes, platByCode, majorSubjectSet],
   );
 
-  // ── Time-conflict detection ─────────────────────────────────────────────────
+  // ── What a course counts toward ─────────────────────────────────────────────
+  // Defined before the calendar because every block is coloured by its role.
 
-  useEffect(() => {
-    const found: string[] = [];
-    for (let i = 0; i < selectedCourses.length; i++) {
-      for (let j = i + 1; j < selectedCourses.length; j++) {
-        const c1 = selectedCourses[i].course;
-        const c2 = selectedCourses[j].course;
-        if (!c1.time || !c2.time) continue;
-        for (const t1 of c1.time) {
-          for (const t2 of c2.time) {
-            if (t1.day !== t2.day) continue;
-            const s1 = parseInt(t1.start.replace(":", ""));
-            const e1 = parseInt(t1.end.replace(":", ""));
-            const s2 = parseInt(t2.start.replace(":", ""));
-            const e2 = parseInt(t2.end.replace(":", ""));
-            if (s1 < e2 && s2 < e1) {
-              found.push(`${selectedCourses[i].id}-${selectedCourses[j].id}`);
-            }
-          }
-        }
+  const roleContext = useMemo<RoleContext>(() => ({
+    majorCategories: new Set(Object.keys(MAJOR_REQUIREMENTS[selectedMajor] ?? {})),
+    minorCategories: new Set(Object.keys(MINOR_REQUIREMENTS[selectedMinor] ?? {})),
+    collegeSlug: selectedCollege ? selectedCollege.toLowerCase() : null,
+    majorSubjects: majorSubjectSet,
+  }), [selectedMajor, selectedMinor, selectedCollege, majorSubjectSet]);
+
+  const roleOf = useCallback(
+    (course: Course): CourseRole => courseRole(course, roleContext),
+    [roleContext],
+  );
+
+  // ── Calendar events ─────────────────────────────────────────────────────────
+  // The week is derived, never stored. A course contributes its chosen sections
+  // when the schedule publishes them, and otherwise falls back to the single
+  // meeting time carried in the catalog index — so a course with no section data
+  // still lands on the calendar instead of vanishing from it.
+
+  const events = useMemo((): CalEvent[] => {
+    const sources: EventSource[] = selectedCourses.map(({ course }) => {
+      const sec = sectionsByCode[course.code] ?? [];
+      const chosen = sec.length
+        ? selectedSections(groupSections(sec), selections[course.code])
+        : [];
+      return {
+        code: course.code,
+        title: course.title,
+        role: courseRole(course, roleContext),
+        sections: chosen,
+        fallback: (course.time ?? []).flatMap((t) => {
+          const startMin = clockToMinutes(t.start);
+          const endMin = clockToMinutes(t.end);
+          return startMin == null || endMin == null
+            ? []
+            : [{ day: t.day, startMin, endMin }];
+        }),
+      };
+    });
+    return buildEvents(sources);
+  }, [selectedCourses, sectionsByCode, selections, roleContext]);
+
+  const conflictCodes = useMemo(
+    () => new Set(events.filter((e) => e.conflict).map((e) => e.code)),
+    [events],
+  );
+
+  const totalUnits = useMemo(
+    () => selectedCourses.reduce((sum, sc) => sum + sc.course.units, 0),
+    [selectedCourses],
+  );
+
+  // ── Section actions ─────────────────────────────────────────────────────────
+
+  const setSelection = useCallback((code: string, next: SectionSelection) => {
+    setSelections((prev) => ({ ...prev, [code]: next }));
+  }, []);
+
+  const clearSelection = useCallback((code: string) => {
+    setSelections((prev) => {
+      if (!(code in prev)) return prev;
+      const next = { ...prev };
+      delete next[code];
+      return next;
+    });
+  }, []);
+
+  const sectionStatus = useCallback(
+    (code: string): SectionStatus => {
+      const sec = sectionsByCode[code];
+      const subject = code.split(" ")[0];
+      if (!sec?.length) {
+        return {
+          available: false,
+          loading: loadingSubjects.has(subject),
+          started: false,
+          complete: false,
+          missing: [],
+        };
+      }
+      const families = groupSections(sec);
+      const sel = selections[code];
+      return {
+        available: families.length > 0,
+        loading: false,
+        started: Boolean(sel),
+        complete: isComplete(families, sel),
+        missing: missingParts(families, sel),
+      };
+    },
+    [sectionsByCode, selections, loadingSubjects],
+  );
+
+  /**
+   * Fills one course's sections around everything already on the calendar.
+   * Blocks belonging to this course are excluded from "busy" so re-running it
+   * does not treat the course's own current pick as an obstacle.
+   */
+  const autoPickFor = useCallback(
+    (code: string) => {
+      const sec = sectionsByCode[code];
+      if (!sec?.length) return false;
+      const busy = busyFrom(events.filter((e) => e.code !== code));
+      const picked = autoPick(sec, busy);
+      if (!picked) return false;
+      setSelections((prev) => ({ ...prev, [code]: picked }));
+      return true;
+    },
+    [sectionsByCode, events],
+  );
+
+  /**
+   * The whole term at once. Courses are filled in order, each planning around
+   * the ones already settled, which is why this runs on a local accumulator
+   * rather than calling autoPickFor in a loop against stale state.
+   */
+  const autoPickAll = useCallback(() => {
+    const busy = busyFrom(
+      events.filter((e) => !sectionsByCode[e.code]?.length),
+    );
+    const next: Record<string, SectionSelection> = {};
+
+    for (const { course } of selectedCourses) {
+      const sec = sectionsByCode[course.code];
+      if (!sec?.length) continue;
+      const picked = autoPick(sec, busy);
+      if (!picked) continue;
+      next[course.code] = picked;
+      for (const s of selectedSections(groupSections(sec), picked)) {
+        busy.push(...sectionMeetings(s));
       }
     }
-    setConflicts(found);
-  }, [selectedCourses]);
+
+    if (Object.keys(next).length) setSelections((prev) => ({ ...prev, ...next }));
+  }, [selectedCourses, sectionsByCode, events]);
 
   // ── Schedule actions ────────────────────────────────────────────────────────
 
@@ -431,18 +651,6 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
 
   // ── Derived ─────────────────────────────────────────────────────────────────
 
-  const roleContext = useMemo<RoleContext>(() => ({
-    majorCategories: new Set(Object.keys(MAJOR_REQUIREMENTS[selectedMajor] ?? {})),
-    minorCategories: new Set(Object.keys(MINOR_REQUIREMENTS[selectedMinor] ?? {})),
-    collegeSlug: selectedCollege ? selectedCollege.toLowerCase() : null,
-    majorSubjects: majorSubjectSet,
-  }), [selectedMajor, selectedMinor, selectedCollege, majorSubjectSet]);
-
-  const roleOf = useCallback(
-    (course: Course): CourseRole => courseRole(course, roleContext),
-    [roleContext],
-  );
-
   /**
    * Colour now encodes what a course counts toward. It used to be
    * COURSE_COLORS[index % 10] — decorative, and actively misleading, since two
@@ -515,7 +723,9 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     selectedCollege, setSelectedCollege,
     searchQuery, setSearchQuery,
     platRows, allCourses: coursesWithTimes, savedCourses, toggleSaved,
-    selectedCourses, addToSchedule, removeFromSchedule, clearSchedule, conflicts,
+    selectedCourses, addToSchedule, removeFromSchedule, clearSchedule,
+    sectionsByCode, selections, setSelection, clearSelection,
+    autoPickFor, autoPickAll, sectionStatus, events, conflictCodes, totalUnits,
     plannedCourses, addAICourseToPlan, removePlannedCourse, addToPlanner, movePlannedCourse,
     plannerYear, setPlannerYear, plannerQuarter, setPlannerQuarter,
     isGeneratingPlan, planError, generateFourYearPlan,

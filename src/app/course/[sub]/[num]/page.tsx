@@ -5,11 +5,12 @@ import Link from "next/link";
 import { BookMarked, ChevronDown, ChevronLeft, ExternalLink, Star } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import Disclosure from "@/components/plat/Disclosure";
-import { GradeBadge, LoadTag, SeatWarning } from "@/components/plat/Grade";
+import { GradeBadge, LoadTag } from "@/components/plat/Grade";
 import GradeBars from "@/components/plat/GradeBars";
+import SectionPicker from "@/components/plat/SectionPicker";
 import { useShortlist } from "@/components/plat/useShortlist";
 import {
-  geLabel, loadIndex, loadSubject, prettyRange, seatState, SECTION_TYPES, splitDays, typicalGrade,
+  geLabel, loadIndex, loadSubject, typicalGrade,
   type CourseDetail, type PlatIndex, type ProfRecord, type SubjectFile,
 } from "@/lib/plat";
 
@@ -168,7 +169,7 @@ export default function CourseDetailPage({
               hint={`${detail.sec.filter((s) => s[1] !== "FI").length} meetings`}
               defaultOpen
             >
-              <Sections detail={detail} />
+              <SectionPicker sec={detail.sec} />
             </Disclosure>
           )}
 
@@ -259,31 +260,3 @@ function ProfLine({
   );
 }
 
-function Sections({ detail }: { detail: CourseDetail }) {
-  const rows = [...detail.sec].sort((a, b) => {
-    const rank = (t: string) => (t === "FI" || t === "MI" ? 2 : t === "LE" ? 0 : 1);
-    return rank(a[1]) - rank(b[1]) || a[0].localeCompare(b[0]);
-  });
-
-  return (
-    <ul className="list-none space-y-2 p-0">
-      {rows.map((s, i) => {
-        const seats = seatState(s[8], s[9]);
-        const exam = s[1] === "FI" || s[1] === "MI";
-        return (
-          <li key={`${s[0]}-${i}`} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
-            <span className="w-28 shrink-0 text-xs text-gray-500 dark:text-gray-400">
-              <span className="font-mono font-semibold">{s[0]}</span>{" "}
-              {SECTION_TYPES[s[1]] ?? s[1]}
-            </span>
-            <span className="text-gray-700 dark:text-gray-200">
-              {exam ? s[2] : splitDays(s[2]).join("")} {prettyRange(s[3], s[4])}
-            </span>
-            {s[5] && <span className="text-xs text-gray-500 dark:text-gray-400">{s[5]} {s[6]}</span>}
-            {seats.known && <SeatWarning avail={s[8]} limit={s[9]} />}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}

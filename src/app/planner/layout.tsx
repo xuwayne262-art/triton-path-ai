@@ -230,14 +230,6 @@ function PlannerChrome({ children }: { children: React.ReactNode }) {
 
         {/* Right: pass-time badge + dark-mode toggle */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          <div
-            className={`hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs ${
-              darkMode ? "bg-blue-900/50 text-blue-300" : "bg-blue-50 text-blue-700"
-            }`}
-          >
-            <Calendar className="w-3 h-3" />
-            <span>Pass 2 · Spring 2026</span>
-          </div>
           <Tooltip>
             <TooltipTrigger asChild>
               <button

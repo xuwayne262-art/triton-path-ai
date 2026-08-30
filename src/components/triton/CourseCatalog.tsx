@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { Search, ChevronRight, CheckCircle2, Plus, Sparkles, BookOpen, Bot } from "lucide-react";
 import {
   Collapsible,
@@ -49,6 +49,12 @@ interface CourseCatalogProps {
   /** Rendered above the catalog so saved courses are the first thing you see. */
   savedPanel?: React.ReactNode;
   legend?: React.ReactNode;
+  /**
+   * Drop the standalone rail shell (fixed width, border, background) and fill
+   * the parent instead — the planner rail owns those now, so that it can host
+   * both this and the schedule list at one consistent width.
+   */
+  embedded?: boolean;
 }
 
 export default function CourseCatalog({
@@ -70,6 +76,7 @@ export default function CourseCatalog({
   platRows,
   savedPanel,
   legend,
+  embedded = false,
 }: CourseCatalogProps) {
   const [activeTab, setActiveTab] = useState<"catalog" | "recommended" | "advisor">("catalog");
   const [expandedDepts, setExpandedDepts] = useState<string[]>(["Computer Science and Engineering"]);
@@ -109,18 +116,41 @@ export default function CourseCatalog({
     // IDs of courses already on the calendar
     const selectedIds = new Set(selectedCourses.map((sc) => sc.course.id));
 
+    const remainingFor = (cat: string) =>
+      (activeRequirements[cat] ?? 0) - (earnedUnits[cat] ?? 0);
+
     // Filter master list: not already added, has at least one needed category
-    return allCourses
+    const rows = allCourses
       .filter((course) => {
         if (selectedIds.has(course.id)) return false;
         return course.categories?.some((cat) => neededCategories.has(cat)) ?? false;
       })
-      .map((course) => ({
-        course,
-        fulfilledCategories: (course.categories ?? []).filter((cat) =>
+      .map((course) => {
+        const fulfilledCategories = (course.categories ?? []).filter((cat) =>
           neededCategories.has(cat)
-        ),
-      }));
+        );
+        // A course counting toward two areas is filed under the one with the
+        // most units outstanding, so it is listed once and where it helps most.
+        const primaryCategory =
+          [...fulfilledCategories].sort((a, b) => remainingFor(b) - remainingFor(a))[0] ?? "";
+        return { course, fulfilledCategories, primaryCategory };
+      })
+      .sort(
+        (a, b) =>
+          remainingFor(b.primaryCategory) - remainingFor(a.primaryCategory) ||
+          a.primaryCategory.localeCompare(b.primaryCategory) ||
+          a.course.code.localeCompare(b.course.code)
+      );
+
+    const perGroup: Record<string, number> = {};
+    for (const r of rows) perGroup[r.primaryCategory] = (perGroup[r.primaryCategory] ?? 0) + 1;
+
+    return rows.map((row, i) => ({
+      ...row,
+      isFirstOfGroup: i === 0 || rows[i - 1].primaryCategory !== row.primaryCategory,
+      groupRemaining: remainingFor(row.primaryCategory),
+      groupCount: perGroup[row.primaryCategory] ?? 0,
+    }));
   }, [allCourses, activeRequirements, selectedCourses]);
 
   // ── Catalog tab: the shared dataset, filtered and grouped by department ─────
@@ -256,9 +286,13 @@ export default function CourseCatalog({
 
   return (
     <aside
-      className={`w-72 flex-shrink-0 flex flex-col border-r overflow-hidden ${
-        darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
-      }`}
+      className={
+        embedded
+          ? "flex min-h-0 flex-1 flex-col overflow-hidden"
+          : `w-72 flex-shrink-0 flex flex-col border-r overflow-hidden ${
+              darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
+            }`
+      }
     >
       {/* ── Tab bar ──────────────────────────────────────────────────────────── */}
       <div
@@ -462,15 +496,42 @@ export default function CourseCatalog({
                   </p>
                 </div>
               ) : (
-                recommendedCourses.map(({ course, fulfilledCategories }, idx) => {
+                recommendedCourses.map(({
+                  course,
+                  fulfilledCategories,
+                  primaryCategory,
+                  isFirstOfGroup,
+                  groupRemaining,
+                  groupCount,
+                }) => {
                   const scheduledItem = selectedCourses.find(
                     (s) => s.course.id === course.id
                   );
                   const isAdded = !!scheduledItem;
                   const color = getColorForCourse(course);
                   return (
+                    <Fragment key={course.id}>
+                      {isFirstOfGroup && (
+                        <div className="flex items-baseline justify-between gap-2 px-0.5 pt-2 pb-1">
+                          <span
+                            className={`text-[11px] font-bold uppercase tracking-wide ${
+                              darkMode ? "text-gray-300" : "text-gray-600"
+                            }`}
+                          >
+                            {primaryCategory}
+                          </span>
+                          <span
+                            className={`text-[10px] tabular-nums ${
+                              darkMode ? "text-gray-500" : "text-gray-400"
+                            }`}
+                          >
+                            {groupRemaining > 0
+                              ? `${groupRemaining} units to go · ${groupCount} option${groupCount === 1 ? "" : "s"}`
+                              : `${groupCount} option${groupCount === 1 ? "" : "s"}`}
+                          </span>
+                        </div>
+                      )}
                     <div
-                      key={course.id}
                       className={`rounded-lg border px-2.5 py-2 transition-colors ${
                         darkMode
                           ? "border-gray-700 bg-gray-800/60 hover:bg-gray-700/60"
@@ -536,6 +597,7 @@ export default function CourseCatalog({
                         </button>
                       </div>
                     </div>
+                    </Fragment>
                   );
                 })
               )}
