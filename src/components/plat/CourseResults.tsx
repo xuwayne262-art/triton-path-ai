@@ -12,6 +12,8 @@ export interface ResultFilters {
   openOnly: boolean;
   noPre: boolean;
   hasGrades: boolean;
+  /** Ceiling on RateMyProfessors difficulty: "any" | "2.2" | "3.2" | "4". */
+  load: string;
   sort: SortKey;
 }
 
@@ -22,18 +24,23 @@ export const DEFAULT_FILTERS: ResultFilters = {
   openOnly: false,
   noPre: false,
   hasGrades: false,
+  load: "any",
   sort: "grade",
 };
 
 export function applyFilters(rows: Row[], f: ResultFilters): Row[] {
   const q = f.q.trim().toLowerCase();
   const maxUnits = f.units === "any" ? Infinity : Number(f.units);
+  const maxLoad = f.load === "any" ? Infinity : Number(f.load);
 
   const filtered = rows.filter((c) => {
     if (f.offeredOnly && !c.o) return false;
     if (f.openOnly && !(c.sa != null && c.sa > 0)) return false;
     if (f.noPre && c.pr) return false;
     if (f.hasGrades && !(c.r > 0 && c.g != null && c.g > 0)) return false;
+    // Workload comes from the instructor's difficulty score, so a course with
+    // no rated instructor cannot answer the question and is filtered out.
+    if (maxLoad !== Infinity && !(c.pd != null && c.pd > 0 && c.pd <= maxLoad)) return false;
     if (maxUnits !== Infinity) {
       const u = c.u ? parseFloat(c.u) : null;
       if (u == null || u > maxUnits) return false;
@@ -44,6 +51,18 @@ export function applyFilters(rows: Row[], f: ResultFilters): Row[] {
 
   return sortCourses(filtered, f.sort);
 }
+
+/**
+ * Workload ceilings, matching the thresholds workload() uses to name them, so
+ * "Moderate or lighter" selects exactly the courses tagged Light or Moderate.
+ */
+const LOADS: [string, string][] = [
+  ["2.2", "Light only"],
+  ["3.2", "Moderate or lighter"],
+  ["4", "Heavy or lighter"],
+];
+
+const LOAD_LABEL: Record<string, string> = Object.fromEntries(LOADS);
 
 /** Only these three sorts are worth surfacing by default. */
 const SORTS: [SortKey, string][] = [
@@ -95,6 +114,7 @@ export default function CourseResults({
   if (filters.noPre) chips.push({ label: "No prerequisite", clear: () => set("noPre", false) });
   if (filters.hasGrades) chips.push({ label: "Has grade history", clear: () => set("hasGrades", false) });
   if (filters.units !== "any") chips.push({ label: `≤ ${filters.units} units`, clear: () => set("units", "any") });
+  if (filters.load !== "any") chips.push({ label: `${LOAD_LABEL[filters.load] ?? filters.load} workload`, clear: () => set("load", "any") });
 
   return (
     <div>
@@ -160,6 +180,17 @@ export default function CourseResults({
               >
                 <option value="any">Any</option>
                 {["1", "2", "3", "4", "5", "6"].map((u) => <option key={u} value={u}>≤ {u}</option>)}
+              </select>
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+              Workload
+              <select
+                value={filters.load}
+                onChange={(e) => set("load", e.target.value)}
+                className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs dark:border-white/10 dark:bg-white/5 dark:text-gray-100"
+              >
+                <option value="any">Any</option>
+                {LOADS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
               </select>
             </label>
             <Check label="Offered this term" checked={filters.offeredOnly} onChange={(v) => set("offeredOnly", v)} />

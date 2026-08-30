@@ -214,6 +214,47 @@ export const COLLEGE_UNITS: CollegeUnit[] = [
   { id: "eighth", name: "Eighth College", subjects: ["CCE"] },
 ];
 
+// ── Warren's three disciplines ───────────────────────────────────────────────
+// Warren does not publish a GE course list the way the other colleges do. It
+// states a rule instead: two Programs of Concentration, each six courses drawn
+// from a discipline that is neither your major's nor the other programme's.
+// The disciplines are broad groupings of schools, so they are derived from the
+// department table rather than stored as yet another list of course codes.
+
+export interface Discipline {
+  id: string;
+  name: string;
+  /** Schools whose departments sit inside this discipline. */
+  schoolIds: string[];
+}
+
+export const DISCIPLINES: Discipline[] = [
+  { id: "humanities", name: "Humanities & Fine Arts", schoolIds: ["arts-humanities"] },
+  { id: "social", name: "Social Sciences", schoolIds: ["social", "gps", "rady"] },
+  {
+    id: "science", name: "Natural Sciences, Math & Engineering",
+    schoolIds: ["biological", "physical", "engineering", "computing", "scripps", "health"],
+  },
+];
+
+/** Warren's requirement, as the Registrar states it. */
+export const WARREN_RULE = {
+  standard: {
+    label: "Most majors",
+    programs: 2,
+    courses: 6,
+    upper: 3,
+    unit: "Program of Concentration",
+  },
+  engineering: {
+    label: "BS engineering majors",
+    programs: 2,
+    courses: 3,
+    upper: 2,
+    unit: "Area Study",
+  },
+} as const;
+
 // ── Lookups ──────────────────────────────────────────────────────────────────
 
 const SUBJECT_TO_DEPT = new Map<string, Department>();
@@ -228,6 +269,21 @@ export const collegeForSubject = (code: string) => SUBJECT_TO_COLLEGE.get(code) 
 export const departmentById = (id: string) => DEPARTMENTS.find((d) => d.id === id) ?? null;
 export const schoolById = (id: string) => SCHOOLS.find((s) => s.id === id) ?? null;
 export const collegeById = (id: string) => COLLEGE_UNITS.find((c) => c.id === id) ?? null;
+
+const SUBJECT_TO_DISCIPLINE = new Map<string, Discipline>();
+for (const d of DISCIPLINES) {
+  for (const dept of DEPARTMENTS) {
+    if (!d.schoolIds.includes(dept.schoolId)) continue;
+    for (const code of dept.subjects) SUBJECT_TO_DISCIPLINE.set(code, d);
+  }
+}
+
+/** Which of Warren's three disciplines a course prefix belongs to. */
+export const disciplineForSubject = (code: string) =>
+  SUBJECT_TO_DISCIPLINE.get(code) ?? null;
+
+export const disciplineById = (id: string) =>
+  DISCIPLINES.find((d) => d.id === id) ?? null;
 
 /** Subject codes not yet claimed by any department or college. */
 export function unmappedSubjects(all: string[]): string[] {

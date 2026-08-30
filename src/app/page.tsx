@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { GraduationCap, Layers, Search, Sparkles, Star, TrendingUp } from "lucide-react";
+import { GraduationCap, Search, Sparkles, Star, TrendingUp } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import CourseRow from "@/components/plat/CourseRow";
 import PassTimeline from "@/components/plat/PassTimeline";
+import ProfessorRow from "@/components/plat/ProfessorShelf";
 import SearchResults, { type Combined } from "@/components/plat/SearchResults";
 import {
   confidentGpa, loadIndex, loadProfessors, professorHref, searchCourses, searchProfessors,
@@ -82,6 +83,15 @@ export default function HomePage() {
   const [activeFor, setActiveFor] = useState(q);
   if (activeFor !== q) { setActiveFor(q); setActive(0); }
 
+  /** Rated 4.0+ with a real sample size, and actually on this term's schedule. */
+  const topProfs = useMemo(() => {
+    if (!profs.length) return null;
+    return profs
+      .filter((p) => p.cur && (p.q ?? 0) >= 4 && (p.nr ?? 0) >= 15)
+      .sort((a, b) => (b.q ?? 0) - (a.q ?? 0) || (b.nr ?? 0) - (a.nr ?? 0))
+      .slice(0, 6);
+  }, [profs]);
+
   const shelves = useMemo(() => {
     if (!data) return null;
     const pool = data.courses.filter(REAL_CLASS);
@@ -93,22 +103,7 @@ export default function HomePage() {
       6,
     );
 
-    // A shelf about teaching still needs a grade history, or the row reads "–".
-    const bestTaught = varied(
-      [...pool]
-        .filter((c) => (c.pq ?? 0) >= 4 && (c.pn ?? 0) >= 15 && c.g != null && c.g > 0)
-        .sort((a, b) => (b.pq ?? 0) - (a.pq ?? 0) || (b.pn ?? 0) - (a.pn ?? 0)),
-      6,
-    );
-
-    const openToAll = varied(
-      [...pool]
-        .filter((c) => !c.pr && c.ge?.length && c.g != null && c.g >= 3.3)
-        .sort((a, b) => confidentGpa(b) - confidentGpa(a)),
-      6,
-    );
-
-    return { easiest, bestTaught, openToAll };
+    return { easiest };
   }, [data]);
 
   const go = (href: string | undefined) => { if (href) router.push(href); };
@@ -185,23 +180,28 @@ export default function HomePage() {
           href="/ge"
           hrefLabel="More easy courses"
         />
-        <Shelf
-          icon={<Star className="h-4 w-4" />}
-          title="Best-rated professors"
-          blurb="Rated 4.0 or better on RateMyProfessors, with at least 15 reviews behind the score."
-          rows={shelves?.bestTaught}
-          note={(c) => (c.pn ? `${c.pn} reviews` : undefined)}
-          href="/courses"
-          hrefLabel="Browse departments"
-        />
-        <Shelf
-          icon={<Layers className="h-4 w-4" />}
-          title="Easy GEs with no prerequisite"
-          blurb="Counts toward a general-education area, and you can enroll right now."
-          rows={shelves?.openToAll}
-          href="/ge"
-          hrefLabel="Pick your college"
-        />
+        {/* People, not courses. Open a department to rank its whole faculty. */}
+        <section className="mt-10">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="flex items-center gap-2 text-base font-bold">
+              <Star className="h-4 w-4" />Best-rated professors teaching now
+            </h2>
+            <Link href="/courses" className="text-xs font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]">
+              Rank a department&rsquo;s professors →
+            </Link>
+          </div>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Rated 4.0 or better on RateMyProfessors with at least 15 reviews, and on the{" "}
+            {data?.meta.termName ?? "current"} schedule. Open any department to see the same ranking
+            for its whole faculty.
+          </p>
+
+          <div className="mt-3 overflow-hidden rounded-xl border border-gray-200 dark:border-white/10">
+            {topProfs
+              ? topProfs.map((p) => <ProfessorRow key={p.n} prof={p} />)
+              : <p className="py-12 text-center text-sm text-gray-400">Loading…</p>}
+          </div>
+        </section>
 
         <Link
           href="/planner"

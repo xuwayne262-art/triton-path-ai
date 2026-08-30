@@ -117,6 +117,28 @@ function displayName(name) {
   return `${first} ${last}`.trim();
 }
 
+/**
+ * One key both name styles collapse to: the grade archive writes
+ * "Politz, Joseph Gibbs" and the schedule writes "Joe Politz", so surname plus
+ * first initial is the most the two reliably share. Comparing the raw strings
+ * matches nothing at all, which is what silently emptied "teaching this term".
+ */
+function instructorKey(name) {
+  if (!name) return "";
+  const cleaned = String(name).toLowerCase().replace(/[^a-z, ]/g, " ");
+  let last, first;
+  if (cleaned.includes(",")) {
+    const [tail, head] = cleaned.split(",");
+    last = tail.trim().split(/\s+/).filter(Boolean).pop() || "";
+    first = (head || "").trim().split(/\s+/).filter(Boolean)[0] || "";
+  } else {
+    const words = cleaned.trim().split(/\s+/).filter(Boolean);
+    last = words[words.length - 1] || "";
+    first = words[0] || "";
+  }
+  return last && first ? `${last}|${first[0]}` : "";
+}
+
 /** Numeric part of a course number so "CSE 8A" < "CSE 11" < "CSE 100". */
 function courseNumOrder(num) {
   const m = /^(\d+)/.exec(num);
@@ -223,7 +245,9 @@ function build() {
     console.log("  no data.json — building without RateMyProfessors, prereqs or seat links");
   }
   const currentFa = new Set(
-    extras ? Object.values(extras.fa || {}).flat().map((n) => String(n)) : [],
+    extras
+      ? Object.values(extras.fa || {}).flat().map(instructorKey).filter(Boolean)
+      : [],
   );
 
   // ── course code -> GE areas it satisfies ──────────────────────────────────
@@ -292,7 +316,7 @@ function build() {
       P: r[col.gP] || 0, NP: r[col.gNP] || 0,
       n: r[col.n] || 0,
       y: r[col.y] ?? null,
-      cur: currentFa.has(r[col.i]) ? 1 : 0,
+      cur: currentFa.has(instructorKey(r[col.i])) ? 1 : 0,
       rq: rating.rq ?? null, rd: rating.rd ?? null,
       rw: rating.rw ?? null, rn: rating.rn ?? null, rid: rating.rid ?? null,
     });
