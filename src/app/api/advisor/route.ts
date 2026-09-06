@@ -1,49 +1,20 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { NextRequest, NextResponse } from "next/server";
+import { AI_AUDIT_UNAVAILABLE, unavailableResponse } from "@/lib/ai/availability";
 
-export async function POST(req: NextRequest) {
-  try {
-    const { base64Pdf, selectedMajor, selectedMinor, selectedCollege } =
-      await req.json();
+/**
+ * `/api/advisor` — degree-audit PDF analysis, currently SHUT OFF.
+ *
+ * Same milestone-1 shutdown as `/api/chat`, and for the same reason: this
+ * endpoint accepted an unbounded base64 PDF from anonymous callers and sent it
+ * straight to a paid Gemini model, with no authentication and no usage limit.
+ *
+ * Taking no `Request` argument makes reading the upload structurally impossible.
+ * Reopening this needs real server-side authentication, eligibility enforcement
+ * and durable usage limits — plus its own upload size and content validation,
+ * which this milestone does not attempt.
+ */
 
-    if (!base64Pdf) {
-      return NextResponse.json(
-        { error: "A PDF file is required." },
-        { status: 400 }
-      );
-    }
+export const dynamic = "force-dynamic";
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "GEMINI_API_KEY is not configured on the server." },
-        { status: 500 }
-      );
-    }
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      generationConfig: { responseMimeType: "application/json" },
-    });
-
-    const textPart = {
-      text: `You are an expert UCSD Academic Advisor. Analyze the uploaded PDF against the user's Major (${selectedMajor || "Not specified"}), Minor (${selectedMinor && selectedMinor !== "None" ? selectedMinor : "None"}), and College (${selectedCollege || "Not specified"}). You MUST return your response as a valid JSON object with exactly two keys: "analysisText" (a friendly, markdown-formatted string explaining satisfied requirements, outstanding requirements, and your recommendations) and "recommendedCourses" (an array of exactly 4 course objects the user should take next quarter). Each course object MUST have these exact keys: "id" (the course code, e.g. "MATH 20A"), "name" (the full course title, e.g. "Calculus for Science and Engineering"), "units" (a number), and "category" (an array of strings describing the requirement it fulfills, e.g. ["Lower Division", "Math"]). If a course is not in standard UCSD data, infer and create a valid object. Use an encouraging, friendly tone in analysisText.`,
-    };
-
-    const pdfPart = {
-      inlineData: {
-        data: base64Pdf,
-        mimeType: "application/pdf",
-      },
-    };
-
-    const result = await model.generateContent([textPart, pdfPart]);
-    const text = result.response.text();
-
-    return NextResponse.json({ text });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+export async function POST(): Promise<Response> {
+  return unavailableResponse(AI_AUDIT_UNAVAILABLE);
 }

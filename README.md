@@ -1,5 +1,51 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Hosted AI is turned off
+
+All three AI endpoints answer **503** with `Cache-Control: no-store`:
+
+| Endpoint | Code |
+| --- | --- |
+| `POST /api/chat` | `AI_CHAT_UNAVAILABLE` |
+| `POST /api/advisor` | `AI_AUDIT_UNAVAILABLE` |
+| `POST /api/generate-plan` | `AI_PLAN_GENERATION_UNAVAILABLE` |
+
+They were reachable by anyone on the internet with no authentication and no
+usage limit, so any visitor could spend the project's model budget. Each POST
+handler now takes no `Request` argument at all, which makes reading the body,
+loading course data, building a provider client or starting generation
+structurally impossible. The refusal does not depend on whether
+`ANTHROPIC_API_KEY` or `GEMINI_API_KEY` is configured, and no request field,
+header, cookie or query parameter can lift it.
+
+**This is a shutdown, not a security feature.** It is not authentication and it
+is not rate limiting — nothing here identifies a caller or counts their usage.
+
+Before hosted AI chat may be reopened, all three of these must exist:
+
+1. **Genuine server-side authentication** — a session the server verifies
+   itself. A client-supplied user id, email, header or flag is not one.
+2. **Eligibility enforcement** — who is allowed to spend model budget.
+3. **Durable usage limits** — per-user and global, surviving restarts and
+   shared across serverless instances. An in-memory counter is not one.
+
+The chat generation path itself is fixed and tested (validation, size limits,
+lazy provider construction, timeouts, cancellation, sanitized errors). It lives
+in `src/lib/ai/chatHandler.ts` and is exercised by `npm test` with a mocked
+provider. No route wires it up; wiring it up is step 4, after the three above.
+
+`GET /api/chat` is a read-only availability probe (`{"available": false, ...}`)
+so the UI can show an honest state instead of guessing.
+
+## Checks
+
+```bash
+npm test        # Node's built-in runner; Anthropic is always mocked
+npm run typecheck
+npm run lint
+npm run build
+```
+
 ## Getting Started
 
 First, run the development server:

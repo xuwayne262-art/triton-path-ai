@@ -5,6 +5,8 @@ import { MessageCircle, Send, Bot, User, Sparkles, ChevronDown, AlertCircle } fr
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+// One source of truth for the limit, shared with the server-side schema.
+import { MAX_MESSAGE_CHARS } from "@/lib/ai/chatSchema";
 import type { ChatMessage } from "./types";
 import type { College } from "./types";
 
@@ -14,6 +16,24 @@ const SUGGESTED_PROMPTS = [
   "How do I plan for double major?",
   "Which quarters are hardest for CS?",
 ];
+
+const UNAVAILABLE_COPY = "The AI advisor is temporarily unavailable.";
+const GENERIC_ERROR = "Sorry, I couldn't get a response. Please try again.";
+
+/**
+ * Shows a server message only when it arrives as a recognised `{error, code}`
+ * pair, so nothing unexpected — a proxy's HTML, a stack trace, a missing
+ * environment variable — can reach a student as chat copy.
+ */
+function safeMessage(payload: unknown): string {
+  if (payload && typeof payload === "object") {
+    const { error, code } = payload as { error?: unknown; code?: unknown };
+    if (typeof error === "string" && typeof code === "string" && error.length <= 200) {
+      return error;
+    }
+  }
+  return GENERIC_ERROR;
+}
 
 interface AIChatbotProps {
   isOpen: boolean;
@@ -40,39 +60,69 @@ export default function AIChatbot({
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Availability is the server's answer, never a guess. It starts closed and
+   * only `GET /api/chat` can open it, so the UI can never invite a student to
+   * send something the server will refuse.
+   */
+  const [availability, setAvailability] = useState({
+    checked: false,
+    available: false,
+    message: UNAVAILABLE_COPY,
+  });
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  /** Guards against a second submit landing before `isTyping` has re-rendered. */
+  const inFlightRef = useRef(false);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
   useEffect(() => {
-    if (isOpen) inputRef.current?.focus();
-  }, [isOpen]);
+    if (isOpen && availability.available) inputRef.current?.focus();
+  }, [isOpen, availability.available]);
 
-  const sendMessage = async (text: string) => {
-    if (!text.trim() || isTyping) return;
+  useEffect(() => {
+    const probe = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch("/api/chat", {
+          method: "GET",
+          cache: "no-store",
+          signal: probe.signal,
+        });
+        const data = await res.json();
+        setAvailability({
+          checked: true,
+          available: data?.available === true,
+          message: typeof data?.message === "string" ? data.message : UNAVAILABLE_COPY,
+        });
+      } catch {
+        if (!probe.signal.aborted) {
+          setAvailability({ checked: true, available: false, message: UNAVAILABLE_COPY });
+        }
+      }
+    })();
+    return () => probe.abort();
+  }, []);
+
+  // Never leave a request running for a component that is gone.
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  const canSend = availability.available && !isTyping;
+
+  const sendMessage = async (text: string, restoreDraft = false) => {
+    const trimmed = text.trim();
+    if (!trimmed || inFlightRef.current || !canSend) return;
+    inFlightRef.current = true;
     setError(null);
 
-    const userMsg: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: text.trim(),
-      timestamp: new Date(),
-    };
-
-    // Placeholder for the streaming AI reply
-    const aiMsgId = `ai-${Date.now()}`;
-    const aiMsg: ChatMessage = {
-      id: aiMsgId,
-      role: "assistant",
-      content: "",
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMsg, aiMsg]);
+    setMessages((prev) => [
+      ...prev,
+      { id: `user-${Date.now()}`, role: "user", content: trimmed, timestamp: new Date() },
+    ]);
     setInput("");
     setIsTyping(true);
 
@@ -81,83 +131,132 @@ export default function AIChatbot({
     const controller = new AbortController();
     abortRef.current = controller;
 
+    // The assistant bubble is created on the first token, so a request that
+    // fails early never leaves an empty bubble behind.
+    const aiMsgId = `ai-${Date.now()}`;
+    let bubbleCreated = false;
+    const appendText = (chunk: string) => {
+      if (!bubbleCreated) {
+        bubbleCreated = true;
+        setMessages((prev) => [
+          ...prev,
+          { id: aiMsgId, role: "assistant", content: "", timestamp: new Date() },
+        ]);
+      }
+      setMessages((prev) =>
+        prev.map((m) => (m.id === aiMsgId ? { ...m, content: m.content + chunk } : m)),
+      );
+    };
+
+    let failure: string | null = null;
+
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         signal: controller.signal,
         body: JSON.stringify({
-          studentMessage: text.trim(),
+          studentMessage: trimmed,
           selectedCollege: selectedCollege ?? "Undeclared",
           currentPlan,
         }),
       });
 
       if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error ?? `Server error ${response.status}`);
-      }
+        const data = await response.json().catch(() => null);
+        // A 503 means the server has closed the advisor; believe it.
+        if (response.status === 503) {
+          setAvailability({ checked: true, available: false, message: safeMessage(data) });
+        }
+        failure = safeMessage(data);
+      } else if (!response.body) {
+        failure = GENERIC_ERROR;
+      } else {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let sawDone = false;
+        let ended = false;
 
-      if (!response.body) throw new Error("No response body from server.");
+        // Split on newlines and keep the trailing partial line, so an event
+        // cut in half by a network chunk boundary is reassembled, not dropped.
+        while (!sawDone && !ended) {
+          const { done, value } = await reader.read();
+          if (done) {
+            ended = true;
+            break;
+          }
 
-      // Read SSE stream and append text chunks incrementally
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const payload = line.slice(6);
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const payload = line.slice(6);
-          if (payload === "[DONE]") break;
-
-          try {
-            const parsed = JSON.parse(payload);
-            if (parsed.error) throw new Error(parsed.error);
-            if (parsed.text) {
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === aiMsgId
-                    ? { ...m, content: m.content + parsed.text }
-                    : m
-                )
-              );
+            if (payload === "[DONE]") {
+              sawDone = true;
+              break;
             }
-          } catch (parseErr) {
-            if (parseErr instanceof Error && parseErr.message !== "Unexpected end of JSON input") {
-              throw parseErr;
+
+            let parsed: unknown;
+            try {
+              parsed = JSON.parse(payload);
+            } catch {
+              continue; // a malformed event, not a split one — skip it
             }
+
+            const event = parsed as { text?: unknown; error?: unknown; code?: unknown };
+            if (event.error !== undefined) {
+              failure = safeMessage(event);
+              sawDone = true;
+              break;
+            }
+            if (typeof event.text === "string") appendText(event.text);
           }
         }
+
+        // Stop pulling as soon as we are finished, done or not.
+        await reader.cancel().catch(() => {});
+
+        // A stream that stopped without [DONE] did not succeed, whatever it
+        // managed to deliver first. A stream that finished cleanly but said
+        // nothing is no better — never leave the student with silence.
+        if (failure === null && (!sawDone || !bubbleCreated)) failure = GENERIC_ERROR;
       }
     } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") return;
-      const msg = err instanceof Error ? err.message : "Something went wrong.";
-      setError(msg);
-      // Replace empty AI bubble with error notice
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === aiMsgId && m.content === ""
-            ? { ...m, content: "Sorry, I couldn't get a response. Please try again." }
-            : m
-        )
-      );
+      if (err instanceof Error && err.name === "AbortError") {
+        // Superseded or unmounted: no error to show.
+        setIsTyping(false);
+        inFlightRef.current = false;
+        return;
+      }
+      failure = GENERIC_ERROR;
     } finally {
       setIsTyping(false);
+      inFlightRef.current = false;
+    }
+
+    if (failure !== null) {
+      setError(failure);
+      // Keep whatever text did arrive; only annotate an answer that never came.
+      if (!bubbleCreated) {
+        const notice = failure;
+        setMessages((prev) => [
+          ...prev,
+          { id: aiMsgId, role: "assistant", content: notice, timestamp: new Date() },
+        ]);
+      }
+      // Give the student their words back if they have not started retyping.
+      if (restoreDraft) setInput((current) => (current === "" ? trimmed : current));
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      sendMessage(input);
+      sendMessage(input, true);
     }
   };
 
@@ -203,9 +302,21 @@ export default function AIChatbot({
             <div>
               <p className="text-white font-bold text-sm leading-tight">AI Advisor</p>
               <div className="flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
+                {/* The dot reports what the server said, not what we hope. */}
+                <span
+                  className={cn(
+                    "w-1.5 h-1.5 rounded-full inline-block",
+                    availability.available ? "bg-green-400" : "bg-white/30",
+                  )}
+                />
                 <p className="text-white/50 text-[10px]">
-                  {selectedCollege ? `${selectedCollege} College` : "Always available"}
+                  {!availability.checked
+                    ? "Checking availability…"
+                    : availability.available
+                      ? selectedCollege
+                        ? `${selectedCollege} College`
+                        : "Ready"
+                      : "Unavailable"}
                 </p>
               </div>
             </div>
@@ -217,6 +328,14 @@ export default function AIChatbot({
             <ChevronDown className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Unavailable notice — the honest state, straight from the server */}
+        {availability.checked && !availability.available && (
+          <div className="mx-3 mt-2 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 flex items-start gap-2 shrink-0">
+            <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+            <p className="text-[11px] text-amber-700 leading-snug">{availability.message}</p>
+          </div>
+        )}
 
         {/* Error banner */}
         {error && (
@@ -270,8 +389,9 @@ export default function AIChatbot({
               </div>
             ))}
 
-            {/* Typing indicator (shown only before first chunk arrives) */}
-            {isTyping && messages[messages.length - 1]?.content === "" && (
+            {/* Typing indicator — only while waiting, since the assistant
+                bubble is not created until the first chunk arrives. */}
+            {isTyping && messages[messages.length - 1]?.role === "user" && (
               <div className="flex gap-2">
                 <div
                   className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
@@ -303,7 +423,8 @@ export default function AIChatbot({
                 <button
                   key={prompt}
                   onClick={() => sendMessage(prompt)}
-                  className="text-[10px] px-2 py-1 rounded-full border border-gray-200 text-gray-600 hover:border-[#182B49] hover:text-[#182B49] transition-colors leading-tight"
+                  disabled={!canSend}
+                  className="text-[10px] px-2 py-1 rounded-full border border-gray-200 text-gray-600 hover:border-[#182B49] hover:text-[#182B49] transition-colors leading-tight disabled:opacity-40 disabled:hover:border-gray-200 disabled:hover:text-gray-600 disabled:cursor-not-allowed"
                 >
                   {prompt}
                 </button>
@@ -320,14 +441,21 @@ export default function AIChatbot({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask about your courses…"
+              placeholder={
+                availability.available
+                  ? "Ask about your courses…"
+                  : "The AI advisor is unavailable right now"
+              }
               rows={1}
-              className="flex-1 bg-transparent text-xs text-gray-800 outline-none resize-none placeholder:text-gray-400 max-h-24 leading-relaxed"
+              /* Matches the server's 4,000-character limit on the trimmed message. */
+              maxLength={MAX_MESSAGE_CHARS}
+              disabled={!availability.available}
+              className="flex-1 bg-transparent text-xs text-gray-800 outline-none resize-none placeholder:text-gray-400 max-h-24 leading-relaxed disabled:cursor-not-allowed"
             />
             <Button
               size="icon"
-              disabled={!input.trim() || isTyping}
-              onClick={() => sendMessage(input)}
+              disabled={!input.trim() || !canSend}
+              onClick={() => sendMessage(input, true)}
               className="w-7 h-7 shrink-0 rounded-lg text-white disabled:opacity-30"
               style={{ background: "#182B49" }}
             >
@@ -335,7 +463,9 @@ export default function AIChatbot({
             </Button>
           </div>
           <p className="text-[10px] text-gray-300 text-center mt-1.5">
-            Press Enter to send · Shift+Enter for newline
+            {availability.available
+              ? "Press Enter to send · Shift+Enter for newline"
+              : UNAVAILABLE_COPY}
           </p>
         </div>
       </div>
