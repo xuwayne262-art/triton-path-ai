@@ -44,7 +44,7 @@ async function get(url) {
   for (let attempt = 1; attempt <= RETRIES; attempt++) {
     try {
       const res = await fetch(url, {
-        headers: { "User-Agent": "TritonPlat data build (student course tool; contact via repo)" },
+        headers: { "User-Agent": "UCSDPlans data build (student course tool; contact via repo)" },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.text();

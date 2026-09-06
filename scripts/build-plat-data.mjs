@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Builds the TritonPlat course dataset from public UCSD sources.
+ * Builds the UCSDPlans course dataset from public UCSD sources.
  *
  *   as-grades.json   AS Instructor Grade Archive — 2015-2026 grade distributions (fetch-as-grades.mjs)
  *   catalog.json     catalog.ucsd.edu   — every catalogued course + prerequisites (fetch-catalog.mjs)
@@ -571,7 +571,7 @@ function build() {
   console.log(`  ${meta.offered} offered in ${meta.termName} · ${meta.gradeRecords} grade records\n`);
 }
 
-console.log("Building TritonPlat dataset\n");
+console.log("Building UCSDPlans dataset\n");
 await download();
 build();
 console.log("Done.");

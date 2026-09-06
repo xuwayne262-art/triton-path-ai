@@ -42,3 +42,6 @@ next-env.d.ts
 
 # generated course dataset cache
 /.data-cache/
+
+# generated knowledge graph (rebuild with /graphify)
+/graphify-out/

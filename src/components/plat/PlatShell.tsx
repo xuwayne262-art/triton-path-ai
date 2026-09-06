@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Moon, Sparkles, Sun } from "lucide-react";
 import SearchBox from "./SearchBox";
+import TridentMark from "./TridentMark";
 import { useTheme } from "./theme";
 import { loadIndex, type IndexMeta } from "@/lib/plat";
 
@@ -29,12 +30,12 @@ export default function PlatShell({
   return (
     <div className="min-h-screen bg-white text-gray-900 dark:bg-[#0d1420] dark:text-gray-100">
       <header className="sticky top-0 z-40 border-b border-gray-200 bg-white/90 backdrop-blur dark:border-white/10 dark:bg-[#0d1420]/90">
-        <div className="mx-auto flex h-14 max-w-5xl items-center gap-4 px-4">
-          <Link href="/" className="flex shrink-0 items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#182B49] text-[11px] font-black text-[#FFCD00] dark:bg-[#FFCD00] dark:text-[#182B49]">
-              TP
+        <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6 lg:px-8">
+          <Link href="/" className="flex shrink-0 items-center gap-2.5">
+            <TridentMark className="h-8 w-8" />
+            <span className="text-[15px] font-bold tracking-tight">
+              UCSD<span className="text-[#1B2C4F] dark:text-[#FFC72C]">Plans</span>
             </span>
-            <span className="text-sm font-bold">TritonPlat</span>
           </Link>
 
           {!hideSearch && <SearchBox className="min-w-0 flex-1" />}
@@ -71,7 +72,7 @@ export default function PlatShell({
       <main>{children}</main>
 
       <footer className="mt-20 border-t border-gray-200 py-8 dark:border-white/10">
-        <div className="mx-auto max-w-5xl space-y-3 px-4 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
+        <div className="mx-auto max-w-7xl space-y-3 px-4 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500 sm:px-6 lg:px-8">
           {meta && (
             <p>
               {meta.gradeRecords.toLocaleString()} course–instructor grade distributions, {meta.years},

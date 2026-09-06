@@ -1,7 +1,7 @@
 /**
  * Bridges the course explorer and the planner.
  *
- * The explorer works with the 8,000-course TritonPlat dataset keyed by course
+ * The explorer works with the 8,000-course UCSDPlans dataset keyed by course
  * code ("CSE 11"); the planner works with its own `Course` objects keyed by a
  * slug id. Nothing translated between them, so anything saved in the explorer
  * silently never reached the planner. Everything here exists to make the code

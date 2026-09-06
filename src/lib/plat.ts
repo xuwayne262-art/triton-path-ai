@@ -1,5 +1,5 @@
 /**
- * TritonPlat — course-discovery data layer.
+ * UCSDPlans — course-discovery data layer.
  *
  * Everything here reads the static JSON emitted by scripts/build-plat-data.mjs
  * into /public/data/plat. Files are fetched once per page load and memoized on

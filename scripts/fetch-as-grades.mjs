@@ -99,7 +99,7 @@ async function fetchSubject(subject) {
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
           // The archive is a normal browser form; identify the harvester honestly.
-          "User-Agent": "TritonPlat data build (student course tool; contact via repo)",
+          "User-Agent": "UCSDPlans data build (student course tool; contact via repo)",
           Referer: ENDPOINT,
         },
         body,

@@ -55,7 +55,7 @@ export default function Sidebar({
             T
           </div>
           <div>
-            <p className="text-white font-bold text-base leading-tight">TritonPath AI</p>
+            <p className="text-white font-bold text-base leading-tight">UCSDPlans AI</p>
             <p className="text-white/50 text-[11px]">Academic Planner</p>
           </div>
         </div>

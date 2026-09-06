@@ -7,6 +7,7 @@ import {
   BookOpen, Calendar, ChevronLeft, GraduationCap, LayoutGrid, Moon, Sun,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import TridentMark from "@/components/plat/TridentMark";
 import { COLLEGES, type College } from "@/components/triton/types";
 import { UCSD_MAJORS, UCSD_MINORS } from "@/data/ucsdMajorsMinors";
 import { PlannerProvider, usePlanner } from "./PlannerProvider";
@@ -71,18 +72,10 @@ function PlannerChrome({ children }: { children: React.ReactNode }) {
       >
         {/* Logo — also the way back to the course explorer */}
         <Link href="/" className="flex items-center gap-2.5 flex-shrink-0" title="Back to courses">
-          <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm"
-            style={{
-              background: darkMode ? "#FFCD00" : "#182B49",
-              color: darkMode ? "#182B49" : "white",
-            }}
-          >
-            T
-          </div>
+          <TridentMark className="w-8 h-8" />
           <div className="hidden sm:block">
             <p className={`font-bold text-sm leading-tight ${darkMode ? "text-white" : "text-gray-900"}`}>
-              TritonPath
+              UCSDPlans
             </p>
             <p className={`text-[10px] leading-none mt-0.5 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
               UCSD Planner

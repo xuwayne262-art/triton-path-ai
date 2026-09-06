@@ -8,7 +8,9 @@ import Disclosure from "@/components/plat/Disclosure";
 import { GradeBadge, LoadTag } from "@/components/plat/Grade";
 import GradeBars from "@/components/plat/GradeBars";
 import SectionPicker from "@/components/plat/SectionPicker";
+import RateProfessor from "@/components/plat/RateProfessor";
 import { useShortlist } from "@/components/plat/useShortlist";
+import { ratingKey, useTermRatings } from "@/components/plat/useTermRatings";
 import {
   geLabel, loadIndex, loadSubject, typicalGrade,
   type CourseDetail, type PlatIndex, type ProfRecord, type SubjectFile,
@@ -156,7 +158,18 @@ export default function CourseDetailPage({
               {teaching.length === 1 ? "One option." : `${teaching.length} options — the grade histories differ.`}
             </p>
             <div className="rounded-xl border border-gray-200 dark:border-white/10">
-              {teaching.map((p, i) => <ProfLine key={p.i} prof={p} first={i === 0} defaultOpen={i === 0} />)}
+              {teaching.map((p, i) => (
+                <ProfLine
+                  key={p.i}
+                  prof={p}
+                  first={i === 0}
+                  defaultOpen={i === 0}
+                  // Rating is per-term, so it needs the loaded term. Past
+                  // instructors below get none — rating someone for a term they
+                  // are not teaching would be meaningless.
+                  rating={index ? { term: index.meta.term, termName: index.meta.termName, code } : null}
+                />
+              ))}
             </div>
           </section>
         )}
@@ -186,7 +199,7 @@ export default function CourseDetailPage({
           {past.length > 0 && (
             <Disclosure title="Past instructors" hint={`${past.length}`}>
               <div className="rounded-xl border border-gray-200 dark:border-white/10">
-                {past.map((p) => <ProfLine key={p.i} prof={p} />)}
+                {past.map((p) => <ProfLine key={p.i} prof={p} rating={null} />)}
               </div>
             </Disclosure>
           )}
@@ -209,35 +222,91 @@ function summary(detail: CourseDetail, letter: string | undefined, teaching: Pro
   return `${base} The instructors teaching it grade similarly.`;
 }
 
-/** Collapsed to a single line; the distribution opens on click. */
+/**
+ * Collapsed to a single line; the distribution opens from the chevron and the
+ * name opens the rating panel.
+ *
+ * The row used to be one big <button>. It cannot be any more: the name is now
+ * interactive too, and a button inside a button is invalid HTML that browsers
+ * silently reparent. So the row is a plain div holding two sibling controls.
+ */
 function ProfLine({
-  prof, first = false, defaultOpen = false,
-}: { prof: ProfRecord; first?: boolean; defaultOpen?: boolean }) {
+  prof, first = false, defaultOpen = false, rating,
+}: {
+  prof: ProfRecord;
+  first?: boolean;
+  defaultOpen?: boolean;
+  /** null for past instructors — rating is scoped to the current term. */
+  rating: { term: string; termName: string; code: string } | null;
+}) {
   const [open, setOpen] = useState(defaultOpen);
+  const [rateOpen, setRateOpen] = useState(false);
+  const { ratings } = useTermRatings();
+
+  const mine = rating ? ratings[ratingKey(rating.term, rating.code, prof.i)] : undefined;
+  const meta = (
+    <span className="flex flex-wrap items-center gap-x-2 text-xs text-gray-500 dark:text-gray-400">
+      <span>{prof.n > 0 ? `${prof.n} term${prof.n === 1 ? "" : "s"}` : "no grade history"}</span>
+      <LoadTag difficulty={prof.rd} />
+      {mine && (
+        <span className="inline-flex items-center gap-0.5 font-semibold text-[#1B2C4F] dark:text-[#FFC72C]">
+          <Star className="h-3 w-3 fill-current" />
+          you rated {mine.quality}/5
+        </span>
+      )}
+    </span>
+  );
+
   return (
     <div className={first ? "" : "border-t border-gray-100 dark:border-white/5"}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex w-full items-center gap-3 px-3 py-3 text-left transition hover:bg-gray-50 dark:hover:bg-white/5"
-      >
+      <div className="flex w-full items-center gap-3 px-3 py-3">
         <GradeBadge gpa={prof.g} terms={prof.n} size="sm" />
+
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium">{prof.i}</span>
-          <span className="flex flex-wrap items-center gap-x-2 text-xs text-gray-500 dark:text-gray-400">
-            <span>{prof.n > 0 ? `${prof.n} term${prof.n === 1 ? "" : "s"}` : "no grade history"}</span>
-            <LoadTag difficulty={prof.rd} />
-          </span>
+          {rating ? (
+            <button
+              type="button"
+              onClick={() => setRateOpen((v) => !v)}
+              aria-expanded={rateOpen}
+              title={`Rate ${prof.i} for ${rating.termName}`}
+              className="block max-w-full truncate text-left text-sm font-medium underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B2C4F] dark:focus-visible:ring-[#FFC72C]"
+            >
+              {prof.i}
+            </button>
+          ) : (
+            <span className="block truncate text-sm font-medium">{prof.i}</span>
+          )}
+          {meta}
         </span>
+
         {prof.rq != null && prof.rq > 0 && (
           <span className="flex shrink-0 items-center gap-0.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
             <Star className="h-3 w-3 fill-current" />
             {prof.rq.toFixed(1)}
           </span>
         )}
-        <ChevronDown className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} />
-      </button>
+
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-label={`${open ? "Hide" : "Show"} grade distribution for ${prof.i}`}
+          className="shrink-0 rounded p-1 text-gray-400 transition hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B2C4F] dark:hover:bg-white/10 dark:focus-visible:ring-[#FFC72C]"
+        >
+          <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
+        </button>
+      </div>
+
+      {rating && rateOpen && (
+        <RateProfessor
+          key={`${rating.term}:${rating.code}:${prof.i}`}
+          term={rating.term}
+          termName={rating.termName}
+          code={rating.code}
+          instructor={prof.i}
+          onClose={() => setRateOpen(false)}
+        />
+      )}
 
       {open && (
         <div className="px-3 pb-5 pl-14">

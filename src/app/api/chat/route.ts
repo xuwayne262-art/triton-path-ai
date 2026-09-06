@@ -40,7 +40,7 @@ export async function POST(req: Request) {
 
   // 3. Construct the System Prompt
   const systemPrompt = `
-You are TritonPath AI, an expert academic advisor for UC San Diego undergraduates.
+You are UCSDPlans AI, an expert academic advisor for UC San Diego undergraduates.
 You are vastly superior to the traditional Virtual Advising Center (VAC).
 
 The student is in ${selectedCollege || "an undeclared"} College.

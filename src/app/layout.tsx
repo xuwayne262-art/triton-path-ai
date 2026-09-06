@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TritonPlat — UCSD course radar & AI planner",
+  title: "UCSDPlans — UCSD course radar & AI planner",
   description:
     "Grade distributions, professor ratings and Fall 2026 seats for every UCSD course, plus an AI four-year planner.",
 };

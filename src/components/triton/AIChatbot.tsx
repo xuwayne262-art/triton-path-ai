@@ -33,7 +33,7 @@ export default function AIChatbot({
       id: "welcome",
       role: "assistant",
       content:
-        "Hi! I'm your TritonPath AI Advisor 🔱 I can help with course selection, GE planning, major requirements, and building the best 4-year plan for you. What would you like to know?",
+        "Hi! I'm your UCSDPlans AI Advisor 🔱 I can help with course selection, GE planning, major requirements, and building the best 4-year plan for you. What would you like to know?",
       timestamp: new Date(),
     },
   ]);

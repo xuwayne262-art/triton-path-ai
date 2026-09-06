@@ -81,7 +81,7 @@ function unzip(buf, wanted) {
   return found;
 }
 
-const UA = "TritonPlat data build (student course tool; contact via repo)";
+const UA = "UCSDPlans data build (student course tool; contact via repo)";
 
 /**
  * Google serves these exports over a redirect chain that Node's fetch cannot

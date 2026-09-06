@@ -44,7 +44,7 @@ interface CourseCatalogProps {
   plannedCourses: Array<{ courseId: string; course: Course }>;
   addAICourseToPlan: (course: Course, year: 1 | 2 | 3 | 4, quarter: "Fall" | "Winter" | "Spring") => void;
   removePlannedCourse: (courseId: string) => void;
-  /** The shared TritonPlat dataset — same courses the explorer shows. */
+  /** The shared UCSDPlans dataset — same courses the explorer shows. */
   platRows: PlatRow[];
   /** Rendered above the catalog so saved courses are the first thing you see. */
   savedPanel?: React.ReactNode;
