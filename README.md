@@ -12,30 +12,45 @@ approval list and no student/faculty check; the domain is the whole rule, and
 it is applied on the server against Google's ID token, never against anything
 the browser sends.
 
-### Configuring Google (required — sign-in cannot work until this is done)
+### Google OAuth client
 
-1. In the [Google Cloud console](https://console.cloud.google.com/apis/credentials),
-   create an **OAuth client ID** of type **Web application**.
-2. Add these **Authorised JavaScript origins**:
-   - `http://localhost:3000`
-   - `https://YOUR-DOMAIN` (production)
-3. Add these **Authorised redirect URIs** — the path is fixed by Auth.js:
-   - `http://localhost:3000/api/auth/callback/google`
-   - `https://YOUR-DOMAIN/api/auth/callback/google`
-4. On the OAuth consent screen, the only scopes needed are `openid`, `email`
-   and `profile`.
-5. Put the credentials in `.env.local` (and in your host's environment for
-   production):
+Production domain: **ucsdplans.com**. The Google Cloud project is `ucsdplans`.
+
+**Authorised JavaScript origins**
+- `https://ucsdplans.com`
+- `http://localhost:3000` — add this if you want to sign in during development
+
+**Authorised redirect URIs** (the path is fixed by Auth.js — do not invent one)
+- `https://ucsdplans.com/api/auth/callback/google`
+- `http://localhost:3000/api/auth/callback/google` — same, for development
+
+The only scopes needed are `openid`, `email` and `profile`. All three are
+non-sensitive, so publishing the consent screen does **not** require Google's
+verification review.
+
+> **The consent screen must be External and Published.** While it is *Internal*
+> it only admits accounts in your own Google Workspace organisation, and while
+> it is *Testing* it only admits addresses on the test-user list. Either way
+> `@ucsd.edu` students are locked out even though the code would accept them.
+
+### Environment
 
 ```bash
-AUTH_SECRET=          # generate with: npx auth secret
+AUTH_SECRET=          # 32 random bytes; generate with: npx auth secret
 AUTH_GOOGLE_ID=       # ...apps.googleusercontent.com
-AUTH_GOOGLE_SECRET=
+AUTH_GOOGLE_SECRET=   # GOCSPX-...
 ```
 
-Restart the server afterwards. Until all three are set the login page says so
-and shows the exact callback URI for the current host — it does not offer a
-button that cannot work, and nothing else on the site is reachable.
+`.env.local` covers development and is gitignored, along with any
+`client_secret_*.json` downloaded from the Google console. **Those files never
+reach the server**, so the same three variables must also be set in the hosting
+provider's own environment settings before the deployed site can sign anyone
+in. `trustHost` is enabled, so `AUTH_URL` is only needed if a proxy in front of
+the app does not forward the real host.
+
+Until all three are set the login page says so and shows the exact callback URI
+for the current host — it does not offer a button that cannot work, and nothing
+else on the site is reachable.
 
 ## Hosted AI is turned off
 

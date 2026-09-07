@@ -45,3 +45,6 @@ next-env.d.ts
 
 # generated knowledge graph (rebuild with /graphify)
 /graphify-out/
+
+# Google OAuth client secret downloads — never commit these
+client_secret_*.json
