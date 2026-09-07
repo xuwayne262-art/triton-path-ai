@@ -58,7 +58,8 @@ export default async function LoginPage({
   // Shown only when unconfigured, so the operator sees the exact URI to paste
   // into the Google console rather than having to guess the host.
   const host = (await headers()).get("host") ?? "localhost:3000";
-  const scheme = host.startsWith("localhost") || host.startsWith("127.0.0.1") ? "http" : "https";
+  const isLocalHost = host.startsWith("localhost") || host.startsWith("127.0.0.1");
+  const scheme = isLocalHost ? "http" : "https";
   const callbackUrls = [`${scheme}://${host}/api/auth/callback/google`];
 
   return (
@@ -68,6 +69,7 @@ export default async function LoginPage({
       configured={AUTH_CONFIGURED}
       missingEnv={missingAuthEnv()}
       callbackUrls={callbackUrls}
+      isLocalHost={isLocalHost}
     />
   );
 }

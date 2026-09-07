@@ -23,6 +23,8 @@ export interface LoginViewProps {
   configured: boolean;
   missingEnv: string[];
   callbackUrls: string[];
+  /** Drives the setup notice: editing a local file is only useful locally. */
+  isLocalHost: boolean;
 }
 
 /**
@@ -67,6 +69,7 @@ export default function LoginView({
   configured,
   missingEnv,
   callbackUrls,
+  isLocalHost,
 }: LoginViewProps) {
   return (
     <main
@@ -115,7 +118,11 @@ export default function LoginView({
             </p>
           </>
         ) : (
-          <SetupNotice missingEnv={missingEnv} callbackUrls={callbackUrls} />
+          <SetupNotice
+            missingEnv={missingEnv}
+            callbackUrls={callbackUrls}
+            isLocalHost={isLocalHost}
+          />
         )}
       </div>
     </main>
@@ -130,17 +137,31 @@ export default function LoginView({
 function SetupNotice({
   missingEnv,
   callbackUrls,
+  isLocalHost,
 }: {
   missingEnv: string[];
   callbackUrls: string[];
+  isLocalHost: boolean;
 }) {
   return (
     <div className="mt-8 rounded-lg border border-[#E8E2D4] bg-[#FFFDF6] px-5 py-4">
       <p className="text-[14px] font-semibold">Google sign-in is not configured yet</p>
-      <p className="mt-2 text-[13px] leading-relaxed text-[#6B7488]">
-        Add these to <code className="font-mono text-[12px]">.env.local</code> and restart the
-        server:
-      </p>
+      {isLocalHost ? (
+        <p className="mt-2 text-[13px] leading-relaxed text-[#6B7488]">
+          Add these to <code className="font-mono text-[12px]">.env.local</code> and restart the
+          server:
+        </p>
+      ) : (
+        // A deployed server never sees .env.local — it is gitignored and stays
+        // on the developer's machine. Saying otherwise sends people to edit a
+        // file that cannot possibly affect this page.
+        <p className="mt-2 text-[13px] leading-relaxed text-[#6B7488]">
+          This is a deployed server, so it does not read{" "}
+          <code className="font-mono text-[12px]">.env.local</code>. Set these in the hosting
+          project&rsquo;s environment variables, then <strong>redeploy</strong> — variables added
+          after a deployment only apply to the next one:
+        </p>
+      )}
       <ul className="mt-2 space-y-1">
         {missingEnv.map((name) => (
           <li key={name} className="font-mono text-[12px] text-[#8C6D1F]">
