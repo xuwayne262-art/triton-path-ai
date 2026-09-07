@@ -1,5 +1,42 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Signing in
+
+UCSDPlans is private. Every page, API route and dataset file under `/data`
+requires a signed-in Google account whose **verified** email ends exactly in
+`@ucsd.edu`. Only the login page, `/api/auth/*` and the login page's own assets
+are public.
+
+`alice@eng.ucsd.edu` is rejected — `.ucsd.edu` is not `@ucsd.edu`. There is no
+approval list and no student/faculty check; the domain is the whole rule, and
+it is applied on the server against Google's ID token, never against anything
+the browser sends.
+
+### Configuring Google (required — sign-in cannot work until this is done)
+
+1. In the [Google Cloud console](https://console.cloud.google.com/apis/credentials),
+   create an **OAuth client ID** of type **Web application**.
+2. Add these **Authorised JavaScript origins**:
+   - `http://localhost:3000`
+   - `https://YOUR-DOMAIN` (production)
+3. Add these **Authorised redirect URIs** — the path is fixed by Auth.js:
+   - `http://localhost:3000/api/auth/callback/google`
+   - `https://YOUR-DOMAIN/api/auth/callback/google`
+4. On the OAuth consent screen, the only scopes needed are `openid`, `email`
+   and `profile`.
+5. Put the credentials in `.env.local` (and in your host's environment for
+   production):
+
+```bash
+AUTH_SECRET=          # generate with: npx auth secret
+AUTH_GOOGLE_ID=       # ...apps.googleusercontent.com
+AUTH_GOOGLE_SECRET=
+```
+
+Restart the server afterwards. Until all three are set the login page says so
+and shows the exact callback URI for the current host — it does not offer a
+button that cannot work, and nothing else on the site is reachable.
+
 ## Hosted AI is turned off
 
 All three AI endpoints answer **503** with `Cache-Control: no-store`:
