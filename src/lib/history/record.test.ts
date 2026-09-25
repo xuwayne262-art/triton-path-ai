@@ -133,3 +133,35 @@ describe("storageKey", () => {
     }
   });
 });
+
+describe("historyStore (file driver)", () => {
+  test("round-trips a record and forgets it on delete", async (t) => {
+    const { historyStore, resetHistoryStore } = await import("./store");
+    // The file driver is what `next dev` uses; production refuses to fall back
+    // to it, so this exercises the same code path a developer runs.
+    delete process.env.KV_REST_API_URL;
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    resetHistoryStore();
+
+    const store = historyStore();
+    assert.ok(store, "a dev store exists without any KV configured");
+    assert.equal(store.name, "file");
+
+    const key = storageKey("roundtrip@ucsd.edu", "test-secret");
+    t.after(async () => {
+      await store.del(key);
+      resetHistoryStore();
+    });
+
+    assert.equal(await store.get(key), null, "nothing stored yet");
+    await store.set(key, JSON.stringify({ hello: "world" }));
+    assert.deepEqual(JSON.parse((await store.get(key)) ?? "null"), { hello: "world" });
+    await store.del(key);
+    assert.equal(await store.get(key), null, "gone after delete");
+  });
+
+  test("deleting something that was never there is not an error", async () => {
+    const { historyStore } = await import("./store");
+    await historyStore()!.del(storageKey("never@ucsd.edu", "test-secret"));
+  });
+});
