@@ -50,6 +50,18 @@ export default function PlatShell({
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
 
+            <Link
+              href="/import"
+              aria-current={pathname.startsWith("/import") ? "page" : undefined}
+              className={`hidden rounded-lg px-3 py-1.5 text-sm font-medium transition sm:inline-flex ${
+                pathname.startsWith("/import")
+                  ? "bg-gray-100 text-[#182B49] dark:bg-white/10 dark:text-[#FFCD00]"
+                  : "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/10"
+              }`}
+            >
+              My record
+            </Link>
+
             {/* The planner is the other half of the product, so it gets a filled
                 button rather than a text link that reads as chrome. */}
             <Link

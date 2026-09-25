@@ -48,3 +48,6 @@ next-env.d.ts
 
 # Google OAuth client secret downloads — never commit these
 client_secret_*.json
+
+# imported academic histories, local dev only (see src/lib/history/store.ts)
+/.history-store/

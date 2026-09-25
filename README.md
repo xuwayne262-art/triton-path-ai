@@ -39,6 +39,13 @@ verification review.
 AUTH_SECRET=          # 32 random bytes; generate with: npx auth secret
 AUTH_GOOGLE_ID=       # ...apps.googleusercontent.com
 AUTH_GOOGLE_SECRET=   # GOCSPX-...
+
+# Where imported Academic Histories are stored. Any Upstash-dialect Redis REST
+# endpoint works, which is what Vercel KV exposes. Without these, `next dev`
+# writes to ./.history-store and production refuses to save at all rather than
+# accepting a record it would silently drop.
+KV_REST_API_URL=      # or UPSTASH_REDIS_REST_URL
+KV_REST_API_TOKEN=    # or UPSTASH_REDIS_REST_TOKEN
 ```
 
 `.env.local` covers development and is gitignored, along with any
@@ -51,6 +58,47 @@ the app does not forward the real host.
 Until all three are set the login page says so and shows the exact callback URI
 for the current host — it does not offer a button that cannot work, and nothing
 else on the site is reachable.
+
+## Where the course data comes from
+
+Every source is first-party UCSD and needs no key. Rebuild with
+`npm run build:data`, which reads `.data-cache/` and writes `public/data/plat/`.
+
+| Cache file | Script | Source |
+| --- | --- | --- |
+| `classplanner.json` | `fetch-classplanner.mjs` | [Class Planner](https://classplanner.apps.ucsd.edu) — this term's sections, per-section instructors, live seats and waitlists, prerequisites, restrictions, TSS module ids, building coordinates |
+| `as-grades.json` | `fetch-as-grades.mjs` | [AS Instructor Grade Archive](https://asmain.ucsd.edu/Home/InstructorGradeArchive) — 2015–2026 grade distributions |
+| `catalog.json` | `fetch-catalog.mjs` | [General Catalog](https://catalog.ucsd.edu/front/courses.html) — every catalogued course |
+| `data.json` | — | `ucsd-easy-a-radar`, now read for RateMyProfessors scores only |
+
+**The legacy Schedule of Classes cannot supply this term.** `act.ucsd.edu`'s
+term list stops at SU26 — enrolment moved to TSS for Fall 2026, and Class
+Planner is UCSD's own front end for it. Its API is unauthenticated and
+continuously refreshed, so it is both the first-party source and the freshest
+one. It is also the true upstream other UCSD planners publish snapshots of.
+
+`fetch-classplanner.mjs` also harvests the TSS **module id** and per-section
+**event package id** behind every *Book on TSS* link. Those only appear on
+`/api/v1/schedules/{ref}`, and that endpoint refuses a ref whose section ids are
+not sorted, and caps a schedule at 15 distinct courses — hence the batch size.
+
+## Importing an Academic History
+
+`/import` takes a **paste**, not a file. The record is already on screen on
+TritonLink; downloading a PDF, finding it and dragging it back are three steps
+that exist only to move that text, and each is a place a student gives up.
+
+The parse runs in the browser (`src/lib/history/parse.ts`). Only the structured
+result is sent to `/api/history` — never the raw paste, which carries the
+student's name and PID. The parser keeps neither.
+
+Storage is keyed by `sha256(AUTH_SECRET || email)`, so the datastore holds no
+addresses and its keyspace cannot be enumerated by guessing `@ucsd.edu` names.
+The server rebuilds every record field by field and **recomputes all totals**
+(`src/lib/history/record.ts`) — a caller cannot put a GPA of its choosing on a
+student's dashboard. A line the parser cannot read is surfaced to the student
+rather than dropped, because a silently short transcript reads as a complete
+one.
 
 ## Hosted AI is turned off
 
