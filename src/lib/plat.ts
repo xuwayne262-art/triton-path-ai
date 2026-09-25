@@ -50,8 +50,24 @@ export interface IndexMeta {
   gradeRecords: number;
   catalogCourses: number;
   offered: number;
-  buildings: Record<string, [number, number]>;
   sources: string[];
+}
+
+/** One campus building, keyed by its code ("CENTR") in buildings.json. */
+export interface Building {
+  /** What the schedule calls it: "Ledden Auditorium". */
+  n: string;
+  /** The structure UCSD's map files it under, when that differs: "Humanities and Social Sciences". */
+  m?: string;
+  /** [latitude, longitude] */
+  ll: [number, number];
+  /** Street address, when UCSD publishes one. */
+  a?: string;
+}
+
+export interface BuildingsFile {
+  term: string;
+  buildings: Record<string, Building>;
 }
 
 export interface PlatIndex {
@@ -92,6 +108,8 @@ export type SectionTuple = [
   // 11 waitlisted · 12 enrolled · 13 TSS section id · 14 TSS package ids
   // 15 start, minutes from midnight · 16 end, same
   number, number | null, string, string[], number | null, number | null,
+  // 17 building code, "" when TBA or remote · 18 Class Planner status
+  string?, string?,
 ];
 
 export interface CourseDetail {
@@ -152,6 +170,7 @@ function loadJSON<T>(url: string): Promise<T> {
 
 export const loadIndex = () => loadJSON<PlatIndex>("/data/plat/index.json");
 export const loadGE = () => loadJSON<GEFile>("/data/plat/ge.json");
+export const loadBuildings = () => loadJSON<BuildingsFile>("/data/plat/buildings.json");
 export const loadSubject = (sub: string) =>
   loadJSON<SubjectFile>(`/data/plat/subject/${encodeURIComponent(sub)}.json`);
 

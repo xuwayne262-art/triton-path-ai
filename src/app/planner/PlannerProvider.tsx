@@ -17,17 +17,18 @@ import {
   MINOR_REQUIREMENTS,
 } from "@/data/requirements";
 import {
-  loadIndex, loadSubject, type CourseRow as PlatRow, type SectionTuple,
+  loadBuildings, loadIndex, loadSubject,
+  type Building, type CourseRow as PlatRow, type SectionTuple,
 } from "@/lib/plat";
 import { useShortlist } from "@/components/plat/useShortlist";
 import { useTheme } from "@/components/plat/theme";
 import {
-  courseRole, majorSubjects, platRowToCourse, ROLE_STYLES,
+  courseRole, majorSubjects, platRowToCourse, rowToTimes, ROLE_STYLES,
   type CourseRole, type RoleContext,
 } from "@/lib/plannerBridge";
 import {
-  autoPick, buildEvents, busyFrom, groupSections, isComplete, missingParts,
-  sectionMeetings, selectedSections,
+  CODE, autoPick, buildEvents, busyFrom, eventsForRow, findFamily, forcedSelection,
+  groupSections, isComplete, meetingsOfRows, missingParts, selectedSections,
   type CalEvent, type EventSource, type SectionSelection,
 } from "@/lib/sections";
 
@@ -178,9 +179,26 @@ interface PlannerValue {
 
   /** Real per-section rows, lazily fetched per subject. */
   sectionsByCode: Record<string, SectionTuple[]>;
+  /** Each scheduled course's TSS booking link, from the same subject files. */
+  tssByCode: Record<string, string | null>;
   selections: Record<string, SectionSelection>;
   setSelection: (code: string, next: SectionSelection) => void;
   clearSelection: (code: string) => void;
+  /** Commit an option clicked on the calendar or the map. */
+  chooseOption: (code: string, choice: NonNullable<CalEvent["choice"]>) => void;
+  /** Adds a course straight from its code — the rail's quick-add box. */
+  addCourseByCode: (code: string) => boolean;
+  platByCode: Map<string, PlatRow>;
+  /** This term, "FA26", as the dataset names it. */
+  term: string;
+  /** Building code -> name and UCSD's coordinates, for the campus map. */
+  buildings: Record<string, Building>;
+  /**
+   * Lecture choices still open, as clickable ghost blocks. A course with more
+   * than one lecture used to sit on the calendar at its catalog time, labelled
+   * "Meeting" — a time that belonged to one lecture, shown as if decided.
+   */
+  optionEvents: CalEvent[];
   /** Fill in sections that fit around everything already placed. */
   autoPickFor: (code: string) => boolean;
   autoPickAll: () => void;
@@ -235,14 +253,27 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
   const [platRows, setPlatRows] = useState<PlatRow[]>([]);
+  const [term, setTerm] = useState("");
+  const [buildings, setBuildings] = useState<Record<string, Building>>({});
   const [sectionsByCode, setSectionsByCode] = useState<Record<string, SectionTuple[]>>({});
+  const [tssByCode, setTssByCode] = useState<Record<string, string | null>>({});
   const [loadingSubjects, setLoadingSubjects] = useState<Set<string>>(() => new Set());
   const [selections, setSelections] = useState<Record<string, SectionSelection>>({});
 
   const { codes: savedCodes, toggle: toggleSaved } = useShortlist();
   const majorSubjectSet = useMemo(() => majorSubjects(selectedMajor), [selectedMajor]);
 
-  useEffect(() => { loadIndex().then((d) => setPlatRows(d.courses)).catch(() => {}); }, []);
+  useEffect(() => {
+    loadIndex()
+      .then((d) => {
+        setPlatRows(d.courses);
+        setTerm(d.meta.term);
+      })
+      .catch(() => {});
+    // Ten kilobytes, and the map is useless without it; a failure only means
+    // every meeting is listed as "not on the map" rather than pinned.
+    loadBuildings().then((f) => setBuildings(f.buildings)).catch(() => {});
+  }, []);
 
   // ── Rehydrate ───────────────────────────────────────────────────────────────
   // Read after mount, not in useState, so the server and first client render
@@ -317,19 +348,22 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
         loadSubject(subject)
           .then((file) => {
             const rows: Record<string, SectionTuple[]> = {};
+            const tss: Record<string, string | null> = {};
             for (const [code, detail] of Object.entries(file.courses)) {
               if (detail.sec?.length) rows[code] = detail.sec;
+              if (detail.tss) tss[code] = detail.tss;
             }
-            return rows;
+            return { rows, tss };
           })
           // A missing subject file is a gap in the snapshot, not a broken page:
           // the course keeps its catalog meeting time and simply cannot be
           // broken down into sections.
-          .catch(() => ({}) as Record<string, SectionTuple[]>),
+          .catch(() => ({ rows: {}, tss: {} })),
       ),
     ).then((results) => {
       if (!mounted.current) return;
-      setSectionsByCode((prev) => Object.assign({}, prev, ...results));
+      setSectionsByCode((prev) => Object.assign({}, prev, ...results.map((r) => r.rows)));
+      setTssByCode((prev) => Object.assign({}, prev, ...results.map((r) => r.tss)));
       setLoadingSubjects((prev) => {
         const next = new Set(prev);
         for (const subject of wanted) next.delete(subject);
@@ -379,9 +413,11 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
 
   // ── Calendar events ─────────────────────────────────────────────────────────
   // The week is derived, never stored. A course contributes its chosen sections
-  // when the schedule publishes them, and otherwise falls back to the single
-  // meeting time carried in the catalog index — so a course with no section data
-  // still lands on the calendar instead of vanishing from it.
+  // when the schedule publishes them. Only a course with no section rows at all
+  // — its subject file still loading, or missing — falls back to the meeting
+  // time in the catalog index, and only when that time is real: the placeholder
+  // times this used to invent put courses on the calendar at hours they never
+  // meet, labelled "Meeting".
 
   const events = useMemo((): CalEvent[] => {
     const sources: EventSource[] = selectedCourses.map(({ course }) => {
@@ -389,22 +425,90 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       const chosen = sec.length
         ? selectedSections(groupSections(sec), selections[course.code])
         : [];
+      const row = platByCode.get(course.code);
       return {
         code: course.code,
         title: course.title,
         role: courseRole(course, roleContext),
         sections: chosen,
-        fallback: (course.time ?? []).flatMap((t) => {
-          const startMin = clockToMinutes(t.start);
-          const endMin = clockToMinutes(t.end);
-          return startMin == null || endMin == null
-            ? []
-            : [{ day: t.day, startMin, endMin }];
-        }),
+        fallback: sec.length || !row?.o
+          ? []
+          : (rowToTimes(row) ?? []).flatMap((t) => {
+              const startMin = clockToMinutes(t.start);
+              const endMin = clockToMinutes(t.end);
+              return startMin == null || endMin == null
+                ? []
+                : [{ day: t.day, startMin, endMin }];
+            }),
+        fallbackWhere: row?.b ?? "",
       };
     });
     return buildEvents(sources);
+  }, [selectedCourses, sectionsByCode, selections, roleContext, platByCode]);
+
+  const optionEvents = useMemo((): CalEvent[] => {
+    const out: CalEvent[] = [];
+    for (const { course } of selectedCourses) {
+      const sec = sectionsByCode[course.code];
+      if (!sec?.length) continue;
+      const families = groupSections(sec);
+      if (findFamily(families, selections[course.code]?.family)) continue;
+      const src = { code: course.code, title: course.title, role: courseRole(course, roleContext) };
+      for (const f of families) {
+        if (f.lectureRows.length) {
+          for (const r of f.lectureRows) {
+            out.push(...eventsForRow(src, r, {
+              ghost: "option",
+              choice: { family: f.key, part: null, code: r[CODE] },
+            }));
+          }
+          continue;
+        }
+        // A family with no lecture (a lab-only course) is chosen by its parts.
+        for (const p of f.parts) {
+          for (const s of p.sections) {
+            for (const r of p.rows[s[CODE]] ?? [s]) {
+              out.push(...eventsForRow(src, r, {
+                ghost: "option",
+                choice: { family: f.key, part: p.type, code: s[CODE] },
+              }));
+            }
+          }
+        }
+      }
+    }
+    return out;
   }, [selectedCourses, sectionsByCode, selections, roleContext]);
+
+  /**
+   * Makes the choices that are not really choices — the only lecture on offer,
+   * a discussion with one option — as soon as a course's sections arrive, so
+   * the week shows "Lecture A00" instead of waiting for a click that decides
+   * nothing. A course with two or more lectures is left alone: that is a
+   * decision about someone's week, and guessing it would be wrong half the time.
+   */
+  useEffect(() => {
+    if (!hydrated) return;
+    const additions: Record<string, SectionSelection> = {};
+    for (const { course } of selectedCourses) {
+      const sec = sectionsByCode[course.code];
+      if (!sec?.length) continue;
+      const families = groupSections(sec);
+      const forced = forcedSelection(families);
+      if (!forced) continue;
+      const current = selections[course.code];
+      if (!current || !findFamily(families, current.family)) {
+        additions[course.code] = forced;
+        continue;
+      }
+      if (current.family !== forced.family) continue;
+      const missing = Object.entries(forced.parts).filter(([type]) => !current.parts[type]);
+      if (missing.length) {
+        additions[course.code] = { ...current, parts: { ...current.parts, ...Object.fromEntries(missing) } };
+      }
+    }
+    if (Object.keys(additions).length) setSelections((prev) => ({ ...prev, ...additions }));
+  }, [hydrated, selectedCourses, sectionsByCode, selections]);
 
   const conflictCodes = useMemo(
     () => new Set(events.filter((e) => e.conflict).map((e) => e.code)),
@@ -431,6 +535,37 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  /**
+   * An option clicked on the calendar. Choosing a lecture keeps nothing from a
+   * different family, because a discussion belongs to its lecture; choosing a
+   * sub-section implies its family, so a lab-only course needs one click.
+   */
+  const chooseOption = useCallback(
+    (code: string, choice: NonNullable<CalEvent["choice"]>) => {
+      setSelections((prev) => {
+        const cur = prev[code];
+        let base: SectionSelection;
+        if (cur && cur.family === choice.family) {
+          base = cur;
+        } else {
+          // A new lecture brings any sub-section it has only one of, as the
+          // rail does — a lone discussion is not a second decision.
+          const family = findFamily(groupSections(sectionsByCode[code] ?? []), choice.family);
+          const parts: Record<string, string> = {};
+          for (const p of family?.parts ?? []) {
+            if (p.sections.length === 1) parts[p.type] = p.sections[0][CODE];
+          }
+          base = { family: choice.family, parts };
+        }
+        const next = choice.part
+          ? { ...base, parts: { ...base.parts, [choice.part]: choice.code } }
+          : base;
+        return { ...prev, [code]: next };
+      });
+    },
+    [sectionsByCode],
+  );
+
   const sectionStatus = useCallback(
     (code: string): SectionStatus => {
       const sec = sectionsByCode[code];
@@ -449,7 +584,8 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       return {
         available: families.length > 0,
         loading: false,
-        started: Boolean(sel),
+        // A stored pick naming a lecture that no longer exists is no pick.
+        started: Boolean(findFamily(families, sel?.family)),
         complete: isComplete(families, sel),
         missing: missingParts(families, sel),
       };
@@ -492,9 +628,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       const picked = autoPick(sec, busy);
       if (!picked) continue;
       next[course.code] = picked;
-      for (const s of selectedSections(groupSections(sec), picked)) {
-        busy.push(...sectionMeetings(s));
-      }
+      busy.push(...meetingsOfRows(selectedSections(groupSections(sec), picked)));
     }
 
     if (Object.keys(next).length) setSelections((prev) => ({ ...prev, ...next }));
@@ -507,17 +641,21 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     // two adds in the same tick silently dropped one.
     setSelectedCourses((prev) => {
       if (prev.some((c) => c.course.id === course.id)) return prev;
-      // Real meeting times come from the schedule snapshot; fall back to a
-      // deterministic placeholder so the weekly grid can still place the block.
-      const courseWithTime: Course = course.time?.length
-        ? course
-        : { ...course, time: generateSampleTime(course.code) };
-      return [
-        ...prev,
-        { course: courseWithTime, id: `${course.id}-${Date.now()}-${prev.length}` },
-      ];
+      // No placeholder time: a course with no published time stays off the
+      // grid and says so in the rail, rather than appearing at an invented hour.
+      return [...prev, { course, id: `${course.id}-${Date.now()}-${prev.length}` }];
     });
   }, []);
+
+  const addCourseByCode = useCallback(
+    (code: string) => {
+      const row = platByCode.get(code);
+      if (!row) return false;
+      addToSchedule(platRowToCourse(row, majorSubjectSet));
+      return true;
+    },
+    [platByCode, majorSubjectSet, addToSchedule],
+  );
 
   const removeFromSchedule = useCallback((id: string) => {
     setSelectedCourses((prev) => prev.filter((c) => c.id !== id));
@@ -733,7 +871,8 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     searchQuery, setSearchQuery,
     platRows, allCourses: coursesWithTimes, savedCourses, toggleSaved,
     selectedCourses, addToSchedule, removeFromSchedule, clearSchedule,
-    sectionsByCode, selections, setSelection, clearSelection,
+    sectionsByCode, tssByCode, selections, setSelection, clearSelection, chooseOption,
+    addCourseByCode, platByCode, term, buildings, optionEvents,
     autoPickFor, autoPickAll, sectionStatus, events, conflictCodes, totalUnits,
     plannedCourses, addAICourseToPlan, removePlannedCourse, addToPlanner, movePlannedCourse,
     plannerYear, setPlannerYear, plannerQuarter, setPlannerQuarter,

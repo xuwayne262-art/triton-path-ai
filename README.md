@@ -71,7 +71,7 @@ Every source is first-party UCSD and needs no key. Rebuild with
 
 | Cache file | Script | Source |
 | --- | --- | --- |
-| `classplanner.json` | `fetch-classplanner.mjs` | [Class Planner](https://classplanner.apps.ucsd.edu) — this term's sections, per-section instructors, live seats and waitlists, prerequisites, restrictions, TSS module ids, building coordinates |
+| `classplanner.json` | `fetch-classplanner.mjs` | [Class Planner](https://classplanner.apps.ucsd.edu) — this term's sections, per-section instructors, live seats and waitlists, prerequisites, restrictions, TSS module ids, building coordinates (→ `buildings.json`) |
 | `as-grades.json` | `fetch-as-grades.mjs` | [AS Instructor Grade Archive](https://asmain.ucsd.edu/Home/InstructorGradeArchive) — 2015–2026 grade distributions |
 | `catalog.json` | `fetch-catalog.mjs` | [General Catalog](https://catalog.ucsd.edu/front/courses.html) — every catalogued course |
 | `data.json` | — | `ucsd-easy-a-radar`, now read for RateMyProfessors scores only |
@@ -86,6 +86,45 @@ one. It is also the true upstream other UCSD planners publish snapshots of.
 **event package id** behind every *Book on TSS* link. Those only appear on
 `/api/v1/schedules/{ref}`, and that endpoint refuses a ref whose section ids are
 not sorted, and caps a schedule at 15 distinct courses — hence the batch size.
+
+Three things about Class Planner's data that the build has to get right:
+
+- **`waitlist_only` is not cancelled.** It means full but still taking a
+  waitlist. Reading every status other than `AC` as cancelled once hid 231
+  sections — all of CSE 11 among them — so the planner had nothing to offer.
+  Only an explicit cancellation removes a section.
+- **A meeting with a `specific_date` happens once.** Midterms, finals and the
+  odd one-off session (MGT 18, PHYS 2A) are written as dated rows (`FI`, `MI`,
+  or `OT` with a date in the days column), never as weekly slots. MATH 20A's
+  two evening midterms used to appear as a weekly Monday 8pm lecture.
+- **Buildings are keyed by code.** A room is `LEDDN AUD`, its meeting says
+  "Ledden Auditorium", and UCSD's map files the same code under "Humanities and
+  Social Sciences". The code is the one key all three share, so
+  `buildings.json` maps code → name, map name, coordinates and address. A few
+  buildings (CALIT, TASB, OAR, SWC-25) have no coordinates in UCSD's map; the
+  planner lists those meetings as "not on the map" rather than guessing.
+
+## Campus map
+
+The term workspace has a map drawer on the right (the **Map** button, the
+pull tab on the calendar's edge, or <kbd>M</kbd>). It pins every building the
+chosen sections meet in and, for each weekday, draws the walk between
+consecutive classes, flagging any walk longer than the break before it.
+
+- **Tiles** come from [OpenFreeMap](https://openfreemap.org) — vector tiles, no
+  key, no view limits, with light and dark styles — drawn by MapLibre GL, which
+  is loaded only when the drawer opens. CARTO's basemaps now require an API key
+  and OpenStreetMap's own tile servers block apps under their usage policy, so
+  neither works for a deployed site.
+- **Walking routes** come from Class Planner itself: `GET /api/walk?term=…&ids=…`
+  builds the schedule ref from the chosen TSS section ids and returns only the
+  routed legs (distance, minutes, walkway geometry). Class Planner sends no
+  CORS headers, which is why this goes through the server. Input is validated
+  before any request, identical schedules are served from memory, and a slow
+  upstream is cut off after eight seconds. Nothing but section ids is sent.
+- **When UCSD cannot route a leg**, the planner estimates it from the
+  straight-line distance × 1.37 at 80 m/min — calibrated on 20 of UCSD's own
+  routed legs — and labels it as an estimate.
 
 ## Importing an Academic History
 

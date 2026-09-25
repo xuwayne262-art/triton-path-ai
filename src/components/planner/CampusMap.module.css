@@ -1,0 +1,114 @@
+/*
+ * Markers are plain DOM that MapLibre positions with a transform on the
+ * element it is handed, so every visual transform here goes on a child —
+ * scaling the element itself would overwrite MapLibre's translate.
+ */
+
+.pin {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  transform-origin: 50% 100%;
+  transition: transform 150ms ease, opacity 150ms ease;
+  outline: none;
+}
+
+.body {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px 3px 4px;
+  border: 2px solid var(--pin, #182b49);
+  border-radius: 9999px;
+  background: #fff;
+  color: #0f172a;
+  box-shadow: 0 2px 6px rgb(15 23 42 / 0.28);
+  font: 700 11px/1.1 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.tail {
+  width: 0;
+  height: 0;
+  margin-top: -1px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 7px solid var(--pin, #182b49);
+}
+
+/* Stop numbers on a day's route, in the course's colour. */
+.num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 9999px;
+  color: #fff;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  box-shadow: 0 0 0 1.5px #fff;
+}
+
+.hot {
+  transform: scale(1.18);
+}
+.hot .body {
+  box-shadow: 0 0 0 3px #ffcd00, 0 6px 14px rgb(15 23 42 / 0.35);
+}
+
+.pin:focus-visible .body {
+  box-shadow: 0 0 0 3px #ffcd00;
+}
+
+/* The option being hovered in the rail: where it would send you. */
+.ghost .body {
+  border-style: dashed;
+  background: #fffbea;
+}
+.ghost {
+  opacity: 0.92;
+}
+
+.leg {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border: 1.5px solid var(--leg, #182b49);
+  border-radius: 9999px;
+  background: #fff;
+  color: #0f172a;
+  box-shadow: 0 1px 4px rgb(15 23 42 / 0.25);
+  font: 700 10px/1 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+:global(.dark) .body,
+:global(.dark) .leg {
+  background: #111827;
+  color: #f9fafb;
+}
+:global(.dark) .ghost .body {
+  background: #2a2410;
+}
+:global(.dark) .dot {
+  box-shadow: 0 0 0 1.5px #111827;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pin {
+    transition: none;
+  }
+}

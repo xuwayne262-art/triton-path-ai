@@ -29,6 +29,7 @@ export const AVAIL = 8, LIMIT = 9, CANCELLED = 10;
 // Appended when the schedule moved to UCSD's Class Planner. Older cached files
 // have no value at these positions, so every reader treats them as optional.
 export const WAITLIST = 11, ENROLLED = 12, SECTION_ID = 13, PACKAGE_IDS = 14;
+export const BUILDING_CODE = 17, STATUS = 18;
 
 /**
  * How many people are already queued for a section, or null when this term's
@@ -64,10 +65,20 @@ export interface Meeting {
 
 /** Exams are announcements, not something you choose between. */
 export const isExam = (s: SectionTuple) => s[TYPE] === "FI" || s[TYPE] === "MI";
+/** Pinned to one date: the days column holds "2026-10-19" instead of "MWF". */
+export const isDated = (s: SectionTuple) => /^\d{4}-\d{2}-\d{2}$/.test(s[DAYS] ?? "");
+/** A final, a midterm or any other single occasion — never a weekly slot. */
+export const isOneOff = (s: SectionTuple) => isExam(s) || isDated(s);
 export const isCancelled = (s: SectionTuple) => s[CANCELLED] === 1;
 
 /** A section you can actually pick. */
-export const isChoosable = (s: SectionTuple) => !isExam(s) && !isCancelled(s);
+export const isChoosable = (s: SectionTuple) => !isOneOff(s) && !isCancelled(s);
+
+/**
+ * Full, but still taking a waitlist. Class Planner's `waitlist_only`, which the
+ * data build once misread as "cancelled" and hid — taking CSE 11 with it.
+ */
+export const isWaitlistOnly = (s: SectionTuple) => s[STATUS] === "waitlist_only";
 
 /** "A00" and "A51" are both in family A. */
 export const familyOf = (code: string) => (/^[A-Z]/.test(code) ? code[0] : code);
@@ -78,9 +89,31 @@ const isLecture = (s: SectionTuple) => s[TYPE] === "LE" || s[TYPE] === "SE";
 
 export const typeLabel = (type: string) => SECTION_TYPES[type] ?? type;
 
-/** "Center Hall 214", or "" when the room is unpublished. */
-export const sectionWhere = (s: SectionTuple) =>
-  [s[BUILDING], s[ROOM]].filter(Boolean).join(" ");
+/** "Final Exam", "Midterm", or "One-time meeting" for any other dated row. */
+export const oneOffLabel = (s: SectionTuple) =>
+  isExam(s) ? typeLabel(s[TYPE]) : "One-time meeting";
+
+/** The room as TSS prints it — "CENTR 214" — or "" when unpublished. */
+export const sectionRoom = (s: SectionTuple) => s[ROOM] ?? "";
+
+/**
+ * The building code a section meets in, for the map: "CENTR". Rows published
+ * before codes were recorded fall back to the room's own prefix, which is the
+ * same code ("CENTR 214").
+ */
+export function sectionBuildingCode(s: SectionTuple): string {
+  const code = s[BUILDING_CODE];
+  if (typeof code === "string") return code;
+  const m = /^([A-Z0-9][A-Z0-9-]*) /.exec(sectionRoom(s));
+  return m ? m[1] : "";
+}
+
+/**
+ * Where a section meets, in the form a student will find on a door: the room
+ * ("CENTR 214"), else the building, else "". It used to glue both together —
+ * "Center Hall CENTR 214" — saying the building twice.
+ */
+export const sectionWhere = (s: SectionTuple) => sectionRoom(s) || s[BUILDING] || "";
 
 /** "TuTh · 9:30 AM – 10:50 AM" */
 export function sectionWhen(s: SectionTuple): string {
@@ -90,6 +123,29 @@ export function sectionWhen(s: SectionTuple): string {
   return days ? `${days} · ${when}` : when;
 }
 
+/**
+ * "1:00–1:50p", "11:00a–12:20p" — a time range narrow enough for a chip.
+ * The meridiem is written once when both ends share it.
+ */
+export function compactRange(start: string, end: string): string {
+  const parse = (t: string) => /^(\d{1,2}:\d{2})\s*([ap])$/i.exec((t ?? "").trim());
+  const a = parse(start);
+  const b = parse(end);
+  if (!a) return "TBA";
+  if (!b) return `${a[1]}${a[2].toLowerCase()}`;
+  const am = a[2].toLowerCase();
+  const bm = b[2].toLowerCase();
+  return am === bm ? `${a[1]}–${b[1]}${bm}` : `${a[1]}${am}–${b[1]}${bm}`;
+}
+
+/** "W 1:00–1:50p" */
+export function shortWhen(s: SectionTuple): string {
+  if (!s[START]) return "Time TBA";
+  const days = splitDays(s[DAYS]).join("");
+  const when = compactRange(s[START], s[END]);
+  return days ? `${days} ${when}` : when;
+}
+
 /** "Lecture A00" */
 export const sectionLabel = (s: SectionTuple) => `${typeLabel(s[TYPE])} ${s[CODE]}`;
 
@@ -97,8 +153,9 @@ export const sectionSeats = (s: SectionTuple) => seatState(s[AVAIL], s[LIMIT]);
 
 // ── Meetings ─────────────────────────────────────────────────────────────────
 
-/** Every weekday slot one section occupies. Empty when the time is TBA. */
+/** Every weekday slot one row occupies. Empty when the time is TBA. */
 export function sectionMeetings(s: SectionTuple): Meeting[] {
+  if (isDated(s)) return [];
   const startMin = timeToMinutes(s[START]);
   const endMin = timeToMinutes(s[END]);
   if (startMin == null || endMin == null || endMin <= startMin) return [];
@@ -107,6 +164,9 @@ export function sectionMeetings(s: SectionTuple): Meeting[] {
     .filter((day): day is DayOfWeek => Boolean(day))
     .map((day) => ({ day, startMin, endMin }));
 }
+
+/** Every weekly slot of a section that meets in more than one pattern. */
+export const meetingsOfRows = (rows: SectionTuple[]): Meeting[] => rows.flatMap(sectionMeetings);
 
 export const meetingsOverlap = (a: Meeting, b: Meeting) =>
   a.day === b.day && a.startMin < b.endMin && b.startMin < a.endMin;
@@ -119,12 +179,22 @@ export const clashesWith = (meetings: Meeting[], busy: Meeting[]) =>
 export interface SectionPart {
   type: string;
   label: string;
+  /** One representative row per section code, in the order published. */
   sections: SectionTuple[];
+  /**
+   * Every row of each code. A lab that meets Tuesday in one room and Thursday
+   * in another is ONE section published as two rows; offering them as two
+   * options — or drawing only the first — misstates it.
+   */
+  rows: Record<string, SectionTuple[]>;
 }
 
 export interface LectureFamily {
   key: string;
+  /** The lecture's first row, for labels, seats and instructor. */
   lecture: SectionTuple | null;
+  /** All of the lecture's weekly rows — 63 lectures this term meet in two patterns. */
+  lectureRows: SectionTuple[];
   /** Enrollable sub-sections grouped by type: DI, LA, … */
   parts: SectionPart[];
 }
@@ -143,23 +213,30 @@ export function groupSections(sec: SectionTuple[]): LectureFamily[] {
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([key, rows]) => {
       const lecture = rows.find(isLecture) ?? null;
-      const byType = new Map<string, SectionTuple[]>();
+      // Rows sharing the lecture's code and type are more of the lecture.
+      const lectureRows = lecture
+        ? rows.filter((r) => r[CODE] === lecture[CODE] && r[TYPE] === lecture[TYPE])
+        : [];
+      const byType = new Map<string, SectionPart>();
       for (const r of rows) {
-        if (r === lecture) continue;
-        if (!byType.has(r[TYPE])) byType.set(r[TYPE], []);
-        byType.get(r[TYPE])!.push(r);
+        if (lectureRows.includes(r)) continue;
+        let part = byType.get(r[TYPE]);
+        if (!part) {
+          part = { type: r[TYPE], label: typeLabel(r[TYPE]), sections: [], rows: {} };
+          byType.set(r[TYPE], part);
+        }
+        if (!part.rows[r[CODE]]) {
+          part.rows[r[CODE]] = [];
+          part.sections.push(r);
+        }
+        part.rows[r[CODE]].push(r);
       }
-      return {
-        key,
-        lecture,
-        parts: [...byType.entries()].map(([type, sections]) => ({
-          type,
-          label: typeLabel(type),
-          sections,
-        })),
-      };
+      return { key, lecture, lectureRows, parts: [...byType.values()] };
     });
 }
+
+/** Every row behind one section code of a part, or just the row itself. */
+export const rowsFor = (part: SectionPart, code: string): SectionTuple[] => part.rows[code] ?? [];
 
 /** "Pick one lecture, one discussion and one lab." */
 export function selectionRule(families: LectureFamily[]): string | null {
@@ -189,19 +266,17 @@ export const emptySelection = (family: string): SectionSelection => ({ family, p
 export const findFamily = (families: LectureFamily[], key: string | undefined) =>
   families.find((f) => f.key === key) ?? null;
 
-/** The concrete section rows a selection resolves to. */
+/** The concrete section rows a selection resolves to — every meeting pattern of each. */
 export function selectedSections(
   families: LectureFamily[],
   sel: SectionSelection | undefined,
 ): SectionTuple[] {
   const family = findFamily(families, sel?.family);
   if (!family || !sel) return [];
-  const out: SectionTuple[] = [];
-  if (family.lecture) out.push(family.lecture);
+  const out: SectionTuple[] = [...family.lectureRows];
   for (const part of family.parts) {
     const code = sel.parts[part.type];
-    const hit = part.sections.find((s) => s[CODE] === code);
-    if (hit) out.push(hit);
+    if (code) out.push(...rowsFor(part, code));
   }
   return out;
 }
@@ -224,6 +299,43 @@ export function missingParts(
   const family = findFamily(families, sel?.family);
   if (!family || !sel) return [];
   return family.parts.filter((p) => !sel.parts[p.type]).map((p) => p.label.toLowerCase());
+}
+
+/**
+ * Whatever is not really a choice, made for the student: the only lecture on
+ * offer, and any sub-section with a single option. Returns null when the
+ * course has more than one lecture — that is a decision about someone's week,
+ * and guessing it would put a class on their calendar they never picked.
+ */
+export function forcedSelection(families: LectureFamily[]): SectionSelection | null {
+  if (families.length !== 1) return null;
+  const [family] = families;
+  const parts: Record<string, string> = {};
+  for (const p of family.parts) {
+    if (p.sections.length === 1) parts[p.type] = p.sections[0][CODE];
+  }
+  return { family: family.key, parts };
+}
+
+/**
+ * The one-off dates that come with a selection: its final, midterms and any
+ * other dated meeting, matched by the TSS section id they share with the
+ * lecture or sub-section they belong to.
+ */
+export function oneOffsFor(sec: SectionTuple[], chosen: SectionTuple[]): SectionTuple[] {
+  const ids = new Set(chosen.map((s) => s[SECTION_ID]).filter(Boolean));
+  if (!ids.size) return [];
+  const seen = new Set<string>();
+  return sec
+    .filter((s) => isOneOff(s) && ids.has(s[SECTION_ID]))
+    .filter((s) => {
+      // A section meeting in two rooms lists its final twice; one is enough.
+      const key = `${s[TYPE]}|${s[DAYS]}|${s[START]}|${s[ROOM]}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => (a[DAYS] + a[START]).localeCompare(b[DAYS] + b[START]));
 }
 
 // ── Auto-pick ────────────────────────────────────────────────────────────────
@@ -255,11 +367,9 @@ export function autoPick(sec: SectionTuple[], busy: Meeting[]): SectionSelection
 
   for (const family of ordered) {
     const taken: Meeting[] = [];
-    if (family.lecture) {
-      const lectureMeetings = sectionMeetings(family.lecture);
-      if (clashesWith(lectureMeetings, busy)) continue;
-      taken.push(...lectureMeetings);
-    }
+    const lectureMeetings = meetingsOfRows(family.lectureRows);
+    if (clashesWith(lectureMeetings, busy)) continue;
+    taken.push(...lectureMeetings);
 
     const parts: Record<string, string> = {};
     let ok = true;
@@ -268,13 +378,13 @@ export function autoPick(sec: SectionTuple[], busy: Meeting[]): SectionSelection
       const candidate = [...part.sections]
         .sort((a, b) => rank(b) - rank(a))
         .find((s) => {
-          const m = sectionMeetings(s);
+          const m = meetingsOfRows(rowsFor(part, s[CODE]));
           // A section with no published time cannot clash with anything.
           return !clashesWith(m, busy) && !clashesWith(m, taken);
         });
       if (!candidate) { ok = false; break; }
       parts[part.type] = candidate[CODE];
-      taken.push(...sectionMeetings(candidate));
+      taken.push(...meetingsOfRows(rowsFor(part, candidate[CODE])));
     }
 
     if (ok) return { family: family.key, parts };
@@ -285,6 +395,12 @@ export function autoPick(sec: SectionTuple[], busy: Meeting[]): SectionSelection
 
 // ── Calendar events ──────────────────────────────────────────────────────────
 
+/**
+ * A block that is not a commitment: "preview" while a student hovers an option,
+ * "option" for a choice still open that can be made by clicking it.
+ */
+export type GhostKind = "preview" | "option";
+
 export interface CalEvent {
   key: string;
   /** "CSE 11" */
@@ -292,17 +408,28 @@ export interface CalEvent {
   title: string;
   /** "A01", or null for a course placed without section detail. */
   sectionCode: string | null;
+  /** TSS section id, "E 00003991" — what UCSD's walking-route service is keyed on. */
+  sectionId: string;
   /** "LE" | "DI" | … */
   kind: string;
   kindLabel: string;
   day: DayOfWeek;
   startMin: number;
   endMin: number;
+  /** "CENTR 214" — the room, else the building, else "". */
   where: string;
+  /** Building code for the map, "" when TBA or remote. */
+  buildingCode: string;
+  /** "Center Hall" */
+  building: string;
   instructor: string;
   role: CourseRole;
   /** Set when this block overlaps another course on the same day. */
   conflict: boolean;
+  /** Present on blocks that are not (yet) on the student's schedule. */
+  ghost?: GhostKind;
+  /** For an "option" ghost: what clicking it chooses. */
+  choice?: { family: string; part: string | null; code: string };
 }
 
 export interface EventSource {
@@ -317,6 +444,33 @@ export interface EventSource {
   fallbackInstructor?: string;
 }
 
+/** One calendar block per weekly meeting of one section row. */
+export function eventsForRow(
+  src: { code: string; title: string; role: CourseRole },
+  s: SectionTuple,
+  extra: Partial<Pick<CalEvent, "ghost" | "choice">> = {},
+): CalEvent[] {
+  return sectionMeetings(s).map((m) => ({
+    key: `${extra.ghost ?? "ev"}-${src.code}-${s[CODE]}-${m.day}-${m.startMin}-${sectionRoom(s)}`,
+    code: src.code,
+    title: src.title,
+    sectionCode: s[CODE],
+    sectionId: s[SECTION_ID] ?? "",
+    kind: s[TYPE],
+    kindLabel: typeLabel(s[TYPE]),
+    day: m.day,
+    startMin: m.startMin,
+    endMin: m.endMin,
+    where: sectionWhere(s),
+    buildingCode: sectionBuildingCode(s),
+    building: s[BUILDING] ?? "",
+    instructor: s[INSTRUCTOR] ?? "",
+    role: src.role,
+    conflict: false,
+    ...extra,
+  }));
+}
+
 /**
  * Flattens what the student has chosen into blocks the calendar can draw, and
  * marks the ones that collide. Conflicts are computed here, on real meetings,
@@ -328,25 +482,7 @@ export function buildEvents(sources: EventSource[]): CalEvent[] {
 
   for (const src of sources) {
     if (src.sections.length) {
-      for (const s of src.sections) {
-        for (const m of sectionMeetings(s)) {
-          events.push({
-            key: `${src.code}-${s[CODE]}-${m.day}-${m.startMin}`,
-            code: src.code,
-            title: src.title,
-            sectionCode: s[CODE],
-            kind: s[TYPE],
-            kindLabel: typeLabel(s[TYPE]),
-            day: m.day,
-            startMin: m.startMin,
-            endMin: m.endMin,
-            where: sectionWhere(s),
-            instructor: s[INSTRUCTOR] ?? "",
-            role: src.role,
-            conflict: false,
-          });
-        }
-      }
+      for (const s of src.sections) events.push(...eventsForRow(src, s));
       continue;
     }
 
@@ -356,12 +492,15 @@ export function buildEvents(sources: EventSource[]): CalEvent[] {
         code: src.code,
         title: src.title,
         sectionCode: null,
+        sectionId: "",
         kind: "LE",
-        kindLabel: "Meeting",
+        kindLabel: "Catalog time",
         day: m.day,
         startMin: m.startMin,
         endMin: m.endMin,
         where: src.fallbackWhere ?? "",
+        buildingCode: "",
+        building: "",
         instructor: src.fallbackInstructor ?? "",
         role: src.role,
         conflict: false,
@@ -369,6 +508,12 @@ export function buildEvents(sources: EventSource[]): CalEvent[] {
     }
   }
 
+  markConflicts(events);
+  return events;
+}
+
+/** Flags every pair of committed blocks from different courses that overlap. */
+function markConflicts(events: CalEvent[]) {
   for (let i = 0; i < events.length; i++) {
     for (let j = i + 1; j < events.length; j++) {
       const a = events[i];
@@ -382,13 +527,26 @@ export function buildEvents(sources: EventSource[]): CalEvent[] {
       }
     }
   }
-
-  return events;
 }
 
 /** Every meeting currently committed to, for auto-pick to plan around. */
 export const busyFrom = (events: CalEvent[]): Meeting[] =>
-  events.map((e) => ({ day: e.day, startMin: e.startMin, endMin: e.endMin }));
+  events
+    .filter((e) => !e.ghost)
+    .map((e) => ({ day: e.day, startMin: e.startMin, endMin: e.endMin }));
+
+/**
+ * The courses a set of meetings would collide with, named — "MATH 20A" — so an
+ * option can say what it clashes with instead of only that it does.
+ */
+export function clashingCourses(meetings: Meeting[], events: CalEvent[], self: string): string[] {
+  const hit = new Set<string>();
+  for (const e of events) {
+    if (e.ghost || e.code === self) continue;
+    if (meetings.some((m) => meetingsOverlap(m, e))) hit.add(e.code);
+  }
+  return [...hit];
+}
 
 // ── Day layout ───────────────────────────────────────────────────────────────
 
