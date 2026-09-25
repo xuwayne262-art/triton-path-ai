@@ -108,6 +108,52 @@ const DAY_ORDER = ["M", "T", "W", "R", "F", "S", "U"];
 const clock = (s) => String(s || "").replace(/([ap])m$/i, "$1");
 
 /**
+ * Class Planner spells an unscheduled meeting as the literal string "tba" in
+ * every field — time, building and room. Passed through, it reached the page
+ * as "tba – tba" and would have put a pin on the map for a building called
+ * "tba". Blank is what every reader already treats as "not published".
+ */
+const isTba = (s) => /^tba$/i.test(String(s || "").trim());
+
+/** Only an undated class meeting repeats every week. */
+const isWeekly = (m) => m.kind === "class" && !m.date;
+
+/**
+ * The code WebReg printed for a one-off meeting: "FI" for a final, "MI" for a
+ * midterm. Anything else pinned to a date (MGT 18's evening session, PHYS 2A's
+ * first-week one) is "OT"; its date in the days column is what marks it as a
+ * single occasion, since weekly "other" sections share that code.
+ */
+const onceType = (m) => (isWeekly(m) ? "" : m.kind === "final" ? "FI" : m.kind === "midterm" ? "MI" : "OT");
+
+/**
+ * Statuses that mean a section will not run.
+ *
+ * This used to be "anything other than AC", which filed every `waitlist_only`
+ * section as cancelled — full sections still taking a waitlist, including all
+ * of CSE 11. The planner then had nothing to offer for those courses and fell
+ * back to a bare "Meeting" block with no discussion to choose. A full section
+ * is a real choice; only an explicit cancellation removes one.
+ */
+const isCancelledStatus = (status) => /cancel/i.test(String(status || ""));
+
+/**
+ * Building names arrive cut at 40 characters ("Computer Science and
+ * Engineering Buildin"). Only a clipped final word is completed, and only to a
+ * word it can unambiguously be: "Extended Studies and Public Programs - N"
+ * could end several ways, so it is left exactly as UCSD printed it.
+ */
+const NAME_WORDS = ["Building", "Facility", "Center", "Research", "Technology", "Laboratory", "Institute"];
+function buildingName(raw) {
+  const name = String(raw || "").trim();
+  if (name.length < 40) return name;
+  const cut = name.slice(name.lastIndexOf(" ") + 1);
+  if (cut.length < 3) return name;
+  const whole = NAME_WORDS.find((w) => w !== cut && w.startsWith(cut));
+  return whole ? name.slice(0, name.length - cut.length) + whole : name;
+}
+
+/**
  * "001-000-LE" -> "A00", "002-003-DI" -> "B03".
  *
  * TSS numbers section families 001, 002, ... where WebReg lettered them A, B,
@@ -135,19 +181,21 @@ function foldMeetings(meetings) {
     const key = [m.meeting_kind, m.start_time_display, m.end_time_display, m.building_code, m.room_code, m.specific_date].join("|");
     let g = byKey.get(key);
     if (!g) {
+      const remote = !!m.is_remote;
+      const noRoom = remote || isTba(m.building_code) || !m.building_code;
       g = {
         kind: m.meeting_kind,
         days: [],
-        start: clock(m.start_time_display),
-        end: clock(m.end_time_display),
+        start: isTba(m.start_time_display) ? "" : clock(m.start_time_display),
+        end: isTba(m.end_time_display) ? "" : clock(m.end_time_display),
         startMin: m.start_minutes ?? null,
         endMin: m.end_minutes ?? null,
-        building: m.building_name || m.building_code || "",
-        buildingCode: m.building_code || "",
-        room: m.room_code || "",
+        building: remote ? "Remote" : noRoom ? "" : buildingName(m.building_name || m.building_code),
+        buildingCode: noRoom ? "" : m.building_code,
+        room: noRoom || isTba(m.room_code) ? "" : m.room_code || "",
         date: m.specific_date || null,
         tba: !!m.is_tba,
-        remote: !!m.is_remote,
+        remote,
       };
       byKey.set(key, g);
     }
@@ -260,17 +308,76 @@ async function harvestTss(term, courses) {
         if (m) { year = m[1]; period = m[2]; }
       }
     }
-    for (const loc of (res.map_data && res.map_data.locations) || []) {
-      if (loc.display_name && Number.isFinite(loc.latitude) && Number.isFinite(loc.longitude)) {
-        buildings.set(loc.display_name, {
-          code: loc.building_code || "",
-          ll: [+loc.latitude.toFixed(5), +loc.longitude.toFixed(5)],
-          address: loc.address || "",
-        });
+    collectLocations(res, buildings);
+  }
+  return { modules, buildings, year, period };
+}
+
+/**
+ * Building coordinates from a /schedules response, keyed by BUILDING CODE.
+ *
+ * They were keyed by display name, which is not the name on a section: Ledden
+ * Auditorium's rooms are "LEDDN ..." but its map entry is "Humanities and
+ * Social Sciences", so every MATH 20A lecture had no pin. The code is the one
+ * key a room, a meeting and a map location all share.
+ */
+function collectLocations(res, into) {
+  for (const loc of (res && res.map_data && res.map_data.locations) || []) {
+    const code = loc.building_code || loc.key;
+    if (!code || !Number.isFinite(loc.latitude) || !Number.isFinite(loc.longitude)) continue;
+    into.set(code, {
+      map: buildingName(loc.display_name || ""),
+      ll: [+loc.latitude.toFixed(5), +loc.longitude.toFixed(5)],
+      address: loc.address || "",
+    });
+  }
+}
+
+/**
+ * Coordinates for buildings the TSS pass never saw.
+ *
+ * That pass probes one section per course — the lecture — so a building used
+ * only by discussions or labs never appears in its responses. This asks for
+ * exactly one section per missing building, batched under the same two server
+ * rules (sorted ids, at most 15 distinct courses per ref).
+ */
+async function harvestMissingBuildings(term, courses, buildings) {
+  const probes = new Map(); // building code -> { id, course }
+  for (const c of courses) {
+    for (const s of c.sections || []) {
+      for (const m of s.meetings || []) {
+        const code = m.building_code;
+        if (!code || isTba(code) || m.is_remote || buildings.has(code) || probes.has(code)) continue;
+        if (s.section_id) probes.set(code, { id: s.section_id, course: `${c.subject_code}-${c.course_code}` });
       }
     }
   }
-  return { modules, buildings, year, period };
+  if (!probes.size) return 0;
+
+  const batches = [];
+  let batch = [];
+  let courseSet = new Set();
+  for (const p of probes.values()) {
+    if (!courseSet.has(p.course) && courseSet.size >= 15) {
+      batches.push(batch);
+      batch = [];
+      courseSet = new Set();
+    }
+    batch.push(p.id);
+    courseSet.add(p.course);
+  }
+  if (batch.length) batches.push(batch);
+
+  const before = buildings.size;
+  const results = await pool(batches, async (ids) => {
+    try {
+      return await getJson(`${API}/schedules/${scheduleRef([...new Set(ids)].sort(), term)}?context=planner`);
+    } catch {
+      return null; // a building with no pin beats a pin in the wrong place
+    }
+  });
+  for (const res of results) collectLocations(res, buildings);
+  return buildings.size - before;
 }
 
 // ── build ────────────────────────────────────────────────────────────────────
@@ -301,10 +408,16 @@ async function main() {
     : await harvestTss(term.term_code, raw);
   if (!has("no-tss")) {
     console.log(`  tss     ${tss.modules.size} module ids, ${tss.buildings.size} buildings, year ${tss.year || "?"} period ${tss.period || "?"}`);
+    const added = await harvestMissingBuildings(term.term_code, raw, tss.buildings);
+    console.log(`  map     ${added} more buildings located from their own sections`);
   }
 
   const courses = {};
   let sectionCount = 0;
+  /** building code -> the name its meetings go by, counted, so the usual one wins. */
+  const meetingNames = new Map();
+  /** How many meetings of each kind, so a new one-off kind shows up in the log. */
+  const kinds = new Map();
 
   for (const c of raw) {
     const code = `${c.subject_code} ${c.course_code.replace(/^0+(?=\d)/, "")}`;
@@ -314,8 +427,22 @@ async function main() {
     const meta = [];
     for (const s of c.sections || []) {
       const folded = foldMeetings(s.meetings);
-      const cls = folded.filter((m) => m.kind !== "final");
-      const finals = folded.filter((m) => m.kind === "final");
+      for (const m of folded) {
+        if (!m.buildingCode || !m.building) continue;
+        if (!meetingNames.has(m.buildingCode)) meetingNames.set(m.buildingCode, new Map());
+        const names = meetingNames.get(m.buildingCode);
+        names.set(m.building, (names.get(m.building) || 0) + 1);
+      }
+      // Only undated class meetings repeat weekly. Everything pinned to a date
+      // is a one-off: MATH 20A's two evening midterms used to land here as a
+      // weekly "Monday 8pm lecture", drawn twice, clashing with every Monday
+      // night class on campus.
+      const cls = folded.filter(isWeekly);
+      const finals = folded.filter((m) => !isWeekly(m));
+      for (const m of folded) {
+        const kind = isWeekly(m) ? "weekly" : `${m.kind || "undated"}${m.date ? "" : " (no date)"}`;
+        kinds.set(kind, (kinds.get(kind) || 0) + 1);
+      }
       const instructor = (s.instructors || []).join(", ");
       const display = displayCode(s.section_code);
 
@@ -333,21 +460,24 @@ async function main() {
           instructor,
           s.seats_available ?? null,
           s.capacity ?? null,
-          s.status && s.status !== "AC" ? 1 : 0,
-          // additive — nothing downstream indexes past 10
+          isCancelledStatus(s.status) ? 1 : 0,
+          // additive — readers written before these existed stop at 10
           s.waitlist_enrolled ?? 0,
           s.enrolled ?? null,
           s.section_id || "",
           s.event_package_ids || [],
           m ? m.startMin : null,
           m ? m.endMin : null,
+          m ? m.buildingCode : "",
+          s.status || "",
         ]);
         sectionCount++;
       }
       for (const m of finals) {
         sec.push([
-          m.date || display, "FI", m.date || "", m.start, m.end, m.building, m.room, "",
+          m.date || display, onceType(m), m.date || "", m.start, m.end, m.building, m.room, "",
           null, null, 0, 0, null, s.section_id || "", s.event_package_ids || [], m.startMin, m.endMin,
+          m.buildingCode, "",
         ]);
       }
 
@@ -387,8 +517,25 @@ async function main() {
     };
   }
 
+  /**
+   * Keyed by building code. `name` is what the schedule calls the place
+   * ("Ledden Auditorium"); `map` is the structure UCSD's map files it under
+   * ("Humanities and Social Sciences") when that differs.
+   */
   const buildings = {};
-  for (const [name, b] of tss.buildings) buildings[name] = b.ll;
+  for (const [bcode, b] of tss.buildings) {
+    const names = meetingNames.get(bcode);
+    const usual = names ? [...names].sort((a, z) => z[1] - a[1])[0][0] : "";
+    buildings[bcode] = {
+      name: usual || b.map || bcode,
+      map: b.map && b.map !== usual ? b.map : undefined,
+      ll: b.ll,
+      address: b.address || undefined,
+    };
+  }
+  console.log(`  meet    ${[...kinds].map(([k, n]) => `${n} ${k}`).join(", ")}`);
+  const unlocated = [...meetingNames.keys()].filter((b) => !buildings[b]);
+  console.log(`  map     ${Object.keys(buildings).length} buildings located${unlocated.length ? `; no coordinates for ${unlocated.join(", ")}` : ""}`);
 
   const out = {
     term: term.term_code,
@@ -400,6 +547,7 @@ async function main() {
       "code", "type", "days", "start", "end", "building", "room", "instructor",
       "seatsAvail", "seatsLimit", "cancelled",
       "waitlist", "enrolled", "sectionId", "packageIds", "startMin", "endMin",
+      "buildingCode", "status",
     ],
     tss: { year: tss.year, period: tss.period },
     subjectNames,

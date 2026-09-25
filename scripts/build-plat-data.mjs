@@ -12,6 +12,7 @@
  * Emits into public/data/plat/:
  *   index.json          browse + search index (one row per catalog course)
  *   ge.json             college -> GE area -> course codes
+ *   buildings.json      building code -> name + coordinates, for the campus map
  *   subject/<SUB>.json  per-instructor grade distributions + FA26 sections
  *
  * Run: npm run build:data
@@ -146,6 +147,12 @@ function instructorKey(name) {
   }
   return last && first ? `${last}|${first[0]}` : "";
 }
+
+/**
+ * A final, a midterm, or any meeting pinned to a single date (its days column
+ * holds the date). None of them is a weekly slot or a section to choose.
+ */
+const isOneOff = (s) => s[1] === "FI" || s[1] === "MI" || /^\d{4}-\d{2}-\d{2}$/.test(s[2] || "");
 
 /** Numeric part of a course number so "CSE 8A" < "CSE 11" < "CSE 100". */
 function courseNumOrder(num) {
@@ -466,14 +473,19 @@ function build() {
     // Current FA26 instructors first, then the most-experienced.
     c.profs.sort((a, b) => (b.cur - a.cur) || (b.n - a.n) || (b.g - a.g));
 
-    // Primary meeting = first non-final section that actually has a time.
-    const lec = c.sec.find((s) => s[1] !== "FI" && s[2] && s[3]) || null;
+    // Primary meeting = first weekly section that actually has a time.
+    const lec = c.sec.find((s) => !isOneOff(s) && s[2] && s[3]) || null;
 
     // Seats live on the enrollable sections (discussions/labs), not the lecture,
-    // so total them across every non-exam section.
+    // so total them across every non-exam section — once each, since a section
+    // meeting in two weekly patterns arrives as two rows carrying the same seats.
     let seatsAvail = null, seatsLimit = null;
+    const counted = new Set();
     for (const s of c.sec) {
-      if (s[1] === "FI" || s[1] === "MI" || s[9] == null) continue;
+      if (isOneOff(s) || s[9] == null) continue;
+      const id = s[13] || `${s[0]}|${s[1]}`;
+      if (counted.has(id)) continue;
+      counted.add(id);
       seatsAvail = (seatsAvail ?? 0) + (s[8] ?? 0);
       seatsLimit = (seatsLimit ?? 0) + s[9];
     }
@@ -558,7 +570,6 @@ function build() {
     gradeTerms: grades.meta.rows,
     catalogCourses: index.length,
     offered: index.filter((c) => c.o).length,
-    buildings: sched.buildings,
     refreshed: sched.refreshed || null,
     sources: [
       `${grades.meta.source} (${grades.meta.url}) — ${grades.meta.years} grade distributions`,
@@ -650,8 +661,28 @@ function build() {
     })
     .sort((a, b) => a.n.localeCompare(b.n));
 
+  // ── Campus buildings ──────────────────────────────────────────────────────
+  // Keyed by building code, the one key a section's room ("CENTR 214"), its
+  // meeting and UCSD's map all share. A cache from before codes were recorded
+  // is keyed by display name, which does not match a section's building, so it
+  // is skipped with a nudge rather than published half-joined.
+  const buildings = {};
+  for (const [code, b] of Object.entries(sched.buildings || {})) {
+    if (!b || Array.isArray(b) || !Array.isArray(b.ll)) continue;
+    buildings[code] = {
+      n: b.name,
+      ...(b.map ? { m: b.map } : {}),
+      ll: b.ll,
+      ...(b.address ? { a: b.address } : {}),
+    };
+  }
+  if (!Object.keys(buildings).length) {
+    console.log("  no building codes in classplanner.json — run: node scripts/fetch-classplanner.mjs");
+  }
+
   const sizeIndex = write("index.json", { meta, subjects, courses: index });
   const sizeGe = write("ge.json", { meta: ge.meta, areas: geAreas, lists: geLists });
+  const sizeBuildings = write("buildings.json", { term: sched.term, buildings });
   const sizeProfs = write("professors.json", { meta: { term: sched.term }, professors });
   let sizeSubjects = 0;
   for (const [sub, courses] of bySubject) {
@@ -667,6 +698,7 @@ function build() {
   const mb = (n) => `${(n / 1024 / 1024).toFixed(2)} MB`;
   console.log(`\n  index.json      ${index.length} courses    ${mb(sizeIndex)}`);
   console.log(`  ge.json         ${geAreas.length} GE areas    ${mb(sizeGe)}`);
+  console.log(`  buildings.json  ${Object.keys(buildings).length} buildings  ${mb(sizeBuildings)}`);
   console.log(`  professors.json ${professors.length} instructors ${mb(sizeProfs)}`);
   console.log(`  subject/*.json  ${bySubject.size} subjects   ${mb(sizeSubjects)}`);
   console.log(`  ${meta.offered} offered in ${meta.termName} · ${meta.gradeRecords} grade records\n`);
