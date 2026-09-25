@@ -261,3 +261,23 @@ describe("historyStore accepts Supabase's newer key naming", () => {
     }
   });
 });
+
+describe("Supabase failure hints", () => {
+  test("a missing table names the migration to run", async () => {
+    const { hint } = await import("./store");
+    const body = '{"code":"PGRST205","message":"Could not find the table \'public.academic_history\' in the schema cache"}';
+    assert.match(hint(404, body), /supabase\/001_academic_history\.sql/);
+  });
+
+  test("a rejected key says which key is needed", async () => {
+    const { hint } = await import("./store");
+    assert.match(hint(401, '{"message":"Invalid API key"}'), /SERVICE ROLE/);
+    assert.match(hint(403, '{"code":"42501","message":"permission denied for table"}'), /SERVICE ROLE/);
+  });
+
+  test("says nothing for a failure it cannot explain", async () => {
+    const { hint } = await import("./store");
+    // A guess dressed as a diagnosis sends someone fixing the wrong thing.
+    assert.equal(hint(500, '{"message":"internal error"}'), "");
+  });
+});

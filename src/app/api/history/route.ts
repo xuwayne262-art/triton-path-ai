@@ -40,6 +40,27 @@ function unavailable(): Response {
   return json(STORE_UNAVAILABLE, 503);
 }
 
+/**
+ * Logs why a store operation failed, then answers 502.
+ *
+ * These catch blocks used to swallow the error entirely, which hid the single
+ * most likely failure on a fresh deployment: the database is linked and the
+ * credentials are right, but the table does not exist yet because the migration
+ * has not been run. PostgREST says exactly that (`PGRST205`, "Could not find
+ * the table public.academic_history"), and throwing it away left a bare 502
+ * with nothing anywhere to explain it.
+ *
+ * Only the driver's own message is logged. The student's record is never in it
+ * — and must never be, because logs are far more widely readable than the
+ * database this exists to protect.
+ */
+function failed(op: "read" | "write" | "delete", err: unknown): Response {
+  const detail = err instanceof Error ? err.message : String(err);
+  console.error(`[history] ${op} failed (store=${historyStore()?.name ?? "none"}): ${detail}`);
+  const code = `HISTORY_${op.toUpperCase()}_FAILED`;
+  return json({ error: `Could not ${op} your record.`, code }, 502);
+}
+
 /** The signed-in, eligible address, or null. */
 async function owner(): Promise<string | null> {
   const session = await auth();
@@ -61,9 +82,9 @@ export async function GET(): Promise<Response> {
       status: 200,
       headers: { ...NO_STORE, "content-type": "application/json" },
     });
-  } catch {
+  } catch (err) {
     // The stored text is never echoed in an error: it is the student's record.
-    return json({ error: "Could not read your record.", code: "HISTORY_READ_FAILED" }, 502);
+    return failed("read", err);
   }
 }
 
@@ -102,8 +123,8 @@ export async function PUT(request: Request): Promise<Response> {
 
   try {
     await store.set(storageKey(email), JSON.stringify(record));
-  } catch {
-    return json({ error: "Could not save your record.", code: "HISTORY_WRITE_FAILED" }, 502);
+  } catch (err) {
+    return failed("write", err);
   }
 
   // The sanitised record goes back, so the page shows what was actually kept
@@ -120,8 +141,8 @@ export async function DELETE(): Promise<Response> {
 
   try {
     await store.del(storageKey(email));
-  } catch {
-    return json({ error: "Could not delete your record.", code: "HISTORY_DELETE_FAILED" }, 502);
+  } catch (err) {
+    return failed("delete", err);
   }
   return new Response(null, { status: 204, headers: NO_STORE });
 }
