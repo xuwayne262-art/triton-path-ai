@@ -214,6 +214,7 @@ describe("historyStore driver selection", () => {
       () => {
         assert.notEqual(historyStore()?.name, "supabase");
         assert.match(storeDiagnosis(), /SUPABASE_SERVICE_ROLE_KEY/);
+        assert.match(storeDiagnosis(), /anon\/publishable key cannot be used/);
       },
     );
   });
@@ -240,5 +241,23 @@ describe("historyStore driver selection", () => {
   test("reports an unconfigured deployment rather than pretending", async () => {
     const { storeDiagnosis } = await import("./store");
     await withEnv({}, () => assert.match(storeDiagnosis(), /No SUPABASE_\* or KV_REST_API_\*/));
+  });
+});
+
+describe("historyStore accepts Supabase's newer key naming", () => {
+  test("SUPABASE_SECRET_KEY works like the service_role JWT", async () => {
+    const { historyStore, resetHistoryStore } = await import("./store");
+    const saved = process.env.SUPABASE_SECRET_KEY;
+    process.env.SUPABASE_URL = "https://proj.supabase.co";
+    process.env.SUPABASE_SECRET_KEY = "sb_secret_example";
+    resetHistoryStore();
+    try {
+      assert.equal(historyStore()?.name, "supabase");
+    } finally {
+      delete process.env.SUPABASE_URL;
+      if (saved === undefined) delete process.env.SUPABASE_SECRET_KEY;
+      else process.env.SUPABASE_SECRET_KEY = saved;
+      resetHistoryStore();
+    }
   });
 });
