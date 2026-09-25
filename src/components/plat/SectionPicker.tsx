@@ -4,8 +4,8 @@ import { useState } from "react";
 import { prettyRange, type SectionTuple } from "@/lib/plat";
 import {
   CODE, INSTRUCTOR, TYPE, DAYS, START, END,
-  groupSections, isChoosable, sectionSeats, sectionWhen, sectionWhere,
-  selectionRule, typeLabel,
+  groupSections, isChoosable, sectionSeats, sectionTssUrl, sectionWaitlist,
+  sectionWhen, sectionWhere, selectionRule, typeLabel,
   type LectureFamily, type SectionSelection,
 } from "@/lib/sections";
 
@@ -24,6 +24,7 @@ import {
 
 function Seats({ s }: { s: SectionTuple }) {
   const seats = sectionSeats(s);
+  const waitlist = sectionWaitlist(s);
   if (!seats.known) return null;
   const tone = seats.full
     ? "text-red-600 dark:text-red-400"
@@ -31,8 +32,17 @@ function Seats({ s }: { s: SectionTuple }) {
       ? "text-amber-600 dark:text-amber-400"
       : "text-emerald-600 dark:text-emerald-400";
   return (
-    <span className={`shrink-0 text-[11px] font-semibold tabular-nums ${tone}`}>
-      {seats.full ? "Full" : `${seats.open} open`}
+    <span className="flex shrink-0 flex-col items-end leading-tight">
+      <span className={`text-[11px] font-semibold tabular-nums ${tone}`}>
+        {seats.full ? "Full" : `${seats.open} open`}
+      </span>
+      {/*
+        A full section with nobody queued and a full section with forty people
+        queued are different decisions, and "Full" alone cannot tell them apart.
+      */}
+      {waitlist != null && waitlist > 0 && (
+        <span className="text-[10px] tabular-nums text-gray-400">{waitlist} waitlisted</span>
+      )}
     </span>
   );
 }
@@ -95,6 +105,7 @@ export default function SectionPicker({
   value,
   onChange,
   compact = false,
+  tss = null,
 }: {
   sec: SectionTuple[];
   /** Controlled selection. Omit to let the component hold its own. */
@@ -102,6 +113,8 @@ export default function SectionPicker({
   onChange?: (next: SectionSelection) => void;
   /** Denser padding, for the planner rail. */
   compact?: boolean;
+  /** The course's TSS booking URL, so a picked section can deep-link to it. */
+  tss?: string | null;
 }) {
   const families = groupSections(sec);
   const rule = selectionRule(families);
@@ -198,6 +211,14 @@ export default function SectionPicker({
                       </div>
                     </div>
                   ))}
+
+                  {/*
+                    TSS enrols a package — the lecture and the discussion you
+                    picked, together — so the link only appears once that pair
+                    exists. Offering it earlier would send a student to a page
+                    that cannot book what they are looking at.
+                  */}
+                  <BookSelected sec={sec} selection={selection} tss={tss} />
                 </div>
               )}
             </div>
@@ -207,6 +228,42 @@ export default function SectionPicker({
 
       {exams.length > 0 && <ExamList exams={exams} />}
     </div>
+  );
+}
+
+/**
+ * "Book on TSS" for the exact pairing the student has selected.
+ *
+ * Rendered only when a sub-section is chosen and that section carries a single
+ * enrolment package: a lecture's package list spans every discussion under it,
+ * so linking from the lecture alone would book an arbitrary one.
+ */
+function BookSelected({
+  sec, selection, tss,
+}: {
+  sec: SectionTuple[];
+  selection: SectionSelection | undefined;
+  tss: string | null;
+}) {
+  if (!tss || !selection) return null;
+  const codes = Object.values(selection.parts);
+  if (codes.length !== 1) return null;
+  const picked = sec.find((s) => s[CODE] === codes[0]);
+  if (!picked) return null;
+  const url = sectionTssUrl(picked, tss);
+  if (!url) return null;
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noreferrer noopener"
+      title="Opens this section on TSS, UC San Diego's official enrolment site. It does not enrol you."
+      className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-[#182B49] underline-offset-2 hover:underline dark:text-[#FFCD00]"
+    >
+      Book {selection.family}
+      {codes[0] === selection.family ? "" : ` + ${codes[0]}`} on TSS ↗
+    </a>
   );
 }
 

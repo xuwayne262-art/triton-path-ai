@@ -26,6 +26,31 @@ import type { DayOfWeek } from "@/components/triton/types";
 export const CODE = 0, TYPE = 1, DAYS = 2, START = 3, END = 4;
 export const BUILDING = 5, ROOM = 6, INSTRUCTOR = 7;
 export const AVAIL = 8, LIMIT = 9, CANCELLED = 10;
+// Appended when the schedule moved to UCSD's Class Planner. Older cached files
+// have no value at these positions, so every reader treats them as optional.
+export const WAITLIST = 11, ENROLLED = 12, SECTION_ID = 13, PACKAGE_IDS = 14;
+
+/**
+ * How many people are already queued for a section, or null when this term's
+ * data predates the field. Zero and "unknown" are different answers: "0
+ * waitlisted" tells a student the queue is empty, and guessing that for a file
+ * that never carried the number would be a claim we cannot make.
+ */
+export const sectionWaitlist = (s: SectionTuple): number | null =>
+  typeof s[WAITLIST] === "number" ? s[WAITLIST] : null;
+
+/**
+ * The URL that opens this exact section on TSS, built from the course's module
+ * and this section's enrolment package. Returns "" when either is missing —
+ * TSS answers a malformed route with an error page, so no link beats a broken
+ * one for a student mid-enrolment.
+ */
+export function sectionTssUrl(s: SectionTuple, courseTssUrl: string | null): string {
+  const pkg = Array.isArray(s[PACKAGE_IDS]) ? s[PACKAGE_IDS] : [];
+  if (!courseTssUrl || pkg.length !== 1) return courseTssUrl ?? "";
+  // Same route, this section's package swapped in for the course default.
+  return courseTssUrl.replace(/\/(\d+)\/(\d{4})\/(\d+)\/\?$/, `/${pkg[0]}/$2/$3/?`);
+}
 
 const DAY_FROM_TOKEN: Record<string, DayOfWeek> = {
   M: "Mon", Tu: "Tue", W: "Wed", Th: "Thu", F: "Fri",

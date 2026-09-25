@@ -2,11 +2,12 @@
 /**
  * Builds the UCSDPlans course dataset from public UCSD sources.
  *
- *   as-grades.json   AS Instructor Grade Archive — 2015-2026 grade distributions (fetch-as-grades.mjs)
- *   catalog.json     catalog.ucsd.edu   — every catalogued course + prerequisites (fetch-catalog.mjs)
- *   data.json        ucsd-easy-a-radar  — RateMyProfessors scores, seat links
- *   schedule.json    ucsd-easy-a-radar  — Fall 2026 WebReg snapshot (sections, rooms, seats)
- *   ge-courses.json  ucsd-easy-a-radar  — approved GE lists per UCSD college
+ *   as-grades.json     AS Instructor Grade Archive — 2015-2026 grade distributions (fetch-as-grades.mjs)
+ *   catalog.json       catalog.ucsd.edu  — every catalogued course + prerequisites (fetch-catalog.mjs)
+ *   classplanner.json  UCSD Class Planner — this term's sections, per-section
+ *                      instructors, live seats, TSS module ids (fetch-classplanner.mjs)
+ *   data.json          ucsd-easy-a-radar — RateMyProfessors scores only
+ *   ge-courses.json    ucsd-easy-a-radar — approved GE lists per UCSD college
  *
  * Emits into public/data/plat/:
  *   index.json          browse + search index (one row per catalog course)
@@ -24,7 +25,7 @@ const CACHE = path.join(ROOT, ".data-cache");
 const OUT = path.join(ROOT, "public", "data", "plat");
 const RAW = "https://raw.githubusercontent.com/Edwardwang66/ucsd-easy-a-radar/main";
 
-const SOURCES = ["data.json", "schedule.json", "ge-courses.json"];
+const SOURCES = ["data.json", "ge-courses.json"];
 
 // UCSD subject codes -> department names. Anything missing falls back to the code.
 const SUBJECT_NAMES = {
@@ -88,7 +89,11 @@ const SUBJECT_NAMES = {
 
 async function download() {
   fs.mkdirSync(CACHE, { recursive: true });
-  for (const [file, script] of [["as-grades.json", "fetch-as-grades.mjs"], ["catalog.json", "fetch-catalog.mjs"]]) {
+  for (const [file, script] of [
+    ["as-grades.json", "fetch-as-grades.mjs"],
+    ["catalog.json", "fetch-catalog.mjs"],
+    ["classplanner.json", "fetch-classplanner.mjs"],
+  ]) {
     if (!fs.existsSync(path.join(CACHE, file))) {
       throw new Error(`missing .data-cache/${file} — run: node scripts/${script}`);
     }
@@ -109,6 +114,9 @@ async function download() {
 }
 
 const readCache = (f) => JSON.parse(fs.readFileSync(path.join(CACHE, f), "utf8"));
+
+/** Shared empty set, so a course with no scheduled instructor needs no branch. */
+const EMPTY = new Set();
 
 /** "Porter, Matt J" -> "Matt J Porter" */
 function displayName(name) {
@@ -157,6 +165,24 @@ function sameInstructor(a, b) {
   if (!pa.length || !pb.length) return false;
   if (pa[pa.length - 1] !== pb[pb.length - 1]) return false;
   return pa[0][0] === pb[0][0];
+}
+
+/**
+ * The URL that opens one section on TSS, UCSD's enrolment system.
+ *
+ * This is the shape UCSD's own Class Planner hands out in `tss_booking_url`,
+ * not a guess: the long zero runs are fixed padding in SAP's route, and the
+ * trailing "/?" is part of it. Everything after the "#" is a client-side route,
+ * so it must NOT be percent-encoded — SAP's router cannot match an escaped one.
+ *
+ * Returns "" unless every part is known. A URL with a missing id opens a TSS
+ * error page, which is worse for a student than no link at all.
+ */
+function tssBookUrl(moduleId, packageId, year, period) {
+  if (!moduleId || !packageId || !year || !period) return "";
+  return "https://tss.ucsd.edu/fiori#ZUSModule-display?TileType=MYMOD"
+    + `&/Detail/EventPackage/SM/${moduleId}/00000000/0/0/0`
+    + `/00000000-0000-0000-0000-000000000000/${packageId}/${year}/${period}/?`;
 }
 
 /**
@@ -219,7 +245,7 @@ function build() {
   const asGrades = readCache("as-grades.json");
   const extras = fs.existsSync(path.join(CACHE, "data.json")) ? readCache("data.json") : null;
   const catalog = readCache("catalog.json");
-  const sched = readCache("schedule.json");
+  const sched = readCache("classplanner.json");
   const ge = readCache("ge-courses.json");
 
   const grades = foldAsGrades(asGrades);
@@ -229,26 +255,57 @@ function build() {
   // RateMyProfessors scores are keyed by instructor, so they can be joined onto
   // the AS records without depending on that file's grade numbers.
   const rmp = new Map();
+  // Same scores under the surname-plus-initial key, so an instructor reached
+  // through the schedule's spelling ("Matt Porter") finds the record filed
+  // under the archive's ("Porter, Matt J").
+  const rmpByKey = new Map();
   if (extras) {
     const ec = Object.fromEntries(extras.cols.map((c, i) => [c, i]));
     for (const r of extras.recs) {
       const name = r[ec.i];
       if (!name || rmp.has(name)) continue;
       if (r[ec.rq] == null && r[ec.rid] == null) continue;
-      rmp.set(name, {
+      const rec = {
         rq: r[ec.rq] ?? null, rd: r[ec.rd] ?? null,
         rw: r[ec.rw] ?? null, rn: r[ec.rn] ?? null, rid: r[ec.rid] ?? null,
-      });
+      };
+      rmp.set(name, rec);
+      const key = instructorKey(name);
+      // Only the first spelling claims a key: two different people who share a
+      // surname and initial must not inherit each other's rating.
+      if (key && !rmpByKey.has(key)) rmpByKey.set(key, rec);
     }
     console.log(`  joined RateMyProfessors scores for ${rmp.size} instructors`);
   } else {
     console.log("  no data.json — building without RateMyProfessors, prereqs or seat links");
   }
-  const currentFa = new Set(
-    extras
-      ? Object.values(extras.fa || {}).flat().map(instructorKey).filter(Boolean)
-      : [],
-  );
+  /**
+   * Who is teaching THIS course this term — course code -> instructor keys.
+   *
+   * This used to be one flat Set of every instructor teaching anything this
+   * term, so `cur` answered "does this person teach something in FA26?" rather
+   * than "do they teach THIS?". Every past instructor of a course who happened
+   * to be on campus was badged "Teaching this term": BIEB 102 credited Sara
+   * Jackrel and Jonathan Shurin, who teach other BIEB courses, while the person
+   * actually running it — Michael Overton, on all five sections — was missing.
+   *
+   * Both spellings are indexed: the course's own instructor list and the name
+   * on each section, because a course can have one instructor of record and a
+   * different one on a lab.
+   */
+  const teachingThisTerm = new Map();
+  for (const [code, s] of Object.entries(sched.courses)) {
+    const keys = new Set();
+    for (const name of s.inst || []) {
+      const k = instructorKey(name);
+      if (k) keys.add(k);
+    }
+    for (const t of s.sec || []) {
+      const k = instructorKey(t[7]);
+      if (k) keys.add(k);
+    }
+    if (keys.size) teachingThisTerm.set(code, keys);
+  }
 
   // ── course code -> GE areas it satisfies ──────────────────────────────────
   // Some colleges nest a level deeper (ERC "Regional Specialization" -> "Africa"),
@@ -316,34 +373,75 @@ function build() {
       P: r[col.gP] || 0, NP: r[col.gNP] || 0,
       n: r[col.n] || 0,
       y: r[col.y] ?? null,
-      cur: currentFa.has(instructorKey(r[col.i])) ? 1 : 0,
+      cur: (teachingThisTerm.get(code) ?? EMPTY).has(instructorKey(r[col.i])) ? 1 : 0,
       rq: rating.rq ?? null, rd: rating.rd ?? null,
       rw: rating.rw ?? null, rn: rating.rn ?? null, rid: rating.rid ?? null,
     });
   }
 
-  // ── Fall 2026 schedule: authoritative titles, units, sections ─────────────
+  // ── This term's schedule: authoritative titles, units, sections ───────────
+  // Class Planner is the term's system of record, so where it and the general
+  // catalog disagree about what is running, it wins.
+  let newlyNamed = 0;
   for (const [code, s] of Object.entries(sched.courses)) {
     const c = upsert(code);
     if (s.t && s.t.length > c.title.length) c.title = s.t;
     c.units = s.u || "";
     c.sec = s.sec || [];
     c.offered = 1;
-  }
+    c.faInstructors = s.inst || [];
+    if (s.res) c.res = s.res;
 
-  // ── prerequisites, seat links, FA26 instructor names ──────────────────────
-  // Prerequisites ride along on the catalog entries above; data.json only fills
-  // gaps for courses the catalog no longer lists.
+    // "Book on TSS" for the course: the enrollable section's package, because
+    // TSS books a package (lecture + its discussion), not a bare lecture.
+    const booking = (s.sections || []).find((x) => x.pkg && x.pkg.length === 1)
+      || (s.sections || []).find((x) => x.pkg && x.pkg.length);
+    c.tss = tssBookUrl(
+      s.tssModule,
+      booking && booking.pkg ? booking.pkg[0] : null,
+      sched.tss && sched.tss.year,
+      sched.tss && sched.tss.period,
+    ) || null;
+    if (c.tss) c.seatUrl = c.tss;
+    // The registrar's own prerequisite wording, for the courses the general
+    // catalog left blank.
+    if (!c.pre && s.pre) c.pre = s.pre;
+
+    /**
+     * An instructor new to a course has no row in the grade archive, so the
+     * grades loop above never created a record for them and "Teaching this
+     * term" would come up empty — which is how a stale name got shown instead.
+     * Give them a record carrying zero terms: the page can then name the right
+     * person and say plainly that there is no history yet, rather than
+     * substituting somebody else's.
+     */
+    for (const name of s.inst || []) {
+      const key = instructorKey(name);
+      if (!key || c.profs.some((p) => instructorKey(p.i) === key)) continue;
+      const rating = rmpByKey.get(key) || {};
+      c.profs.push({
+        i: name,
+        g: 0, A: 0, B: 0, C: 0, D: 0, F: 0, W: 0, P: 0, NP: 0,
+        n: 0, y: null, cur: 1,
+        rq: rating.rq ?? null, rd: rating.rd ?? null,
+        rw: rating.rw ?? null, rn: rating.rn ?? null, rid: rating.rid ?? null,
+      });
+      newlyNamed++;
+    }
+  }
+  console.log(`  named ${newlyNamed} scheduled instructors with no grade history for their course`);
+
+  // ── prerequisites ─────────────────────────────────────────────────────────
+  // Prerequisites ride along on the catalog entries above, then Class Planner's
+  // wording fills what the catalog left blank; data.json is only consulted for
+  // courses neither of those lists any more.
   for (const [code, text] of Object.entries((extras && extras.pre) || {})) {
     const c = byCourse.get(code);
     if (c && !c.pre) c.pre = text;
   }
-  for (const [code, v] of Object.entries((extras && extras.seats) || {})) {
-    if (byCourse.has(code) && v && v.u) byCourse.get(code).seatUrl = v.u;
-  }
-  for (const [code, list] of Object.entries((extras && extras.fa) || {})) {
-    if (byCourse.has(code)) byCourse.get(code).faInstructors = list;
-  }
+  // Seat links and this term's instructor lists used to come from data.json.
+  // Both now come from Class Planner in the schedule loop above — the seat link
+  // as a real TSS booking URL, the instructors per course rather than per term.
 
   // ── derive aggregates ─────────────────────────────────────────────────────
   const index = [];
@@ -424,6 +522,8 @@ function build() {
       terms: c.terms,
       offered: c.offered ? 1 : 0,
       seatUrl: c.seatUrl || null,
+      tss: c.tss || null,
+      res: c.res || null,
       fa: c.faInstructors || [],
       profs: c.profs,
       sec: c.sec,
@@ -459,11 +559,12 @@ function build() {
     catalogCourses: index.length,
     offered: index.filter((c) => c.o).length,
     buildings: sched.buildings,
+    refreshed: sched.refreshed || null,
     sources: [
       `${grades.meta.source} (${grades.meta.url}) — ${grades.meta.years} grade distributions`,
-      extras && "RateMyProfessors scores, prerequisites and seat links via data.json",
+      `${sched.source} — ${Object.keys(sched.courses).length} courses offered in ${sched.termName}, refreshed ${sched.refreshed || "unknown"}`,
       `${catalog.meta.source} (${catalog.meta.url}) — ${catalog.meta.courses} courses, ${catalog.meta.withPrereq} with prerequisites`,
-
+      extras && "RateMyProfessors scores via data.json",
     ].filter(Boolean),
   };
 

@@ -76,11 +76,22 @@ export interface ProfRecord {
   rid: number | null;
 }
 
-/** schedule.json section tuple: code, type, days, start, end, building, room, instructor, seatsAvail, seatsLimit, cancelled */
+/**
+ * One section meeting, as a positional tuple to keep the per-subject JSON small.
+ *
+ * Positions 0-10 are the original WebReg-era fields and are frozen: code, type,
+ * days, start, end, building, room, instructor, seatsAvail, seatsLimit,
+ * cancelled. Everything from 11 on arrived with UCSD's Class Planner and is
+ * appended rather than inserted, so any reader that only knows the first eleven
+ * keeps working.
+ */
 export type SectionTuple = [
   string, string, string, string, string,
   string, string, string,
   number | null, number | null, number,
+  // 11 waitlisted · 12 enrolled · 13 TSS section id · 14 TSS package ids
+  // 15 start, minutes from midnight · 16 end, same
+  number, number | null, string, string[], number | null, number | null,
 ];
 
 export interface CourseDetail {
@@ -93,6 +104,10 @@ export interface CourseDetail {
   terms: number;
   offered: 0 | 1;
   seatUrl: string | null;
+  /** TSS booking URL for this course, or null when UCSD lists no module for it. */
+  tss: string | null;
+  /** Enrolment restrictions, as the registrar words them. */
+  res: string | null;
   fa: string[];
   profs: ProfRecord[];
   sec: SectionTuple[];

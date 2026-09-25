@@ -113,17 +113,30 @@ export default function CourseDetailPage({
           {detail?.u && (
             <span className="text-sm text-gray-500 dark:text-gray-400">{parseFloat(detail.u)} units</span>
           )}
-          {detail?.seatUrl && (
+          {/*
+            Straight into UCSD's own enrolment system, on this course. The link
+            is only rendered when the build resolved a real TSS module — a URL
+            with a missing id lands on a TSS error page, which is worse for a
+            student mid-enrolment than no link at all.
+          */}
+          {detail?.tss && (
             <a
-              href={detail.seatUrl}
+              href={detail.tss}
               target="_blank"
               rel="noreferrer noopener"
-              className="inline-flex items-center gap-1 text-sm text-gray-500 hover:underline dark:text-gray-400"
+              title="Opens this course on TSS, UC San Diego's official enrolment site. It does not enrol you."
+              className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:border-white/15 dark:hover:bg-white/10"
             >
-              Live seats <ExternalLink className="h-3 w-3" />
+              Book on TSS <ExternalLink className="h-3.5 w-3.5" />
             </a>
           )}
         </div>
+
+        {detail?.res && (
+          <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2.5 text-xs leading-relaxed text-rose-900 dark:bg-rose-500/10 dark:text-rose-200">
+            <span className="font-semibold">Enrolment restrictions: </span>{detail.res}
+          </p>
+        )}
 
         {detail?.pre && (
           <p className="mt-5 rounded-lg bg-amber-50 px-3 py-2.5 text-xs leading-relaxed text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
@@ -182,7 +195,7 @@ export default function CourseDetailPage({
               hint={`${detail.sec.filter((s) => s[1] !== "FI").length} meetings`}
               defaultOpen
             >
-              <SectionPicker sec={detail.sec} />
+              <SectionPicker sec={detail.sec} tss={detail.tss} />
             </Disclosure>
           )}
 
@@ -209,17 +222,48 @@ export default function CourseDetailPage({
   );
 }
 
-/** One plain-English sentence instead of a strip of four competing numbers. */
+const surname = (name: string) => name.split(" ").slice(-1)[0];
+
+/**
+ * One plain-English sentence instead of a strip of four competing numbers.
+ *
+ * Only instructors who actually have a published history for this course get
+ * compared. This sentence used to end "the instructors teaching it grade
+ * similarly" whenever it could not find a spread — including when the person
+ * teaching had never taught it and so had no number to spread. Saying two
+ * people grade alike when one of them has no record is a claim the data does
+ * not support, and it is the sentence a student reads first.
+ */
 function summary(detail: CourseDetail, letter: string | undefined, teaching: ProfRecord[]): string {
   if (!letter) return "No grade distribution has been published for this course yet.";
   const base = `Students typically earn a ${letter} here, across ${detail.terms} graded ${detail.terms === 1 ? "term" : "terms"}.`;
-  if (teaching.length < 2) return base;
-  const ranked = [...teaching].sort((a, b) => b.g - a.g);
-  const best = ranked[0], worst = ranked[ranked.length - 1];
-  if (best.g > 0 && worst.g > 0 && best.g - worst.g >= 0.3) {
-    return `${base} Who you pick matters: ${best.i.split(" ").slice(-1)[0]} averages ${best.g.toFixed(2)} against ${worst.i.split(" ").slice(-1)[0]}'s ${worst.g.toFixed(2)}.`;
+
+  const known = teaching.filter((p) => p.g > 0 && p.n > 0).sort((a, b) => b.g - a.g);
+  const unknown = teaching.filter((p) => !(p.g > 0 && p.n > 0));
+
+  // Nobody teaching it has taught it before — the history above is somebody
+  // else's, and the sentence has to say so.
+  if (!known.length) {
+    if (!unknown.length) return base;
+    const who = unknown.length === 1
+      ? `${unknown[0].i} is`
+      : `The ${unknown.length} instructors listed are`;
+    return `${base} That history is from past instructors: ${who} teaching it this term with no published record for this course yet.`;
   }
-  return `${base} The instructors teaching it grade similarly.`;
+
+  const best = known[0];
+  const worst = known[known.length - 1];
+  const spread = known.length > 1 && best.g - worst.g >= 0.3
+    ? ` Who you pick matters: ${surname(best.i)} averages ${best.g.toFixed(2)} against ${surname(worst.i)}'s ${worst.g.toFixed(2)}.`
+    : known.length > 1
+      ? " The instructors with a record here grade similarly."
+      : "";
+
+  const caveat = unknown.length
+    ? ` ${unknown.length === 1 ? `${surname(unknown[0].i)} has` : `${unknown.length} of them have`} no published record for this course.`
+    : "";
+
+  return base + spread + caveat;
 }
 
 /**
