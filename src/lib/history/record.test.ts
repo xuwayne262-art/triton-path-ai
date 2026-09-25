@@ -165,3 +165,80 @@ describe("historyStore (file driver)", () => {
     await historyStore()!.del(storageKey("never@ucsd.edu", "test-secret"));
   });
 });
+
+describe("historyStore driver selection", () => {
+  const VARS = [
+    "SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_SERVICE_KEY", "KV_REST_API_URL", "KV_REST_API_TOKEN",
+    "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN",
+  ];
+
+  /** Runs `fn` with exactly `set` present, restoring the environment after. */
+  async function withEnv(set: Record<string, string>, fn: () => Promise<void> | void) {
+    const { resetHistoryStore } = await import("./store");
+    const saved = Object.fromEntries(VARS.map((v) => [v, process.env[v]]));
+    for (const v of VARS) delete process.env[v];
+    Object.assign(process.env, set);
+    resetHistoryStore();
+    try {
+      await fn();
+    } finally {
+      for (const v of VARS) delete process.env[v];
+      for (const [k, v] of Object.entries(saved)) if (v !== undefined) process.env[k] = v;
+      resetHistoryStore();
+    }
+  }
+
+  test("uses Supabase when the service role key is present", async () => {
+    const { historyStore } = await import("./store");
+    await withEnv(
+      { SUPABASE_URL: "https://proj.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "service-key" },
+      () => assert.equal(historyStore()?.name, "supabase"),
+    );
+  });
+
+  test("accepts the NEXT_PUBLIC url — that one is public anyway", async () => {
+    const { historyStore } = await import("./store");
+    await withEnv(
+      { NEXT_PUBLIC_SUPABASE_URL: "https://proj.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "service-key" },
+      () => assert.equal(historyStore()?.name, "supabase"),
+    );
+  });
+
+  test("will not run on the anon key alone, and says why", async () => {
+    // The anon key ships to every browser. A store built on it either reads
+    // nothing under RLS, or exposes every student's record without it.
+    const { historyStore, storeDiagnosis } = await import("./store");
+    await withEnv(
+      { SUPABASE_URL: "https://proj.supabase.co", NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key" },
+      () => {
+        assert.notEqual(historyStore()?.name, "supabase");
+        assert.match(storeDiagnosis(), /SUPABASE_SERVICE_ROLE_KEY/);
+      },
+    );
+  });
+
+  test("prefers Supabase over KV when both are linked", async () => {
+    const { historyStore } = await import("./store");
+    await withEnv(
+      {
+        SUPABASE_URL: "https://proj.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "service-key",
+        KV_REST_API_URL: "https://kv.example", KV_REST_API_TOKEN: "kv-token",
+      },
+      () => assert.equal(historyStore()?.name, "supabase"),
+    );
+  });
+
+  test("still falls back to KV when only that is configured", async () => {
+    const { historyStore } = await import("./store");
+    await withEnv(
+      { KV_REST_API_URL: "https://kv.example", KV_REST_API_TOKEN: "kv-token" },
+      () => assert.equal(historyStore()?.name, "kv"),
+    );
+  });
+
+  test("reports an unconfigured deployment rather than pretending", async () => {
+    const { storeDiagnosis } = await import("./store");
+    await withEnv({}, () => assert.match(storeDiagnosis(), /No SUPABASE_\* or KV_REST_API_\*/));
+  });
+});

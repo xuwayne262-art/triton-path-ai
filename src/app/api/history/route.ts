@@ -1,7 +1,7 @@
 import { auth } from "@/auth";
 import { isEligibleEmail, normalizeEmail } from "@/lib/auth/eligibility";
 import { MAX_BODY_BYTES, sanitizeHistory } from "@/lib/history/record";
-import { historyStore, STORE_UNAVAILABLE, storageKey } from "@/lib/history/store";
+import { historyStore, STORE_UNAVAILABLE, storageKey, storeDiagnosis } from "@/lib/history/store";
 
 /**
  * `/api/history` — one student's imported Academic History.
@@ -28,6 +28,18 @@ const NO_STORE = { "Cache-Control": "no-store" } as const;
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: NO_STORE });
 
+/**
+ * 503, plus the reason in the server log.
+ *
+ * The student is told their record did not save; the *why* — which variable is
+ * missing — goes to the log, where the person who can fix it will see it, and
+ * nowhere a caller can read it.
+ */
+function unavailable(): Response {
+  console.error(`[history] store unavailable: ${storeDiagnosis()}`);
+  return json(STORE_UNAVAILABLE, 503);
+}
+
 /** The signed-in, eligible address, or null. */
 async function owner(): Promise<string | null> {
   const session = await auth();
@@ -40,7 +52,7 @@ export async function GET(): Promise<Response> {
   if (!email) return json({ error: "Sign in to continue.", code: "AUTH_REQUIRED" }, 401);
 
   const store = historyStore();
-  if (!store) return json(STORE_UNAVAILABLE, 503);
+  if (!store) return unavailable();
 
   try {
     const raw = await store.get(storageKey(email));
@@ -86,7 +98,7 @@ export async function PUT(request: Request): Promise<Response> {
   }
 
   const store = historyStore();
-  if (!store) return json(STORE_UNAVAILABLE, 503);
+  if (!store) return unavailable();
 
   try {
     await store.set(storageKey(email), JSON.stringify(record));
@@ -104,7 +116,7 @@ export async function DELETE(): Promise<Response> {
   if (!email) return json({ error: "Sign in to continue.", code: "AUTH_REQUIRED" }, 401);
 
   const store = historyStore();
-  if (!store) return json(STORE_UNAVAILABLE, 503);
+  if (!store) return unavailable();
 
   try {
     await store.del(storageKey(email));

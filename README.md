@@ -40,10 +40,15 @@ AUTH_SECRET=          # 32 random bytes; generate with: npx auth secret
 AUTH_GOOGLE_ID=       # ...apps.googleusercontent.com
 AUTH_GOOGLE_SECRET=   # GOCSPX-...
 
-# Where imported Academic Histories are stored. Any Upstash-dialect Redis REST
-# endpoint works, which is what Vercel KV exposes. Without these, `next dev`
-# writes to ./.history-store and production refuses to save at all rather than
-# accepting a record it would silently drop.
+# Where imported Academic Histories are stored — see "Storing them", below.
+# Vercel's Supabase integration injects both of these; the second is NOT the
+# anon key. Without a store, `next dev` writes to ./.history-store and
+# production refuses to save rather than dropping a record silently.
+SUPABASE_URL=                # or NEXT_PUBLIC_SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY=   # service role, never the anon key
+
+# Alternative: any Upstash-dialect Redis REST endpoint, e.g. Vercel KV.
+# Used only when the Supabase pair above is absent.
 KV_REST_API_URL=      # or UPSTASH_REDIS_REST_URL
 KV_REST_API_TOKEN=    # or UPSTASH_REDIS_REST_TOKEN
 ```
@@ -92,13 +97,31 @@ The parse runs in the browser (`src/lib/history/parse.ts`). Only the structured
 result is sent to `/api/history` — never the raw paste, which carries the
 student's name and PID. The parser keeps neither.
 
-Storage is keyed by `sha256(AUTH_SECRET || email)`, so the datastore holds no
-addresses and its keyspace cannot be enumerated by guessing `@ucsd.edu` names.
 The server rebuilds every record field by field and **recomputes all totals**
 (`src/lib/history/record.ts`) — a caller cannot put a GPA of its choosing on a
 student's dashboard. A line the parser cannot read is surfaced to the student
 rather than dropped, because a silently short transcript reads as a complete
 one.
+
+### Storing them
+
+Records are keyed by `sha256(AUTH_SECRET ‖ email)`, so the database holds no
+addresses and its keyspace cannot be enumerated by guessing `@ucsd.edu` names.
+`src/lib/history/store.ts` picks a driver at runtime — Supabase, then KV, then
+the dev filesystem — and returns null rather than a silent no-op when none is
+configured. `storeDiagnosis()` names the missing variable in the server log;
+the student only ever sees "it did not save".
+
+**Supabase** is the primary path and needs one setup step: run
+[`supabase/001_academic_history.sql`](supabase/001_academic_history.sql) once in
+the Supabase SQL editor. It creates the table and **enables row-level security
+with no policy**, which is the part that matters — Supabase publishes the anon
+key to every browser, and PostgREST will serve any table in the `public` schema,
+so without RLS that key could read every student's transcript. The app connects
+with the service role key, which bypasses RLS, from server code only.
+
+The driver talks to PostgREST with plain `fetch`, so neither store adds a
+dependency.
 
 ## Hosted AI is turned off
 
