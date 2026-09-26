@@ -133,7 +133,7 @@ export default function HomePage() {
         />
 
         <div className="relative mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
-          <div className="grid gap-12 lg:grid-cols-12 lg:gap-14">
+          <div className="grid grid-cols-1 gap-12 lg:grid-cols-12 lg:gap-14">
             {/* Left: the pitch and the way in */}
             <div className="lg:col-span-7">
               <span className="inline-flex items-center gap-2 rounded-full border border-[#1B2C4F]/15 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#1B2C4F] shadow-sm dark:border-[#FFC72C]/25 dark:bg-white/5 dark:text-[#FFC72C]">
@@ -228,7 +228,7 @@ export default function HomePage() {
 
       {/* ── Body: index on the left, courses centre, planner on the right ───── */}
       <div className="mx-auto max-w-7xl px-4 pb-20 pt-10 sm:px-6 lg:px-8">
-        <div className="grid gap-8 lg:grid-cols-12 lg:gap-10">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-10">
           {/* Left rail — the department index that used to be one line of chips */}
           <aside className="lg:col-span-3">
             <div className="lg:sticky lg:top-24">

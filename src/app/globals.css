@@ -132,3 +132,17 @@
     @apply bg-background text-foreground;
   }
 }
+
+/*
+ * iPhone Safari zooms the whole page into any text field set below 16px the
+ * moment it is focused, and leaves it zoomed. On touch screens every field is
+ * 16px. This sits outside any @layer on purpose: unlayered rules outrank
+ * Tailwind's utilities, so a field styled text-sm still gets it.
+ */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

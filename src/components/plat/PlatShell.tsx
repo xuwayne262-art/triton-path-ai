@@ -31,9 +31,10 @@ export default function PlatShell({
     <div className="min-h-screen bg-white text-gray-900 dark:bg-[#0d1420] dark:text-gray-100">
       <header className="sticky top-0 z-40 border-b border-gray-200 bg-white/90 backdrop-blur dark:border-white/10 dark:bg-[#0d1420]/90">
         <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex shrink-0 items-center gap-2.5">
+          <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="UCSDPlans home">
             <TridentMark className="h-8 w-8" />
-            <span className="text-[15px] font-bold tracking-tight">
+            {/* On a phone the search needs the width more than the name does. */}
+            <span className={`text-[15px] font-bold tracking-tight ${hideSearch ? "" : "hidden sm:inline"}`}>
               UCSD<span className="text-[#1B2C4F] dark:text-[#FFC72C]">Plans</span>
             </span>
           </Link>

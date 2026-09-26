@@ -41,7 +41,8 @@ export default function RightSidebar({
 
   return (
     <aside
-      className={`w-64 flex-shrink-0 flex flex-col border-l overflow-hidden ${
+      // A phone has no room beside the plan, so progress follows it instead.
+      className={`w-64 flex-shrink-0 flex flex-col border-l overflow-hidden max-md:w-full max-md:overflow-visible max-md:border-l-0 max-md:border-t ${
         darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
       }`}
     >
@@ -67,13 +68,13 @@ export default function RightSidebar({
               darkMode ? "text-gray-500" : "text-gray-400"
             }`}
           >
-            Select a college above to see GE progress
+            Choose your college (top right) to see GE progress
           </p>
         )}
       </div>
 
       {/* Progress groups — scrollable */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-5">
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-5 max-md:flex-none max-md:overflow-visible">
         {degreeProgress.map((group) => (
           <div key={group.id}>
             {/* Group label */}

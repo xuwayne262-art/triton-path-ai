@@ -19,8 +19,8 @@ import { PlannerProvider, usePlanner } from "./PlannerProvider";
  */
 
 const TABS = [
-  { href: "/planner", label: "Term workspace", icon: Calendar },
-  { href: "/planner/four-year", label: "4-year plan", icon: LayoutGrid },
+  { href: "/planner", label: "Term workspace", short: "This term", icon: Calendar },
+  { href: "/planner/four-year", label: "4-year plan", short: "4 years", icon: LayoutGrid },
 ] as const;
 
 function PlannerChrome({ children }: { children: React.ReactNode }) {
@@ -33,7 +33,9 @@ function PlannerChrome({ children }: { children: React.ReactNode }) {
   } = usePlanner();
 
   return (
-    <div className="flex h-screen flex-col bg-slate-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
+    // dvh, not vh: on an iPhone 100vh is the height with Safari's toolbar
+    // hidden, so a vh-tall app ran its bottom edge underneath the toolbar.
+    <div className="flex h-dvh flex-col bg-slate-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
       <header className="flex h-14 shrink-0 items-center gap-2 border-b border-gray-200 bg-white px-3 dark:border-white/10 dark:bg-gray-800 sm:gap-3 sm:px-4">
         {/* Logo — also the way back to the course explorer */}
         <Link href="/" className="flex shrink-0 items-center gap-2" title="Back to courses">
@@ -51,9 +53,9 @@ function PlannerChrome({ children }: { children: React.ReactNode }) {
             <ArrowLeft className="h-4 w-4" />
             <span className="hidden sm:inline">Courses</span>
           </Link>
-          <span aria-hidden className="mx-1 h-5 w-px shrink-0 bg-gray-200 dark:bg-white/10" />
+          <span aria-hidden className="mx-1 hidden h-5 w-px shrink-0 bg-gray-200 dark:bg-white/10 sm:block" />
           <div className="flex items-center gap-0.5 rounded-lg bg-gray-100 p-0.5 dark:bg-white/5">
-            {TABS.map(({ href, label, icon: Icon }) => {
+            {TABS.map(({ href, label, short, icon: Icon }) => {
               const active = pathname === href;
               return (
                 <Link
@@ -66,8 +68,9 @@ function PlannerChrome({ children }: { children: React.ReactNode }) {
                       : "text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
                   }`}
                 >
-                  <Icon className="h-4 w-4" />
-                  {label}
+                  <Icon className="hidden h-4 w-4 min-[400px]:block" />
+                  <span className="sm:hidden">{short}</span>
+                  <span className="hidden sm:inline">{label}</span>
                 </Link>
               );
             })}

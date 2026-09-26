@@ -46,9 +46,11 @@ export default function FourYearPlanPage() {
   }`;
 
   return (
-    <>
-      <main className="flex-1 overflow-auto min-w-0">
-        <div className="p-4">
+    // Side by side on a desktop; on a phone the progress panel follows the
+    // plan and the two scroll as one page.
+    <div className="flex min-w-0 flex-1 overflow-hidden max-md:flex-col max-md:overflow-y-auto">
+      <main className="min-w-0 flex-1 overflow-auto max-md:flex-none max-md:overflow-visible">
+        <div className="p-3 md:p-4">
           {/* Controls */}
           <div className={`mb-4 p-4 ${panelCls}`}>
             <div className="flex flex-wrap items-center gap-4">
@@ -154,27 +156,22 @@ export default function FourYearPlanPage() {
           {/* Planned courses grid */}
           <DragDropContext onDragEnd={movePlannedCourse}>
             <div className={`overflow-hidden ${panelCls}`}>
-              {/* Year header row */}
-              <div className="grid grid-cols-4 gap-2 p-2">
-                {YEARS.map((year) => (
-                  <div
-                    key={year}
-                    className={`p-2 rounded-lg text-center ${darkMode ? "bg-gray-700" : "bg-gray-50"}`}
-                  >
-                    <p className={`font-semibold ${darkMode ? "text-white" : "text-gray-900"}`}>
-                      Year {year}
-                    </p>
-                    <p className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
-                      {YEAR_LABELS[year]}
-                    </p>
-                  </div>
-                ))}
-              </div>
-
-              {/* Quarter columns */}
-              <div className="grid grid-cols-4 gap-2 p-2">
+              {/* One column per year with its heading on top. The headings used
+                  to be a row of their own, which on a phone stacked all four
+                  years' titles above all twelve quarters. */}
+              <div className="grid grid-cols-1 gap-2 p-2 sm:grid-cols-2 lg:grid-cols-4">
                 {YEARS.map((year) => (
                   <div key={year} className="space-y-2">
+                    <div
+                      className={`p-2 rounded-lg text-center ${darkMode ? "bg-gray-700" : "bg-gray-50"}`}
+                    >
+                      <p className={`font-semibold ${darkMode ? "text-white" : "text-gray-900"}`}>
+                        Year {year}
+                      </p>
+                      <p className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+                        {YEAR_LABELS[year]}
+                      </p>
+                    </div>
                     {QUARTERS.map((quarter) => {
                       const courses = plannedCourses.filter(
                         (p) => p.year === year && p.quarter === quarter,
@@ -239,7 +236,7 @@ export default function FourYearPlanPage() {
                                           <button
                                             onClick={() => removePlannedCourse(pc.courseId)}
                                             aria-label={`Remove ${pc.course.code} from the plan`}
-                                            className="absolute top-0.5 right-0.5 rounded p-0.5 text-gray-600 opacity-0 transition-opacity bg-white/70 hover:bg-white hover:text-red-600 group-hover:opacity-100"
+                                            className="absolute top-0.5 right-0.5 rounded p-0.5 text-gray-600 opacity-0 transition-opacity bg-white/70 hover:bg-white hover:text-red-600 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
                                           >
                                             <X className="w-2.5 h-2.5" />
                                           </button>
@@ -270,6 +267,6 @@ export default function FourYearPlanPage() {
         selectedCourses={selectedCourses}
         selectedCollege={selectedCollege}
       />
-    </>
+    </div>
   );
 }

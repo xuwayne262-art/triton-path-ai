@@ -145,6 +145,24 @@ consecutive classes, flagging any walk longer than the break before it.
   still show when the map zooms out to fit the week. All 71 buildings in use
   this term resolve; the outlines are OpenStreetMap data, credited on the map.
 
+## On a phone
+
+Below 768 px the term workspace shows one pane at a time — **Courses**,
+**Week**, **Map** — switched from a tab bar at the bottom of the screen; three
+side-by-side panes cannot fit, and the course rail alone is wider than the
+calendar would be. The week draws compact five-day columns, a day picker opens
+any one day at full width, and tapping a class opens its details in a sheet
+(section, time, room, instructor, change sections, directions, remove), since
+a touch screen has no hover. The four-year plan stacks its years, with degree
+progress after them.
+
+Three iPhone-specific rules hold across the site: the planner is sized with
+`dvh`, not `vh` (100vh on iOS is the height with Safari's toolbar hidden);
+every text field is 16 px on touch screens, because Safari zooms the page into
+any smaller field on focus; and hover-only controls either have a touch
+equivalent or show on coarse pointers. Adding the site to the Home Screen uses
+`public/apple-touch-icon.png`.
+
 ## Importing an Academic History
 
 `/import` takes a **paste**, not a file. The record is already on screen on

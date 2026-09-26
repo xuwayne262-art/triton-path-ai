@@ -35,12 +35,13 @@ export default function ProgramPicker({
       <Popover.Trigger asChild>
         <button
           type="button"
-          className="flex min-w-0 max-w-[26rem] items-center gap-2 rounded-lg border border-gray-200 px-2.5 py-1.5 text-left text-sm transition hover:border-gray-300 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFCD00] dark:border-white/15 dark:hover:border-white/25 dark:hover:bg-white/5"
+          className="flex min-w-0 max-w-[26rem] items-center gap-2 rounded-lg border border-gray-200 px-2 py-1.5 text-left text-sm transition hover:border-gray-300 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFCD00] dark:border-white/15 dark:hover:border-white/25 dark:hover:bg-white/5 sm:px-2.5"
           aria-label={`Your program: ${summary}. Change it`}
         >
           <GraduationCap className="h-4 w-4 shrink-0 text-[#182B49] dark:text-[#FFCD00]" />
-          <span className="min-w-0 truncate font-medium">{summary}</span>
-          <ChevronDown className="h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400" />
+          {/* On a phone the header has room for the icon; the popover says the rest. */}
+          <span className="hidden min-w-0 truncate font-medium md:inline">{summary}</span>
+          <ChevronDown className="hidden h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400 min-[400px]:block" />
         </button>
       </Popover.Trigger>
       <Popover.Portal>
@@ -55,7 +56,7 @@ export default function ProgramPicker({
             (e.currentTarget as HTMLElement | null)?.focus();
           }}
           tabIndex={-1}
-          className="z-50 w-[22rem] rounded-xl border border-gray-200 bg-white p-4 text-gray-900 shadow-xl outline-none dark:border-white/10 dark:bg-gray-800 dark:text-gray-100"
+          className="z-50 w-[min(22rem,calc(100vw-1.5rem))] rounded-xl border border-gray-200 bg-white p-4 text-gray-900 shadow-xl outline-none dark:border-white/10 dark:bg-gray-800 dark:text-gray-100"
         >
           <p className="text-sm font-bold">Your program</p>
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">

@@ -52,18 +52,19 @@ export default function ExamList({ items }: { items: ExamItem[] }) {
           </span>
         )}
       </h2>
-      <ul className="m-0 grid list-none gap-x-6 gap-y-1 p-0 sm:grid-cols-2">
+      <ul className="m-0 grid list-none grid-cols-1 gap-x-6 gap-y-1 p-0 sm:grid-cols-2">
         {sorted.map((it) => (
           <li
             key={`${it.code}-${it.row[DATE]}-${it.row[START]}-${it.row[1]}`}
-            className={`flex items-baseline gap-2 text-[11px] ${clashing.has(it) ? "font-semibold text-red-600 dark:text-red-400" : ""}`}
+            className={`flex flex-wrap items-baseline gap-x-2 text-[11px] sm:flex-nowrap ${clashing.has(it) ? "font-semibold text-red-600 dark:text-red-400" : ""}`}
           >
             <span className="h-2 w-2 shrink-0 translate-y-[1px] rounded-full" style={{ background: ROLE_STYLES[it.role].hex }} />
             <span className="w-[5.5rem] shrink-0 tabular-nums">{dateLabel(it.row[DATE])}</span>
             <span className="w-[5.5rem] shrink-0 tabular-nums text-gray-500 dark:text-gray-400">
               {compactRange(it.row[START], it.row[END])}
             </span>
-            <span className="truncate">
+            {/* On a phone the course and room take a line of their own. */}
+            <span className="min-w-0 basis-full truncate pl-4 sm:basis-auto sm:pl-0">
               <span className="font-semibold">{it.code}</span> {oneOffLabel(it.row)}
               <span className="text-gray-500 dark:text-gray-400"> · {sectionWhere(it.row) || "Room TBA"}</span>
             </span>

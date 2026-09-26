@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarDays, Footprints, X } from "lucide-react";
-import { DAYS } from "@/components/triton/types";
+import { DAYS, type DayOfWeek } from "@/components/triton/types";
 import { ROLE_STYLES } from "@/lib/plannerBridge";
 import { formatDistance, type Leg } from "@/lib/campus";
 import {
@@ -26,6 +26,10 @@ const pxPerMin = PX_PER_HOUR / 60;
 
 const isLectureKind = (kind: string) => kind === "LE" || kind === "SE";
 
+const DAY_NAMES: Record<DayOfWeek, string> = {
+  Mon: "Monday", Tue: "Tuesday", Wed: "Wednesday", Thu: "Thursday", Fri: "Friday",
+};
+
 export interface Highlight {
   code?: string | null;
   building?: string | null;
@@ -45,7 +49,7 @@ function geometry(event: PlacedEvent, windowStart: number) {
 }
 
 function Block({
-  event, windowStart, darkMode, lit, dim, focused, onRemove, onHover, onPick,
+  event, windowStart, darkMode, lit, dim, focused, compact, onRemove, onHover, onPick,
 }: {
   event: PlacedEvent;
   windowStart: number;
@@ -53,6 +57,8 @@ function Block({
   lit: boolean;
   dim: boolean;
   focused: boolean;
+  /** A phone-width week: the code alone, allowed to wrap onto two lines. */
+  compact: boolean;
   onRemove?: (code: string) => void;
   onHover?: (e: CalEvent | null) => void;
   onPick?: (e: CalEvent) => void;
@@ -63,13 +69,15 @@ function Block({
   // so they are drawn lighter with a dashed edge rather than in a second colour
   // the legend would then have to explain.
   const lecture = isLectureKind(event.kind);
+  const where = [event.where, event.building && event.building !== event.where ? event.building : ""]
+    .filter(Boolean)
+    .join(", ");
 
   return (
     <div
       onMouseEnter={() => onHover?.(event)}
       onMouseLeave={() => onHover?.(null)}
-      onClick={() => onPick?.(event)}
-      className={`group absolute cursor-pointer overflow-hidden rounded-md px-1.5 py-1 transition-[opacity,box-shadow] duration-150 ${
+      className={`group absolute overflow-hidden rounded-md transition-[opacity,box-shadow] duration-150 ${compact ? "px-1 py-0.5" : "px-1.5 py-1"} ${
         lecture ? style.bg : darkMode ? "bg-white/[0.07]" : "bg-white"
       } ${event.conflict ? "ring-2 ring-red-500" : ""} ${
         lit ? "z-10 shadow-lg ring-2 ring-[#FFCD00]" : focused ? "ring-2 ring-[#182B49]/50 dark:ring-[#FFCD00]/60" : ""
@@ -85,21 +93,36 @@ function Block({
         `${event.code} — ${event.title}`,
         event.sectionCode ? `${event.kindLabel} ${event.sectionCode}` : event.kindLabel,
         `${minutesToLabel(event.startMin)} – ${minutesToLabel(event.endMin)}`,
-        [event.where, event.building && event.building !== event.where ? event.building : ""].filter(Boolean).join(", "),
+        where,
         event.instructor,
         event.conflict ? "Conflicts with another course" : "",
       ].filter(Boolean).join("\n")}
     >
-      <p className={`truncate text-xs font-bold leading-tight ${lecture ? style.text : ""}`}>
+      {/* The whole block is one button — a div with a click handler was
+          invisible to VoiceOver and the keyboard. It sits under the text, and
+          the remove button sits over it, so neither nests inside the other. */}
+      <button
+        type="button"
+        onClick={() => onPick?.(event)}
+        aria-label={[
+          event.code,
+          event.sectionCode ? `${event.kindLabel} ${event.sectionCode}` : event.kindLabel,
+          `${DAY_NAMES[event.day]} ${minutesToLabel(event.startMin)} to ${minutesToLabel(event.endMin)}`,
+          where,
+          event.conflict ? "conflicts with another course" : "",
+        ].filter(Boolean).join(", ")}
+        className="absolute inset-0 cursor-pointer rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FFCD00]"
+      />
+      <p className={`pointer-events-none relative font-bold ${compact ? "line-clamp-2 text-[11px] leading-[1.15]" : "truncate text-xs leading-tight"} ${lecture ? style.text : ""}`}>
         {event.code}
       </p>
-      {g.px >= 34 && (
-        <p className="truncate text-[11px] leading-tight text-gray-600 dark:text-gray-300">
+      {!compact && g.px >= 34 && (
+        <p className="pointer-events-none relative truncate text-[11px] leading-tight text-gray-600 dark:text-gray-300">
           {event.sectionCode ? `${event.kindLabel} ${event.sectionCode}` : event.kindLabel}
         </p>
       )}
-      {g.px >= 50 && event.where && (
-        <p className="truncate text-[11px] font-medium leading-tight text-gray-600 dark:text-gray-300">
+      {!compact && g.px >= 50 && event.where && (
+        <p className="pointer-events-none relative truncate text-[11px] font-medium leading-tight text-gray-600 dark:text-gray-300">
           {event.where}
         </p>
       )}
@@ -107,9 +130,9 @@ function Block({
       {onRemove && (
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); onRemove(event.code); }}
+          onClick={() => onRemove(event.code)}
           aria-label={`Remove ${event.code} from the schedule`}
-          className="absolute right-0.5 top-0.5 rounded bg-white/80 p-0.5 text-gray-600 opacity-0 transition hover:bg-white hover:text-red-600 focus-visible:opacity-100 group-hover:opacity-100 dark:bg-gray-900/80 dark:text-gray-300"
+          className="absolute right-0.5 top-0.5 z-10 rounded bg-white/80 p-0.5 text-gray-600 opacity-0 transition hover:bg-white hover:text-red-600 focus-visible:opacity-100 group-hover:opacity-100 dark:bg-gray-900/80 dark:text-gray-300"
         >
           <X className="h-2.5 w-2.5" />
         </button>
@@ -120,10 +143,11 @@ function Block({
 
 /** An open choice, drawn where it would land and chosen by clicking it. */
 function OptionBlock({
-  event, windowStart, onChoose, onHover,
+  event, windowStart, compact, onChoose, onHover,
 }: {
   event: PlacedEvent;
   windowStart: number;
+  compact: boolean;
   onChoose?: (e: CalEvent) => void;
   onHover?: (e: CalEvent | null) => void;
 }) {
@@ -138,7 +162,7 @@ function OptionBlock({
       onFocus={() => onHover?.(event)}
       onBlur={() => onHover?.(null)}
       aria-label={`Choose ${event.kindLabel} ${event.sectionCode ?? ""} for ${event.code}, ${event.day} ${minutesToLabel(event.startMin)}`}
-      className="group absolute overflow-hidden rounded-md border border-dashed px-1.5 py-1 text-left opacity-80 transition hover:z-20 hover:opacity-100 hover:shadow-lg focus-visible:z-20 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFCD00]"
+      className={`group absolute overflow-hidden rounded-md border border-dashed text-left opacity-80 transition hover:z-20 hover:opacity-100 hover:shadow-lg focus-visible:z-20 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFCD00] ${compact ? "px-1 py-0.5" : "px-1.5 py-1"}`}
       style={{
         top: g.top,
         height: g.height,
@@ -148,13 +172,13 @@ function OptionBlock({
         background: `repeating-linear-gradient(135deg, ${style.hex}1f 0 6px, transparent 6px 12px)`,
       }}
     >
-      <p className="truncate text-xs font-bold leading-tight">{event.code}</p>
-      {g.px >= 34 && (
+      <p className={`font-bold ${compact ? "line-clamp-2 text-[11px] leading-[1.15]" : "truncate text-xs leading-tight"}`}>{event.code}</p>
+      {!compact && g.px >= 34 && (
         <p className="truncate text-[11px] leading-tight text-gray-700 dark:text-gray-300">
           {event.kindLabel} {event.sectionCode}
         </p>
       )}
-      {g.px >= 50 && (
+      {!compact && g.px >= 50 && (
         <p className="truncate text-[11px] font-semibold leading-tight text-[#182B49] group-hover:underline dark:text-[#FFCD00]">
           Choose
         </p>
@@ -222,6 +246,10 @@ export default function WeekCalendar({
   onHover,
   onPick,
   onChoose,
+  compact = false,
+  days = DAYS,
+  onDayHeader,
+  emptyHint = "Add a course from the left, then pick its sections — lectures and discussions both land on this calendar, and anything that collides is flagged.",
 }: {
   events: CalEvent[];
   /** Options and previews — blocks that are not commitments. */
@@ -236,7 +264,16 @@ export default function WeekCalendar({
   onHover?: (e: CalEvent | null) => void;
   onPick?: (e: CalEvent) => void;
   onChoose?: (e: CalEvent) => void;
+  /** Phone-width columns: a narrower hour gutter, and blocks that show only the code. */
+  compact?: boolean;
+  /** Which weekdays to draw — one, for a phone's day view. */
+  days?: DayOfWeek[];
+  /** Makes the day headers buttons, e.g. to open that day on its own. */
+  onDayHeader?: (day: DayOfWeek) => void;
+  emptyHint?: string;
 }) {
+  const gutter = compact ? 40 : 52;
+  const columns = `${gutter}px repeat(${days.length}, minmax(0, 1fr))`;
   const options = ghosts.filter((g) => g.ghost === "option");
   const previews = ghosts.filter((g) => g.ghost === "preview");
   const { startMin, endMin } = dayWindow([...events, ...ghosts]);
@@ -259,10 +296,7 @@ export default function WeekCalendar({
         <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
           Your week will appear here
         </p>
-        <p className="mt-1 max-w-xs text-xs text-gray-500 dark:text-gray-400">
-          Add a course from the left, then pick its sections — lectures and discussions
-          both land on this calendar, and anything that collides is flagged.
-        </p>
+        <p className="mt-1 max-w-xs px-4 text-xs text-gray-500 dark:text-gray-400">{emptyHint}</p>
       </div>
     );
   }
@@ -278,29 +312,43 @@ export default function WeekCalendar({
         className={`grid border-b ${
           darkMode ? "border-white/10 bg-gray-700/50" : "border-slate-200 bg-slate-50"
         }`}
-        style={{ gridTemplateColumns: "52px repeat(5, minmax(0, 1fr))" }}
+        style={{ gridTemplateColumns: columns }}
       >
         <div />
-        {DAYS.map((day) => (
-          <div
-            key={day}
-            className={`py-2 text-center text-xs font-semibold ${
-              darkMode ? "text-gray-300" : "text-slate-600"
-            }`}
-          >
-            {day}
-          </div>
-        ))}
+        {days.map((day) =>
+          onDayHeader ? (
+            <button
+              key={day}
+              type="button"
+              onClick={() => onDayHeader(day)}
+              aria-label={days.length > 1 ? `Show ${DAY_NAMES[day]} on its own` : "Show the whole week"}
+              className={`py-2.5 text-center text-xs font-semibold active:bg-black/5 dark:active:bg-white/10 ${
+                darkMode ? "text-gray-200" : "text-slate-700"
+              }`}
+            >
+              {days.length > 1 ? day : DAY_NAMES[day]}
+            </button>
+          ) : (
+            <div
+              key={day}
+              className={`py-2 text-center text-xs font-semibold ${
+                darkMode ? "text-gray-300" : "text-slate-600"
+              }`}
+            >
+              {day}
+            </div>
+          ),
+        )}
       </div>
 
       {/* Grid body */}
-      <div className="grid" style={{ gridTemplateColumns: "52px repeat(5, minmax(0, 1fr))" }}>
+      <div className="grid" style={{ gridTemplateColumns: columns }}>
         {/* Hour gutter */}
         <div className={`border-r ${darkMode ? "border-white/10" : "border-slate-200"}`}>
           {hours.map((m) => (
             <div
               key={m}
-              className={`flex items-start justify-end pr-1.5 pt-0.5 text-[11px] tabular-nums ${
+              className={`flex items-start justify-end whitespace-nowrap pt-0.5 tabular-nums ${compact ? "pr-1 text-[10px]" : "pr-1.5 text-[11px]"} ${
                 darkMode ? "text-gray-400" : "text-slate-500"
               }`}
               style={{ height: `${PX_PER_HOUR}px` }}
@@ -310,7 +358,7 @@ export default function WeekCalendar({
           ))}
         </div>
 
-        {DAYS.map((day, dayIdx) => {
+        {days.map((day, dayIdx) => {
           // Options share lanes with real blocks, so an option that would clash
           // sits visibly beside what it clashes with instead of underneath it.
           const placed = layoutDay([...events, ...options].filter((e) => e.day === day));
@@ -318,7 +366,7 @@ export default function WeekCalendar({
             <div
               key={day}
               className={`relative ${
-                dayIdx < DAYS.length - 1
+                dayIdx < days.length - 1
                   ? darkMode ? "border-r border-white/10" : "border-r border-slate-200"
                   : ""
               }`}
@@ -338,6 +386,7 @@ export default function WeekCalendar({
                     key={event.key}
                     event={event}
                     windowStart={startMin}
+                    compact={compact}
                     onChoose={onChoose}
                     onHover={onHover}
                   />
@@ -350,6 +399,7 @@ export default function WeekCalendar({
                     lit={isLit(event)}
                     dim={active && !isLit(event)}
                     focused={focusCode === event.code}
+                    compact={compact}
                     onRemove={onRemove}
                     onHover={onHover}
                     onPick={onPick}

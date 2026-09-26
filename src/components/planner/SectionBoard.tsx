@@ -774,7 +774,8 @@ export default function SectionBoard({
                 <span className="font-semibold text-amber-700 dark:text-amber-400">
                   {pending} {pending === 1 ? "course needs" : "courses need"} a pick.
                 </span>{" "}
-                Hover an option to preview it on the calendar and map.
+                <span className="pointer-coarse:hidden">Hover an option to preview it on the calendar and map.</span>
+                <span className="hidden pointer-coarse:inline">Tap an option to choose it.</span>
               </p>
             )}
             <ul className="m-0 list-none space-y-2 p-0">
