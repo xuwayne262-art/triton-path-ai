@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, GraduationCap, Layers, Search, Sparkles, Star, TrendingUp } from "lucide-react";
+import { ArrowRight, GraduationCap, House, Layers, Search, Sparkles, Star, TrendingUp } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import CourseRow from "@/components/plat/CourseRow";
 import PassTimeline from "@/components/plat/PassTimeline";
@@ -320,6 +320,26 @@ export default function HomePage() {
                 </p>
                 <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-[#FFC72C]">
                   Open the planner
+                  <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
+                </span>
+              </Link>
+
+              <Link
+                href="/housing"
+                className="group block rounded-2xl border border-gray-200 p-5 transition hover:border-[#1B2C4F]/40 hover:shadow-sm dark:border-white/10 dark:hover:border-[#FFC72C]/40"
+              >
+                <div className="flex items-center justify-between">
+                  <House className="h-5 w-5 text-[#1B2C4F] dark:text-[#FFC72C]" />
+                  <span className="rounded-full bg-[#FFC72C] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#1B2C4F]">
+                    New
+                  </span>
+                </div>
+                <p className="mt-3 text-sm font-bold">Live closer to your 8 a.m.</p>
+                <p className="mt-1.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                  Sublets from verified @ucsd.edu students, ranked by the trip to the classes on your schedule.
+                </p>
+                <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-[#1B2C4F] dark:text-[#FFC72C]">
+                  Find housing
                   <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
                 </span>
               </Link>

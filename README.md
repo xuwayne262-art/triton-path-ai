@@ -199,6 +199,54 @@ with the service role key, which bypasses RLS, from server code only.
 The driver talks to PostgREST with plain `fetch`, so neither store adds a
 dependency.
 
+## Housing
+
+`/housing` is a sublet and room board for @ucsd.edu students, and it knows
+each visitor's week. Every place is measured against the sections chosen in
+the term workspace: the trip to each day's first class, the trip home from the
+last, the time to leave, and the hours that adds up to over a quarter. Nothing
+is stored about the visitor to do this — `useTermSchedule` reads the planner's
+own localStorage, read-only, so the housing pages can never change a schedule.
+With no schedule, trips go to Library Walk.
+
+- **Commute times are estimates**, labelled as such: straight-line distance ×
+  1.37 (the campus-map calibration) at 80 m/min walking or 250 m/min cycling.
+  Bus and trolley times are a Google Maps link, with its real timetables.
+- **Check an address** places anything a student found elsewhere on the same
+  map with the same numbers. Addresses go to the U.S. Census Bureau's geocoder
+  (`/api/geocode`, no key, public-domain results) and nowhere else; the checked
+  list stays in that browser.
+- **Availability is by quarter**, from the Registrar's calendars on
+  blink.ucsd.edu. A stay covers a quarter only from the first day of classes to
+  the end of finals. `QUARTERS` in `src/lib/housing/terms.ts` needs the next
+  academic year added each spring.
+
+Listings (`/api/housing`) follow the Academic History rules: the owner is a
+keyed hash of their email, the server rebuilds every field
+(`src/lib/housing/listing.ts`), and the poster's name ("Alex Y.") and email come
+from the session, never the form. A poster chooses whether their email shows;
+contact details appear only on a listing's own page, not in the list response,
+so one request cannot collect everyone's phone number.
+
+- **Freshness:** a listing not reconfirmed for 14 days is flagged, and after 30
+  it leaves the list until its owner clicks *Still available*. Ended and taken
+  listings are shown to their owner only.
+- **Reports:** three distinct students reporting a listing hide it. There is no
+  admin screen; to restore one, empty `reports` in its record.
+- **Limits:** three open listings per student, 2,000-character descriptions,
+  six photos.
+- **Photos** are re-encoded to JPEG in the browser (at most 1600 px), which also
+  strips the EXIF block and the GPS position phones write into it. The server
+  accepts JPEG only. A photo's ref carries an HMAC of its uploader, so a listing
+  can only attach — and deleting one can only remove — photos its owner uploaded.
+
+**Setup: run [`supabase/002_housing.sql`](supabase/002_housing.sql) once** in the
+Supabase SQL editor before deploying. It creates the `housing_listing` table
+(RLS on, no policy, like `academic_history`) and a private `housing-photos`
+Storage bucket. Without it, the board answers 502 and the server log names the
+file to run. `next dev` with no Supabase variables uses
+`.history-store/housing/` instead.
+
 ## Hosted AI is turned off
 
 All three AI endpoints answer **503** with `Cache-Control: no-store`:

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Moon, Sparkles, Sun } from "lucide-react";
+import { House, Moon, Sparkles, Sun } from "lucide-react";
 import SearchBox from "./SearchBox";
 import TridentMark from "./TridentMark";
 import { useTheme } from "./theme";
@@ -12,7 +12,8 @@ import { loadIndex, type IndexMeta } from "@/lib/plat";
 /**
  * Minimal chrome. The old nav carried Courses / Easy GEs / Planner plus a
  * search plus a term chip; browsing and GE-hunting are both just search with
- * different filters, so only the planner earns a permanent slot.
+ * different filters, so only the planner earns a permanent slot — and housing,
+ * which is not a filter on courses but the other thing a term needs settled.
  */
 export default function PlatShell({
   children,
@@ -50,6 +51,24 @@ export default function PlatShell({
             >
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
+
+            {/* Icon-only on a phone, where the search needs the width. */}
+            <Link
+              href="/housing"
+              aria-current={pathname.startsWith("/housing") ? "page" : undefined}
+              aria-label="Housing"
+              className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium transition sm:px-3 ${
+                pathname.startsWith("/housing")
+                  ? "bg-gray-100 text-[#182B49] dark:bg-white/10 dark:text-[#FFCD00]"
+                  : "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/10"
+              }`}
+            >
+              <House className="h-4 w-4 sm:hidden" />
+              <span className="hidden sm:inline">Housing</span>
+              <span className="hidden rounded-full bg-[#FFCD00] px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-[#182B49] sm:inline">
+                New
+              </span>
+            </Link>
 
             <Link
               href="/import"

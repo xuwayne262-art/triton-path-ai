@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import {
   ArrowDown, ExternalLink, Footprints, Loader2, LocateFixed, MapPin, MapPinOff, Route, X,
 } from "lucide-react";
@@ -418,7 +419,10 @@ export default function MapPanel({
       <p className="shrink-0 border-t border-gray-200 px-3 py-1.5 text-[10px] leading-snug text-gray-400 dark:border-white/10">
         Building locations and walking routes from UCSD&rsquo;s Class Planner; building outlines from
         OpenStreetMap. Walking times are estimates — leave extra time for elevators, crowds and the
-        first week.
+        first week.{" "}
+        <Link href="/housing" className="font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]">
+          Find housing near these classes →
+        </Link>
       </p>
     </aside>
   );

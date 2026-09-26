@@ -1,0 +1,136 @@
+/*
+ * Same rule as the campus map: MapLibre positions each marker element with a
+ * transform, so every visual transform here goes on a child.
+ */
+
+.home {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  transform-origin: 50% 100%;
+  transition: transform 150ms ease;
+  outline: none;
+}
+
+.price {
+  padding: 4px 8px;
+  border: 1.5px solid #182b49;
+  border-radius: 9999px;
+  background: #fff;
+  color: #182b49;
+  box-shadow: 0 2px 6px rgb(15 23 42 / 0.25);
+  font: 800 11px/1 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.tail {
+  width: 0;
+  height: 0;
+  margin-top: -1px;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid #182b49;
+}
+
+/* A place the student typed in to check, lettered A, B, C. */
+.checked .price {
+  border-color: #b38f00;
+  background: #ffcd00;
+  color: #182b49;
+}
+.checked .tail {
+  border-top-color: #b38f00;
+}
+
+/* Theirs, so it reads as theirs among the others. */
+.mine .price {
+  border-style: dashed;
+}
+
+/* Not reconfirmed lately: still listed, but quieter. */
+.dim {
+  opacity: 0.6;
+}
+
+.focus {
+  transform: scale(1.15);
+}
+.focus .price {
+  background: #182b49;
+  color: #fff;
+  box-shadow: 0 0 0 3px #ffcd00, 0 6px 14px rgb(15 23 42 / 0.35);
+}
+.checked.focus .price {
+  background: #ffcd00;
+  color: #182b49;
+}
+
+.home:focus-visible .price {
+  box-shadow: 0 0 0 3px #ffcd00;
+}
+
+/* A building the student has class in. */
+.building {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px 2px 3px;
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.92);
+  color: #182b49;
+  box-shadow: 0 1px 4px rgb(15 23 42 / 0.25);
+  font: 700 10px/1 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.building::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #182b49;
+  box-shadow: 0 0 0 1.5px #ffcd00;
+}
+
+.spoke {
+  padding: 2px 6px;
+  border: 1.5px solid #182b49;
+  border-radius: 9999px;
+  background: #fff;
+  color: #0f172a;
+  box-shadow: 0 1px 4px rgb(15 23 42 / 0.25);
+  font: 700 10px/1 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+:global(.dark) .price,
+:global(.dark) .spoke {
+  background: #111827;
+  color: #f9fafb;
+  border-color: #ffcd00;
+}
+:global(.dark) .tail {
+  border-top-color: #ffcd00;
+}
+:global(.dark) .focus .price {
+  background: #ffcd00;
+  color: #182b49;
+}
+:global(.dark) .checked .price {
+  background: #ffcd00;
+  color: #182b49;
+}
+:global(.dark) .building {
+  background: rgb(17 24 39 / 0.9);
+  color: #ffcd00;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home {
+    transition: none;
+  }
+}
