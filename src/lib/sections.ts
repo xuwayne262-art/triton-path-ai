@@ -29,7 +29,14 @@ export const AVAIL = 8, LIMIT = 9, CANCELLED = 10;
 // Appended when the schedule moved to UCSD's Class Planner. Older cached files
 // have no value at these positions, so every reader treats them as optional.
 export const WAITLIST = 11, ENROLLED = 12, SECTION_ID = 13, PACKAGE_IDS = 14;
-export const BUILDING_CODE = 17, STATUS = 18;
+export const BUILDING_CODE = 17, STATUS = 18, TOPIC = 19;
+
+/**
+ * What a section of a topics course teaches — "Unsupervised Learning" for one
+ * CSE 190 lecture, "How the Web Tracks You" for another — or "" for an ordinary
+ * course, where every section teaches the same thing.
+ */
+export const sectionTopic = (s: SectionTuple): string => (typeof s[TOPIC] === "string" ? s[TOPIC] : "");
 
 /**
  * How many people are already queued for a section, or null when this term's
@@ -84,6 +91,14 @@ export const isWaitlistOnly = (s: SectionTuple) => s[STATUS] === "waitlist_only"
 export const familyOf = (code: string) => (/^[A-Z]/.test(code) ? code[0] : code);
 
 const isLecture = (s: SectionTuple) => s[TYPE] === "LE" || s[TYPE] === "SE";
+
+/**
+ * The section a family hangs off. TSS numbers it 000 — "001-000-LE" becomes
+ * "A00" — whatever its type: CAT 124's families are a practicum (A00) with a
+ * seminar under it (A01), so going by type alone filed the seminar as the
+ * lecture and the practicum as a choice to make under it.
+ */
+const isParent = (s: SectionTuple) => /^[A-Z]00$/.test(s[CODE]) || /^\d+-000-/.test(s[CODE]);
 
 // ── Formatting ───────────────────────────────────────────────────────────────
 
@@ -212,7 +227,7 @@ export function groupSections(sec: SectionTuple[]): LectureFamily[] {
   return [...families.entries()]
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([key, rows]) => {
-      const lecture = rows.find(isLecture) ?? null;
+      const lecture = rows.find(isParent) ?? rows.find(isLecture) ?? null;
       // Rows sharing the lecture's code and type are more of the lecture.
       const lectureRows = lecture
         ? rows.filter((r) => r[CODE] === lecture[CODE] && r[TYPE] === lecture[TYPE])
@@ -340,7 +355,7 @@ export function oneOffsFor(sec: SectionTuple[], chosen: SectionTuple[]): Section
 
 // ── Auto-pick ────────────────────────────────────────────────────────────────
 
-/** Prefer sections with room in them; a full section is a choice you cannot make. */
+/** Prefer a lecture with room in it; a full one means a waitlist. */
 function rank(s: SectionTuple): number {
   const seats = sectionSeats(s);
   if (!seats.known) return 1;          // unpublished — probably fine
@@ -352,9 +367,11 @@ function rank(s: SectionTuple): number {
  * Picks a whole family that fits around what is already on the calendar —
  * the "find me sections that work" button.
  *
- * Families are tried in order of how much room their lecture has, and within a
- * family each sub-section type takes the emptiest option that clears both the
- * existing schedule and the picks made moments earlier in the same pass.
+ * Families are tried in order of how much room their lecture has. Within a
+ * family each sub-section type takes the first option, in UCSD's order, that
+ * clears both the existing schedule and the picks made moments earlier in the
+ * same pass. Seats do not decide a discussion: enrolling in the course places
+ * you in one, so an emptier discussion is no better a pick than a fuller one.
  * Returns null when nothing fits, which is a real answer: the course cannot be
  * added this term without moving something else.
  */
@@ -375,8 +392,7 @@ export function autoPick(sec: SectionTuple[], busy: Meeting[]): SectionSelection
     let ok = true;
 
     for (const part of family.parts) {
-      const candidate = [...part.sections]
-        .sort((a, b) => rank(b) - rank(a))
+      const candidate = part.sections
         .find((s) => {
           const m = meetingsOfRows(rowsFor(part, s[CODE]));
           // A section with no published time cannot clash with anything.

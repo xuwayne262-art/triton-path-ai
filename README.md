@@ -87,7 +87,7 @@ one. It is also the true upstream other UCSD planners publish snapshots of.
 `/api/v1/schedules/{ref}`, and that endpoint refuses a ref whose section ids are
 not sorted, and caps a schedule at 15 distinct courses — hence the batch size.
 
-Three things about Class Planner's data that the build has to get right:
+Four things about Class Planner's data that the build has to get right:
 
 - **`waitlist_only` is not cancelled.** It means full but still taking a
   waitlist. Reading every status other than `AC` as cancelled once hid 231
@@ -103,6 +103,13 @@ Three things about Class Planner's data that the build has to get right:
   `buildings.json` maps code → name, map name, coordinates and address. A few
   buildings (CALIT, TASB, OAR, SWC-25) have no coordinates in UCSD's map; the
   planner lists those meetings as "not on the map" rather than guessing.
+- **A topics course is listed once per topic.** CSE 190 arrives as three
+  catalog entries ("How the Web Tracks You", "Unsupervised Learning", …) and
+  ECON 286 as six. Keying them by course code kept only the last, silently
+  dropping 148 sections across 48 courses. They are merged — Class Planner's
+  own schedule view treats them as one course with one TSS module, and TSS
+  never reuses a section code across the entries — and each section keeps its
+  topic in tuple position 19, which the planner shows on the lecture option.
 
 ## Campus map
 
@@ -125,6 +132,18 @@ consecutive classes, flagging any walk longer than the break before it.
 - **When UCSD cannot route a leg**, the planner estimates it from the
   straight-line distance × 1.37 at 80 m/min — calibrated on 20 of UCSD's own
   routed legs — and labels it as an estimate.
+- **Building outlines** are cut out of the map's own vector tiles
+  (`src/lib/footprint.ts`), and a tile feature is never one building: to keep
+  tiles small, a z14 tile merges every building of the same height into one
+  MultiPolygon (1,384 of them in the tile holding most of campus), and a z13
+  tile fuses neighbours into blobs. Filling "the feature under the pin" once
+  lit up most of La Jolla. So only the polygon the pin stands in is kept —
+  or, where UCSD pins a courtyard (HSS), the wings around it — and only from
+  the deepest tiles; a building a tile edge cuts in two (Price Center, SERF,
+  DIB) is stitched back from each tile's share, drawn without anti-aliasing so
+  the halves meet with no seam. Outlines found once are remembered, so they
+  still show when the map zooms out to fit the week. All 71 buildings in use
+  this term resolve; the outlines are OpenStreetMap data, credited on the map.
 
 ## Importing an Academic History
 

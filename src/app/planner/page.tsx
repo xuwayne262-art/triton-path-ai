@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
-  AlertTriangle, CalendarClock, Footprints, ListChecks, Map as MapIcon, Search, Wand2, X,
+  AlertTriangle, CalendarClock, Footprints, ListChecks, Map as MapIcon, PanelLeftClose, PanelLeftOpen,
+  Search, Wand2, X,
 } from "lucide-react";
 import CourseCatalog from "@/components/triton/CourseCatalog";
 import SavedCourses, { ColorLegend } from "@/components/triton/SavedCourses";
@@ -40,10 +41,17 @@ type RailTab = "sections" | "browse";
 const TAB_KEY = "ucsdplans-rail-tab";
 const MAP_KEY = "ucsdplans-map-open";
 const DAY_KEY = "ucsdplans-map-day";
+const RAIL_KEY = "ucsdplans-rail-open";
 
 const isTab = (v: string): v is RailTab | "" => v === "sections" || v === "browse" || v === "";
 const isFlag = (v: string): v is "0" | "1" => v === "0" || v === "1";
 const isMapDay = (v: string): v is MapDay => v === "week" || (WEEKDAYS as string[]).includes(v);
+
+/** A short note after something changed, with the one action that follows from it. */
+interface Toast {
+  text: string;
+  action?: { label: string; run: () => void };
+}
 
 /** Discussions a course still needs are drawn on the calendar when there are few enough to scan. */
 const MAX_PENDING_OPTIONS = 8;
@@ -98,11 +106,11 @@ export default function TermWorkspacePage() {
   const {
     darkMode,
     searchQuery, setSearchQuery,
-    selectedCourses, addToSchedule, removeFromSchedule, clearSchedule,
+    selectedCourses, addToSchedule, removeFromSchedule, clearSchedule, restoreSchedule,
     sectionsByCode, tssByCode, selections, setSelection, chooseOption, autoPickFor, autoPickAll,
     sectionStatus, events, optionEvents, conflictCodes, totalUnits,
     plannedCourses, addAICourseToPlan, removePlannedCourse,
-    platRows, platByCode, allCourses, savedCourses, toggleSaved, addCourseByCode,
+    platRows, platByCode, savedCourses, toggleSaved, addCourseByCode,
     selectedMajor, selectedMinor, selectedCollege,
     roleOf, getColorForCourse, activeRequirements,
     term, buildings,
@@ -112,6 +120,8 @@ export default function TermWorkspacePage() {
   const [chosenTab, pickTab] = usePref<RailTab | "">(TAB_KEY, "", isTab);
   const [mapFlag, setMapFlag] = usePref<"0" | "1">(MAP_KEY, "0", isFlag);
   const [mapDay, pickDay] = usePref<MapDay>(DAY_KEY, "week", isMapDay);
+  const [railFlag, setRailFlag] = usePref<"0" | "1">(RAIL_KEY, "1", isFlag);
+  const railOpen = railFlag === "1";
   const mapOpen = mapFlag === "1";
   /** Kept mounted once opened, so closing the drawer never throws the map away. */
   const [mapMounted, setMapMounted] = useState(mapOpen);
@@ -119,7 +129,7 @@ export default function TermWorkspacePage() {
   const [preview, setPreview] = useState<{ events: CalEvent[]; label: string } | null>(null);
   const [focusCode, setFocusCode] = useState<string | null>(null);
   const [hl, setHl] = useState<Highlight | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
 
   // With courses on the schedule, the rail opens on choosing their sections.
   const tab: RailTab = chosenTab || (selectedCourses.length ? "sections" : "browse");
@@ -145,7 +155,7 @@ export default function TermWorkspacePage() {
 
   useEffect(() => {
     if (!toast) return;
-    const t = window.setTimeout(() => setToast(null), 6000);
+    const t = window.setTimeout(() => setToast(null), 8000);
     return () => window.clearTimeout(t);
   }, [toast]);
 
@@ -157,6 +167,9 @@ export default function TermWorkspacePage() {
 
   // A focused course that left the schedule is no longer focused.
   const focus = focusCode && courseByCode.has(focusCode) ? focusCode : null;
+  // Likewise a highlight: a card removed under the pointer never fires its
+  // mouseleave, and a highlight left on it dimmed every other block.
+  const lit = hl && (!hl.code || courseByCode.has(hl.code)) ? hl : null;
 
   // ── What the calendar draws besides commitments ─────────────────────────────
 
@@ -296,10 +309,35 @@ export default function TermWorkspacePage() {
     if (e.choice.part) setFocusCode((cur) => (cur === e.code ? null : cur));
   }, [chooseOption]);
 
+  // Adding from Browse says where the sections went, instead of nothing.
   const addFromBrowse = useCallback((course: Course) => {
     addToSchedule(course);
-    setToast(course.code);
-  }, [addToSchedule]);
+    setToast({
+      text: `${course.code} added`,
+      action: { label: "Choose sections →", run: () => { pickTab("sections"); setFocusCode(course.code); } },
+    });
+  }, [addToSchedule, pickTab]);
+
+  // Removing is one click, so undoing it is too. A course and its section picks
+  // were minutes of work; a confirm dialog would tax every removal instead.
+  const removeWithUndo = useCallback((id: string) => {
+    const snapshot = selectedCourses;
+    const gone = snapshot.find((c) => c.id === id);
+    if (!gone) return;
+    removeFromSchedule(id);
+    setPreview(null);
+    setToast({ text: `${gone.course.code} removed`, action: { label: "Undo", run: () => restoreSchedule(snapshot) } });
+  }, [selectedCourses, removeFromSchedule, restoreSchedule]);
+
+  const clearWithUndo = useCallback(() => {
+    const snapshot = selectedCourses;
+    if (!snapshot.length) return;
+    clearSchedule();
+    setToast({
+      text: `Cleared ${snapshot.length} ${snapshot.length === 1 ? "course" : "courses"}`,
+      action: { label: "Undo", run: () => restoreSchedule(snapshot) },
+    });
+  }, [selectedCourses, clearSchedule, restoreSchedule]);
 
   const pending = selectedCourses.filter(({ course }) => {
     const st = sectionStatus(course.code);
@@ -314,26 +352,22 @@ export default function TermWorkspacePage() {
         role="tab"
         aria-selected={active}
         onClick={() => pickTab(id)}
-        className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold transition ${
+        className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] font-semibold transition ${
           active
-            ? darkMode
-              ? "bg-white/10 text-white"
-              : "bg-white text-gray-900 shadow-sm"
-            : darkMode
-              ? "text-gray-400 hover:text-gray-200"
-              : "text-gray-500 hover:text-gray-800"
+            ? "bg-white text-gray-900 shadow-sm dark:bg-white/10 dark:text-white"
+            : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
         }`}
       >
-        <Icon className="h-3.5 w-3.5" />
+        <Icon className="h-4 w-4" />
         {label}
         {badge && badge.n > 0 && (
           <span
-            className={`rounded-full px-1.5 text-[10px] tabular-nums ${
+            className={`rounded-full px-1.5 text-[11px] tabular-nums ${
               badge.warn
-                ? "bg-amber-400 text-amber-950"
+                ? "bg-amber-100 text-amber-900 dark:bg-amber-500/20 dark:text-amber-200"
                 : active
                   ? "bg-[#182B49] text-white dark:bg-[#FFCD00] dark:text-[#182B49]"
-                  : "bg-gray-200 text-gray-600 dark:bg-white/10 dark:text-gray-300"
+                  : "bg-gray-200 text-gray-700 dark:bg-white/10 dark:text-gray-300"
             }`}
             title={badge.warn ? `${badge.n} ${badge.n === 1 ? "course needs" : "courses need"} a section picked` : undefined}
           >
@@ -344,26 +378,70 @@ export default function TermWorkspacePage() {
     );
   };
 
+  const scheduledCodes = useMemo(() => new Set(selectedCourses.map((sc) => sc.course.code)), [selectedCourses]);
+
   return (
     <div className="relative flex min-w-0 flex-1 overflow-hidden">
       {/* ── Left rail ─────────────────────────────────────────────────────── */}
-      <aside
-        className={`relative flex w-[340px] shrink-0 flex-col overflow-hidden border-r ${
-          darkMode ? "border-white/10 bg-gray-800" : "border-gray-200 bg-white"
-        }`}
-      >
-        <div
-          role="tablist"
-          aria-label="Course rail"
-          className={`m-2 flex shrink-0 gap-1 rounded-xl p-1 ${
-            darkMode ? "bg-white/5" : "bg-gray-100"
-          }`}
+      {/* Folds to a strip once the sections are picked, handing the calendar
+          and map the width; its two tabs stay one click away. */}
+      {!railOpen ? (
+        <aside
+          aria-label="Course rail, collapsed"
+          className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-gray-200 bg-white py-2 dark:border-white/10 dark:bg-gray-800"
         >
-          {railTab("sections", "Sections", ListChecks, {
-            n: pending || selectedCourses.length,
-            warn: pending > 0,
-          })}
-          {railTab("browse", "Browse", Search)}
+          <button
+            type="button"
+            onClick={() => setRailFlag("1")}
+            title="Show the course rail"
+            aria-label="Show the course rail"
+            className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
+          >
+            <PanelLeftOpen className="h-4 w-4" />
+          </button>
+          <span aria-hidden className="my-1 h-px w-6 bg-gray-200 dark:bg-white/10" />
+          {([["sections", "Sections", ListChecks], ["browse", "Browse", Search]] as const).map(([id, label, Icon]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => { pickTab(id); setRailFlag("1"); }}
+              title={id === "sections" && pending ? `${label} — ${pending} to pick` : label}
+              aria-label={id === "sections" && pending ? `${label}, ${pending} to pick` : label}
+              className="relative rounded-lg p-2 text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
+            >
+              <Icon className="h-4 w-4" />
+              {id === "sections" && pending > 0 && (
+                <span aria-hidden className="absolute right-1 top-1 h-2 w-2 rounded-full bg-amber-500 ring-2 ring-white dark:ring-gray-800" />
+              )}
+            </button>
+          ))}
+        </aside>
+      ) : (
+      <aside
+        aria-label="Course rail"
+        className="relative flex w-[340px] shrink-0 flex-col overflow-hidden border-r border-gray-200 bg-white dark:border-white/10 dark:bg-gray-800"
+      >
+        <div className="m-2 flex shrink-0 items-center gap-1">
+          <div
+            role="tablist"
+            aria-label="Course rail"
+            className="flex flex-1 gap-1 rounded-xl bg-gray-100 p-1 dark:bg-white/5"
+          >
+            {railTab("sections", "Sections", ListChecks, {
+              n: pending || selectedCourses.length,
+              warn: pending > 0,
+            })}
+            {railTab("browse", "Browse", Search)}
+          </div>
+          <button
+            type="button"
+            onClick={() => setRailFlag("0")}
+            title="Hide the course rail"
+            aria-label="Hide the course rail"
+            className="shrink-0 rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
+          >
+            <PanelLeftClose className="h-4 w-4" />
+          </button>
         </div>
 
         {tab === "sections" ? (
@@ -380,10 +458,10 @@ export default function TermWorkspacePage() {
             focusCode={focus}
             roleOf={roleOf}
             sectionStatus={sectionStatus}
-            onRemove={removeFromSchedule}
+            onRemove={removeWithUndo}
             onSelect={setSelection}
             onAutoPick={autoPickFor}
-            onClear={clearSchedule}
+            onClear={clearWithUndo}
             onAdd={addCourseByCode}
             onPreview={previewFromRail}
             onHover={(code) => setHl(code ? { code } : null)}
@@ -391,16 +469,14 @@ export default function TermWorkspacePage() {
           />
         ) : (
           <CourseCatalog
-            embedded
             darkMode={darkMode}
             searchQuery={searchQuery}
             setSearchQuery={setSearchQuery}
             selectedCourses={selectedCourses}
             addToSchedule={addFromBrowse}
-            removeFromSchedule={removeFromSchedule}
+            removeFromSchedule={removeWithUndo}
             getColorForCourse={getColorForCourse}
             activeRequirements={activeRequirements}
-            allCourses={allCourses}
             selectedMajor={selectedMajor}
             selectedMinor={selectedMinor}
             selectedCollege={selectedCollege}
@@ -408,12 +484,11 @@ export default function TermWorkspacePage() {
             addAICourseToPlan={addAICourseToPlan}
             removePlannedCourse={removePlannedCourse}
             platRows={platRows}
-            legend={<ColorLegend darkMode={darkMode} />}
+            legend={<ColorLegend />}
             savedPanel={
               <SavedCourses
-                darkMode={darkMode}
                 saved={savedCourses}
-                scheduledCodes={new Set(selectedCourses.map((sc) => sc.course.code))}
+                scheduledCodes={scheduledCodes}
                 roleOf={roleOf}
                 onAdd={addFromBrowse}
                 onRemoveSaved={toggleSaved}
@@ -421,29 +496,8 @@ export default function TermWorkspacePage() {
             }
           />
         )}
-
-        {/* Adding from Browse says where the sections went, instead of nothing. */}
-        {toast && tab === "browse" && (
-          <div
-            role="status"
-            className="absolute inset-x-2 bottom-2 z-20 flex items-center gap-2 rounded-xl bg-[#182B49] px-3 py-2 text-xs text-white shadow-xl dark:bg-[#FFCD00] dark:text-[#182B49]"
-          >
-            <span className="min-w-0 flex-1 truncate">
-              <span className="font-bold">{toast}</span> added
-            </span>
-            <button
-              type="button"
-              onClick={() => { pickTab("sections"); setFocusCode(toast); setToast(null); }}
-              className="shrink-0 rounded-md bg-white/15 px-2 py-1 font-semibold hover:bg-white/25 dark:bg-[#182B49]/15 dark:hover:bg-[#182B49]/25"
-            >
-              Choose sections →
-            </button>
-            <button type="button" onClick={() => setToast(null)} aria-label="Dismiss" className="shrink-0 opacity-70 hover:opacity-100">
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        )}
       </aside>
+      )}
 
       {/* ── Calendar ──────────────────────────────────────────────────────── */}
       <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -520,12 +574,12 @@ export default function TermWorkspacePage() {
             events={events}
             ghosts={ghosts}
             darkMode={darkMode}
-            highlight={hl}
+            highlight={lit}
             focusCode={focus}
             troubles={troubles}
             onRemove={(code) => {
               const hit = selectedCourses.find((sc) => sc.course.code === code);
-              if (hit) removeFromSchedule(hit.id);
+              if (hit) removeWithUndo(hit.id);
             }}
             onHover={hoverOnCalendar}
             onPick={pickOnCalendar}
@@ -603,13 +657,39 @@ export default function TermWorkspacePage() {
               routeSource={routeSource}
               day={mapDay}
               onDay={pickDay}
-              hotBuilding={hl?.building ?? null}
-              hotCourse={hl?.code ?? null}
+              hotBuilding={lit?.building ?? null}
+              hotCourse={lit?.code ?? null}
               onHotBuilding={(code) => setHl(code ? { building: code } : null)}
               onClose={() => toggleMap(false)}
             />
           )}
         </div>
+      </div>
+
+      {/* Always mounted, so a screen reader hears each note as it appears. */}
+      <div role="status" className="pointer-events-none absolute bottom-3 left-3 z-40 w-[316px] max-w-[calc(100%-1.5rem)]">
+        {toast && (
+          <div className="pointer-events-auto flex items-center gap-2 rounded-xl bg-[#182B49] px-3 py-2 text-[13px] text-white shadow-xl dark:bg-[#FFCD00] dark:text-[#182B49]">
+            <span className="min-w-0 flex-1 truncate font-semibold">{toast.text}</span>
+            {toast.action && (
+              <button
+                type="button"
+                onClick={() => { toast.action?.run(); setToast(null); }}
+                className="shrink-0 rounded-md bg-white/15 px-2 py-1 text-xs font-semibold hover:bg-white/25 dark:bg-[#182B49]/15 dark:hover:bg-[#182B49]/25"
+              >
+                {toast.action.label}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setToast(null)}
+              aria-label="Dismiss"
+              className="shrink-0 rounded p-0.5 opacity-70 hover:opacity-100"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

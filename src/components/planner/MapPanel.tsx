@@ -416,8 +416,9 @@ export default function MapPanel({
       </div>
 
       <p className="shrink-0 border-t border-gray-200 px-3 py-1.5 text-[10px] leading-snug text-gray-400 dark:border-white/10">
-        Building locations and walking routes from UCSD&rsquo;s Class Planner. Walking times are
-        estimates — leave extra time for elevators, crowds and the first week.
+        Building locations and walking routes from UCSD&rsquo;s Class Planner; building outlines from
+        OpenStreetMap. Walking times are estimates — leave extra time for elevators, crowds and the
+        first week.
       </p>
     </aside>
   );

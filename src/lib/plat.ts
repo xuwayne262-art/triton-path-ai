@@ -109,7 +109,8 @@ export type SectionTuple = [
   // 15 start, minutes from midnight · 16 end, same
   number, number | null, string, string[], number | null, number | null,
   // 17 building code, "" when TBA or remote · 18 Class Planner status
-  string?, string?,
+  // 19 topic, for a topics course listed once per topic ("" otherwise)
+  string?, string?, string?,
 ];
 
 export interface CourseDetail {

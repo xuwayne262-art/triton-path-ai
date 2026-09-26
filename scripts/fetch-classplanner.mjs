@@ -419,13 +419,34 @@ async function main() {
   /** How many meetings of each kind, so a new one-off kind shows up in the log. */
   const kinds = new Map();
 
+  /**
+   * A topics course is listed once per topic: CSE 190 arrives as three entries
+   * ("How the Web Tracks You", "Unsupervised Learning", ...), ECON 286 as six.
+   * Keying each entry by its code kept only the last one, which dropped 148
+   * sections across 48 courses. Class Planner's own schedule view treats them
+   * as one course with one TSS module, and TSS numbers the section families
+   * uniquely across the entries (001, 002, ...), so they are merged here and
+   * each section keeps the topic it teaches.
+   */
+  const entriesByCode = new Map();
   for (const c of raw) {
     const code = `${c.subject_code} ${c.course_code.replace(/^0+(?=\d)/, "")}`;
+    if (!entriesByCode.has(code)) entriesByCode.set(code, []);
+    entriesByCode.get(code).push(c);
+  }
+  let mergedCourses = 0;
+
+  for (const [code, entries] of entriesByCode) {
+    const c = entries[0];
     const slug = `${c.subject_code}-${c.course_code}`.toLowerCase();
+    const topics = [...new Set(entries.map((e) => e.module_name || ""))];
+    /** Only worth naming per section when the entries teach different things. */
+    const topicOf = (e) => (topics.length > 1 ? e.module_name || "" : "");
+    if (entries.length > 1) mergedCourses++;
 
     const sec = [];
     const meta = [];
-    for (const s of c.sections || []) {
+    for (const [e, s] of entries.flatMap((e) => (e.sections || []).map((s) => [e, s]))) {
       const folded = foldMeetings(s.meetings);
       for (const m of folded) {
         if (!m.buildingCode || !m.building) continue;
@@ -470,6 +491,7 @@ async function main() {
           m ? m.endMin : null,
           m ? m.buildingCode : "",
           s.status || "",
+          topicOf(e),
         ]);
         sectionCount++;
       }
@@ -477,7 +499,7 @@ async function main() {
         sec.push([
           m.date || display, onceType(m), m.date || "", m.start, m.end, m.building, m.room, "",
           null, null, 0, 0, null, s.section_id || "", s.event_package_ids || [], m.startMin, m.endMin,
-          m.buildingCode, "",
+          m.buildingCode, "", topicOf(e),
         ]);
       }
 
@@ -494,28 +516,36 @@ async function main() {
         wl: s.waitlist_enrolled ?? 0,
         wlCap: s.waitlist_capacity ?? null,
         status: s.status || "",
+        topic: topicOf(e) || undefined,
       });
     }
 
+    const all = (pick) => [...new Set(entries.flatMap((e) => pick(e) || []))];
+    const sum = (pick) => (entries.some((e) => pick(e) != null) ? entries.reduce((n, e) => n + (pick(e) ?? 0), 0) : null);
     courses[code] = {
-      t: c.module_name || "",
+      // Entries that disagree on a title are topics; the catalog's own title
+      // ("Topics in Computer Science and Engineering") names the course better
+      // than any one of them.
+      t: topics.length === 1 ? topics[0] : "",
       u: c.units_display ? String(c.units_display).replace(/\s*units?$/i, "") : "",
       sub: c.subject_code,
       num: c.course_code.replace(/^0+(?=\d)/, ""),
       sec,
       // ── the fields the old snapshot could not answer ──
-      inst: c.instructors || [],           // THIS course's instructors, this term
-      pre: (c.prerequisites || []).join("; ") || null,
-      res: (c.restrictions || []).join("; ") || null,
+      inst: all((e) => e.instructors),     // THIS course's instructors, this term
+      pre: all((e) => e.prerequisites).join("; ") || null,
+      res: all((e) => e.restrictions).join("; ") || null,
       lvl: c.academic_level || null,
-      openSec: c.open_section_count ?? null,
-      openSeats: c.open_seat_count ?? null,
-      packages: c.complete_package_count ?? null,
-      openPackages: c.open_package_count ?? null,
+      openSec: sum((e) => e.open_section_count),
+      openSeats: sum((e) => e.open_seat_count),
+      packages: sum((e) => e.complete_package_count),
+      openPackages: sum((e) => e.open_package_count),
       tssModule: tss.modules.get(slug) || null,
+      topics: topics.length > 1 ? topics : undefined,
       sections: meta,
     };
   }
+  if (mergedCourses) console.log(`  topics  ${mergedCourses} courses listed once per topic, merged`);
 
   /**
    * Keyed by building code. `name` is what the schedule calls the place
@@ -547,7 +577,7 @@ async function main() {
       "code", "type", "days", "start", "end", "building", "room", "instructor",
       "seatsAvail", "seatsLimit", "cancelled",
       "waitlist", "enrolled", "sectionId", "packageIds", "startMin", "endMin",
-      "buildingCode", "status",
+      "buildingCode", "status", "topic",
     ],
     tss: { year: tss.year, period: tss.period },
     subjectNames,

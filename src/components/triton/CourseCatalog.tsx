@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo, Fragment } from "react";
-import { Search, ChevronRight, CheckCircle2, Plus, Sparkles, BookOpen, Bot } from "lucide-react";
+import { useMemo, useState } from "react";
+import { CheckCircle2, ChevronRight, Plus, Search, Sparkles, X } from "lucide-react";
 import {
   Collapsible,
   CollapsibleContent,
@@ -10,9 +10,24 @@ import {
 import type { Course } from "./types";
 import AIAuditUploader from "./AIAuditUploader";
 import { GradeBadge } from "@/components/plat/Grade";
-import { byPopularity, majorSubjects, platRowToCourse } from "@/lib/plannerBridge";
+import { usePref } from "@/components/planner/usePref";
+import {
+  byPopularity, majorSubjects, platRowToCourse, recommend, requirementCategories,
+} from "@/lib/plannerBridge";
+import { MAJOR_REQUIREMENTS } from "@/data/requirements";
 import { collegeForSubject, departmentForSubject } from "@/data/ucsdStructure";
-import type { CourseRow as PlatRow } from "@/lib/plat";
+import { searchCourses, type CourseRow as PlatRow } from "@/lib/plat";
+
+/**
+ * Hosted AI answers 503 unconditionally until authentication, eligibility and
+ * usage limits exist (see "Hosted AI is turned off" in the README). A tab that
+ * asks for a degree audit and then fails is worse than no tab, so the advisor
+ * stays out of the rail until that changes — flip this with the server.
+ */
+const AI_ADVISOR_ENABLED = false;
+
+/** How many courses a requirement lists before "Show more". */
+const PER_GROUP = 3;
 
 interface ScheduleCourse {
   course: Course;
@@ -36,8 +51,6 @@ interface CourseCatalogProps {
   getColorForCourse: (course: Course) => CourseColor;
   /** Merged { category → targetUnits } from major + minor + college */
   activeRequirements: Record<string, number>;
-  /** Full course list (used to compute recommendations) */
-  allCourses: Course[];
   selectedMajor: string;
   selectedMinor: string;
   selectedCollege: string | null;
@@ -49,14 +62,20 @@ interface CourseCatalogProps {
   /** Rendered above the catalog so saved courses are the first thing you see. */
   savedPanel?: React.ReactNode;
   legend?: React.ReactNode;
-  /**
-   * Drop the standalone rail shell (fixed width, border, background) and fill
-   * the parent instead — the planner rail owns those now, so that it can host
-   * both this and the schedule list at one consistent width.
-   */
-  embedded?: boolean;
 }
 
+const isFlag = (v: string): v is "0" | "1" => v === "0" || v === "1";
+
+/**
+ * The Browse side of the rail: find a course and put it on this term.
+ *
+ * It was a second row of tabs inside the rail's own tabs — Course Catalog,
+ * Recommended, AI Advisor — and "Recommended" was a stack of tall cards drawn
+ * from a hand-written sample of 57 courses, some not taught this term, each
+ * wearing a green "Fulfills" pill. Now it is one list: search, a short
+ * "Recommended for you" drawn from what UCSD actually runs this term, then
+ * every department. Typing replaces all of it with ranked matches.
+ */
 export default function CourseCatalog({
   darkMode,
   searchQuery,
@@ -66,7 +85,6 @@ export default function CourseCatalog({
   removeFromSchedule,
   getColorForCourse,
   activeRequirements,
-  allCourses,
   selectedMajor,
   selectedMinor,
   selectedCollege,
@@ -76,565 +94,322 @@ export default function CourseCatalog({
   platRows,
   savedPanel,
   legend,
-  embedded = false,
 }: CourseCatalogProps) {
-  const [activeTab, setActiveTab] = useState<"catalog" | "recommended" | "advisor">("catalog");
-  const [expandedDepts, setExpandedDepts] = useState<string[]>(["Computer Science and Engineering"]);
+  const myDepts = useMemo(() => majorSubjects(selectedMajor), [selectedMajor]);
+  const [expandedDepts, setExpandedDepts] = useState<string[]>(() => {
+    const first = [...majorSubjects(selectedMajor)][0];
+    const dept = first ? departmentForSubject(first) : null;
+    return dept ? [dept.name] : [];
+  });
+  const [recsFlag, setRecsFlag] = usePref<"0" | "1">("ucsdplans-recs-open", "1", isFlag);
+  const recsOpen = recsFlag === "1";
+  const [moreIn, setMoreIn] = useState<Set<string>>(() => new Set());
+  const [advisorOpen, setAdvisorOpen] = useState(false);
 
-  // Split "MATH 20A" → dept="MATH", courseNumStr="20A"
-  // Strip non-digits: "20A" → "20", then parseInt → 20
-  const getCourseNumber = (id: string): number => {
-    const parts = id.split(" ");
-    if (parts.length < 2) return 0;
-    const courseNumStr = parts[1];
-    const n = parseInt(courseNumStr.replace(/[^0-9]/g, ""), 10);
-    return isNaN(n) ? 0 : n;
-  };
+  const toggleDept = (name: string) =>
+    setExpandedDepts((prev) => (prev.includes(name) ? prev.filter((d) => d !== name) : [...prev, name]));
 
-  const toggleDept = (code: string) =>
-    setExpandedDepts((prev) =>
-      prev.includes(code) ? prev.filter((d) => d !== code) : [...prev, code]
+  const scheduledCodes = useMemo(() => new Set(selectedCourses.map((s) => s.course.code)), [selectedCourses]);
+  const byCode = useMemo(() => new Map(platRows.map((r) => [r.k, r])), [platRows]);
+
+  // ── Recommended for you ───────────────────────────────────────────────────
+  const collegeSlug = selectedCollege ? selectedCollege.toLowerCase() : null;
+  const groups = useMemo(() => {
+    // Units the schedule already covers, counted the same way as the offers.
+    const earned: Record<string, number> = {};
+    for (const { course } of selectedCourses) {
+      const row = byCode.get(course.code);
+      if (!row) continue;
+      for (const cat of requirementCategories(row, myDepts, collegeSlug)) earned[cat] = (earned[cat] ?? 0) + course.units;
+    }
+    return recommend(
+      platRows, activeRequirements, earned, scheduledCodes, myDepts, collegeSlug,
+      Boolean(MAJOR_REQUIREMENTS[selectedMajor]),
     );
+  }, [platRows, activeRequirements, selectedCourses, scheduledCodes, byCode, myDepts, collegeSlug, selectedMajor]);
+  const recCount = groups.reduce((n, g) => n + g.items.length, 0);
 
-  // ── Recommendation logic ──────────────────────────────────────────────────────
-  const recommendedCourses = useMemo(() => {
-    // Tally units already earned per category (from courses on the calendar)
-    const earnedUnits: Record<string, number> = {};
-    selectedCourses.forEach(({ course }) => {
-      course.categories?.forEach((cat) => {
-        earnedUnits[cat] = (earnedUnits[cat] ?? 0) + course.units;
-      });
-    });
+  // ── Search ────────────────────────────────────────────────────────────────
+  const query = searchQuery.trim();
+  const hits = useMemo(() => (query.length >= 2 ? searchCourses(platRows, query, 60).map((h) => h.row) : []), [platRows, query]);
 
-    // Categories that still need units
-    const neededCategories = new Set<string>(
-      Object.entries(activeRequirements)
-        .filter(([cat, target]) => (earnedUnits[cat] ?? 0) < target)
-        .map(([cat]) => cat)
-    );
-
-    // IDs of courses already on the calendar
-    const selectedIds = new Set(selectedCourses.map((sc) => sc.course.id));
-
-    const remainingFor = (cat: string) =>
-      (activeRequirements[cat] ?? 0) - (earnedUnits[cat] ?? 0);
-
-    // Filter master list: not already added, has at least one needed category
-    const rows = allCourses
-      .filter((course) => {
-        if (selectedIds.has(course.id)) return false;
-        return course.categories?.some((cat) => neededCategories.has(cat)) ?? false;
-      })
-      .map((course) => {
-        const fulfilledCategories = (course.categories ?? []).filter((cat) =>
-          neededCategories.has(cat)
-        );
-        // A course counting toward two areas is filed under the one with the
-        // most units outstanding, so it is listed once and where it helps most.
-        const primaryCategory =
-          [...fulfilledCategories].sort((a, b) => remainingFor(b) - remainingFor(a))[0] ?? "";
-        return { course, fulfilledCategories, primaryCategory };
-      })
-      .sort(
-        (a, b) =>
-          remainingFor(b.primaryCategory) - remainingFor(a.primaryCategory) ||
-          a.primaryCategory.localeCompare(b.primaryCategory) ||
-          a.course.code.localeCompare(b.course.code)
-      );
-
-    const perGroup: Record<string, number> = {};
-    for (const r of rows) perGroup[r.primaryCategory] = (perGroup[r.primaryCategory] ?? 0) + 1;
-
-    return rows.map((row, i) => ({
-      ...row,
-      isFirstOfGroup: i === 0 || rows[i - 1].primaryCategory !== row.primaryCategory,
-      groupRemaining: remainingFor(row.primaryCategory),
-      groupCount: perGroup[row.primaryCategory] ?? 0,
-    }));
-  }, [allCourses, activeRequirements, selectedCourses]);
-
-  // ── Catalog tab: the shared dataset, filtered and grouped by department ─────
+  // ── Every department ──────────────────────────────────────────────────────
   // Grouped by real department, not by course prefix — Biology is one entry
   // covering BILD/BICD/BIEB/BIMM/BIPN/BISP rather than six separate ones.
-  const filteredCategorized = useMemo((): Record<string, PlatRow[]> => {
-    const q = searchQuery.trim().toLowerCase();
+  const byDept = useMemo((): Record<string, PlatRow[]> => {
     const result: Record<string, PlatRow[]> = {};
     for (const row of platRows) {
-      if (q && !`${row.k} ${row.t}`.toLowerCase().includes(q)) continue;
       const dept = departmentForSubject(row.s);
       const college = dept ? null : collegeForSubject(row.s);
       const label = dept?.name ?? college?.name ?? row.s;
       (result[label] ??= []).push(row);
     }
     return result;
-  }, [platRows, searchQuery]);
-
-  const totalFilteredCount = useMemo(
-    () => Object.values(filteredCategorized).reduce((n, arr) => n + arr.length, 0),
-    [filteredCategorized]
-  );
+  }, [platRows]);
 
   /**
-   * Departments with the most courses on offer surface first, and within each
-   * department the courses students actually take lead. Alphabetical order put
-   * AAPI and AIP above CSE, which is not how anyone browses a catalog.
+   * Your own major first — that is what you are here to plan — then the
+   * departments with the most courses on offer. Alphabetical order put AAPI
+   * and AIP above CSE, which is not how anyone browses a catalog.
    */
-  const myDepts = useMemo(() => majorSubjects(selectedMajor), [selectedMajor]);
-
   const orderedDepts = useMemo(
     () =>
-      Object.entries(filteredCategorized)
+      Object.entries(byDept)
         .sort(([, a], [, b]) => {
-          // Your own major first — that is what you are here to plan.
           const mine = (rows: PlatRow[]) => (rows.some((r) => myDepts.has(r.s)) ? 1 : 0);
           if (mine(a) !== mine(b)) return mine(b) - mine(a);
           const offered = (x: PlatRow[]) => x.filter((r) => r.o).length;
           return offered(b) - offered(a) || b.length - a.length;
         })
         .map(([dept]) => dept),
-    [filteredCategorized, myDepts]
+    [byDept, myDepts],
   );
 
   // Lower division first, then upper, then graduate — and inside each, by how
   // commonly the course is taken, so niche upper-division seminars sink.
-  const groupedCatalog = useMemo((): Record<string, Record<string, PlatRow[]>> => {
-    const result: Record<string, Record<string, PlatRow[]>> = {};
-    for (const [dept, courses] of Object.entries(filteredCategorized)) {
-      const divisions: Record<string, PlatRow[]> = {
-        "Lower Division": [],
-        "Upper Division": [],
-        "Graduate": [],
-      };
-      for (const row of courses) {
-        const num = parseInt(row.c.replace(/[^0-9]/g, ""), 10);
-        if (num > 0 && num < 100) divisions["Lower Division"].push(row);
-        else if (num >= 100 && num < 200) divisions["Upper Division"].push(row);
-        else divisions["Graduate"].push(row);
-      }
-      for (const key of Object.keys(divisions)) divisions[key].sort(byPopularity);
-      result[dept] = divisions;
+  const divisionsOf = (rows: PlatRow[]) => {
+    const divisions: [string, PlatRow[]][] = [["Lower division", []], ["Upper division", []], ["Graduate", []]];
+    for (const row of rows) {
+      const num = parseInt(row.c.replace(/[^0-9]/g, ""), 10);
+      divisions[num > 0 && num < 100 ? 0 : num >= 100 && num < 200 ? 1 : 2][1].push(row);
     }
-    return result;
-  }, [filteredCategorized]);
+    for (const [, list] of divisions) list.sort(byPopularity);
+    return divisions.filter(([, list]) => list.length);
+  };
 
-  // ── Course row renderer (component-scope so CollapsibleContent can call it) ───
   /**
-   * A catalog line now carries what it actually is: the typical grade, the real
-   * title and unit count, and a colour bar for what it counts toward. It used to
-   * show the course code as its own title with units hardcoded to 4.
+   * One course, one line: its typical grade, code, title and a button that
+   * says whether it is on this term. The colour bar says what it counts toward.
    */
-  const renderCourseRow = (row: PlatRow) => {
+  const renderRow = (row: PlatRow, note?: string) => {
     const course = platRowToCourse(row, myDepts);
     const color = getColorForCourse(course);
-    const scheduledItem = selectedCourses.find((s) => s.course.code === row.k);
-    const isAdded = !!scheduledItem;
+    const scheduled = selectedCourses.find((s) => s.course.code === row.k);
     return (
-      <div
-        key={row.k}
-        className={`flex items-center gap-2 px-2 py-1.5 rounded-md transition-colors ${
-          darkMode ? "hover:bg-gray-700" : "hover:bg-gray-50"
-        }`}
-      >
-        <span
-          className="h-7 w-1 flex-shrink-0 rounded-full"
-          style={{ background: color.hex }}
-          title={course.genEd?.length ? "Counts toward a requirement" : undefined}
-        />
-        <GradeBadge gpa={row.g} terms={row.r} size="sm" />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-bold truncate">{row.k}</span>
-            <span className={`text-[10px] flex-shrink-0 ${darkMode ? "text-gray-500" : "text-gray-400"}`}>
-              {course.units}u
-            </span>
-            {!row.o && (
-              <span className="text-[9px] text-gray-400 flex-shrink-0">not this term</span>
-            )}
+      <li key={row.k} className="group flex items-center gap-2 rounded-md px-1.5 py-1 hover:bg-gray-50 dark:hover:bg-white/5">
+        <span aria-hidden className="h-6 w-1 shrink-0 rounded-full" style={{ background: color.hex }} />
+        <GradeBadge gpa={row.g} terms={row.r} size="xs" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-1.5">
+            <span className="truncate text-xs font-bold">{row.k}</span>
+            <span className="shrink-0 text-[11px] text-gray-500 dark:text-gray-400">{course.units}u</span>
+            {!row.o && <span className="shrink-0 text-[11px] text-gray-500 dark:text-gray-400">· not this term</span>}
           </div>
-          <div className={`text-[10px] truncate ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+          <p className="truncate text-[11px] leading-snug text-gray-600 dark:text-gray-400" title={row.t}>
             {row.t}
-          </div>
+          </p>
+          {note && <p className="truncate text-[11px] leading-snug text-gray-500 dark:text-gray-400">{note}</p>}
         </div>
         <button
-          onClick={() => {
-            if (isAdded) removeFromSchedule(scheduledItem!.id);
-            else addToSchedule(course);
-          }}
-          className={`ml-1 flex-shrink-0 p-1 rounded transition-colors ${
-            isAdded
-              ? "text-green-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
-              : "text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"
+          type="button"
+          onClick={() => (scheduled ? removeFromSchedule(scheduled.id) : addToSchedule(course))}
+          aria-label={scheduled ? `Remove ${row.k} from this term` : `Add ${row.k} to this term`}
+          title={scheduled ? "On this term — click to remove" : "Add to this term"}
+          className={`shrink-0 rounded-md p-1.5 transition ${
+            scheduled
+              ? "text-emerald-600 hover:bg-red-50 hover:text-red-600 dark:text-emerald-400 dark:hover:bg-red-500/10"
+              : "text-gray-500 hover:bg-[#182B49]/10 hover:text-[#182B49] dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
           }`}
         >
-          {isAdded ? <CheckCircle2 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+          {scheduled ? <CheckCircle2 className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
         </button>
-      </div>
+      </li>
     );
   };
 
-  // ── Shared tab button styles ──────────────────────────────────────────────────
-  const tabCls = (tab: "catalog" | "recommended" | "advisor") =>
-    `flex-1 flex items-center justify-center gap-1 px-1.5 py-2 text-[11px] font-semibold transition-colors border-b-2 ${
-      activeTab === tab
-        ? darkMode
-          ? "border-blue-400 text-blue-400"
-          : "border-blue-600 text-blue-600"
-        : darkMode
-        ? "border-transparent text-gray-400 hover:text-gray-200"
-        : "border-transparent text-gray-500 hover:text-gray-700"
-    }`;
+  const sectionHead = "px-1.5 text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400";
 
   return (
-    <aside
-      className={
-        embedded
-          ? "flex min-h-0 flex-1 flex-col overflow-hidden"
-          : `w-72 flex-shrink-0 flex flex-col border-r overflow-hidden ${
-              darkMode ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"
-            }`
-      }
-    >
-      {/* ── Tab bar ──────────────────────────────────────────────────────────── */}
-      <div
-        className={`flex border-b flex-shrink-0 ${
-          darkMode ? "border-gray-700" : "border-gray-200"
-        }`}
-      >
-        <button className={tabCls("catalog")} onClick={() => setActiveTab("catalog")}>
-          <BookOpen className="w-3.5 h-3.5" />
-          Course Catalog
-        </button>
-        <button
-          className={tabCls("recommended")}
-          onClick={() => setActiveTab("recommended")}
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          Recommended
-          {recommendedCourses.length > 0 && (
-            <span
-              className={`ml-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
-                darkMode
-                  ? "bg-blue-900/60 text-blue-300"
-                  : "bg-blue-100 text-blue-700"
-              }`}
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      {/* ── Search ── */}
+      <div className="shrink-0 px-2 pb-2">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+          <input
+            type="search"
+            aria-label="Search all courses"
+            placeholder="Search courses, titles or instructors"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape") setSearchQuery(""); }}
+            className="w-full rounded-lg border border-gray-200 bg-gray-50 py-1.5 pl-8 pr-8 text-[13px] outline-none transition placeholder:text-gray-500 focus:border-[#182B49] focus:bg-white focus:ring-1 focus:ring-[#182B49] dark:border-white/10 dark:bg-white/5 dark:placeholder:text-gray-400 dark:focus:border-[#FFCD00] dark:focus:ring-[#FFCD00] [&::-webkit-search-cancel-button]:hidden"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              aria-label="Clear search"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
             >
-              {recommendedCourses.length}
-            </span>
+              <X className="h-3.5 w-3.5" />
+            </button>
           )}
-        </button>
-        <button
-          className={tabCls("advisor")}
-          onClick={() => setActiveTab("advisor")}
-        >
-          <Bot className="w-3.5 h-3.5" />
-          AI Advisor
-        </button>
+        </div>
       </div>
 
-      {/* ════════════════════════════════════════════════════════════════════════
-          CATALOG TAB
-         ════════════════════════════════════════════════════════════════════════ */}
-      {activeTab === "catalog" && (
-        <>
-          {/* Search bar */}
-          <div
-            className={`px-3 py-3 border-b flex-shrink-0 ${
-              darkMode ? "border-gray-700" : "border-gray-200"
-            }`}
-          >
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search courses..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className={`w-full pl-9 pr-3 py-2 text-sm rounded-lg border ${
-                  darkMode
-                    ? "bg-gray-700 border-gray-600 text-white placeholder-gray-400 focus:border-blue-500"
-                    : "bg-gray-50 border-gray-200 text-gray-900 placeholder-gray-400 focus:border-blue-500"
-                } outline-none focus:ring-1 focus:ring-blue-500`}
-              />
-            </div>
-          </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-3">
+        {query.length >= 2 ? (
+          // ── Matches ──
+          <section aria-label="Search results">
+            <p className={`${sectionHead} mb-1`} role="status">
+              {hits.length ? `${hits.length === 60 ? "Top 60" : hits.length} ${hits.length === 1 ? "match" : "matches"}` : "No matches"}
+            </p>
+            {hits.length ? (
+              <ul className="m-0 list-none space-y-0.5 p-0">{hits.map((row) => renderRow(row))}</ul>
+            ) : (
+              <p className="px-1.5 py-6 text-center text-xs text-gray-500 dark:text-gray-400">
+                Nothing matches “{query}”. Try a course code like “CSE 12” or part of a title.
+              </p>
+            )}
+          </section>
+        ) : (
+          <>
+            {savedPanel}
 
-          {/* Scrollable course list */}
-          <div className="flex-1 overflow-y-auto">
-            {savedPanel && <div className="px-2 pt-2">{savedPanel}</div>}
-            {legend}
-            <div className="p-2">
-              {Object.keys(filteredCategorized).length === 0 ? (
-                <div className="text-center py-8 text-gray-400 text-sm">
-                  No courses found
-                </div>
-              ) : (
-                <div className="space-y-0.5">
-                  {orderedDepts.map((dept) => {
-                    const courses = filteredCategorized[dept];
-                    const isExpanded = expandedDepts.includes(dept);
-                    return (
-                      <Collapsible
-                        key={dept}
-                        open={isExpanded}
-                        onOpenChange={() => toggleDept(dept)}
-                      >
-                        <CollapsibleTrigger
-                          className={`flex items-center justify-between w-full px-2 py-1.5 rounded-md text-xs font-semibold transition-colors ${
-                            darkMode
-                              ? "text-gray-300 hover:bg-gray-700"
-                              : "text-gray-600 hover:bg-gray-100"
-                          }`}
-                        >
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <ChevronRight
-                              className={`w-3 h-3 flex-shrink-0 transition-transform ${
-                                isExpanded ? "rotate-90" : ""
-                              }`}
-                            />
-                            <span className="truncate">{dept}</span>
-                          </div>
-                          <span
-                            className={`ml-1 flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded-full ${
-                              darkMode
-                                ? "bg-gray-600 text-gray-400"
-                                : "bg-gray-100 text-gray-400"
-                            }`}
-                          >
-                            {courses.length}
-                          </span>
-                        </CollapsibleTrigger>
-
-                        <CollapsibleContent>
-                          <div className="ml-2 mt-0.5 pb-1">
-                            {Object.entries(groupedCatalog[dept] ?? {})
-                              .filter(([, divCourses]) => divCourses.length > 0)
-                              .map(([divisionName, divCourses], divIdx) => (
-                                <div key={divisionName} className={divIdx > 0 ? "mt-1" : ""}>
-                                  <div
-                                    className={`px-2 pt-1 pb-0.5 text-[9px] font-bold uppercase tracking-wider ${
-                                      darkMode ? "text-gray-600" : "text-gray-400"
-                                    }`}
-                                  >
-                                    {divisionName}
-                                  </div>
-                                  <div className="space-y-0.5">
-                                    {divCourses.map((row) => renderCourseRow(row))}
-                                  </div>
-                                </div>
-                              ))}
-                          </div>
-                        </CollapsibleContent>
-                      </Collapsible>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Footer: quick stats */}
-          <div
-            className={`px-3 py-2 border-t text-xs flex-shrink-0 ${
-              darkMode
-                ? "border-gray-700 text-gray-500"
-                : "border-gray-200 text-gray-400"
-            }`}
-          >
-            {totalFilteredCount} course{totalFilteredCount !== 1 ? "s" : ""}{" "}
-            available
-          </div>
-        </>
-      )}
-
-      {/* ════════════════════════════════════════════════════════════════════════
-          RECOMMENDED TAB
-         ════════════════════════════════════════════════════════════════════════ */}
-      {activeTab === "recommended" && (
-        <>
-          <div className="flex-1 overflow-y-auto">
-            <div className="p-2.5 space-y-1.5">
-              {Object.keys(activeRequirements).length === 0 ? (
-                <div className="text-center py-10 px-3">
-                  <Sparkles
-                    className={`w-8 h-8 mx-auto mb-2 ${
-                      darkMode ? "text-gray-600" : "text-gray-300"
-                    }`}
-                  />
-                  <p
-                    className={`text-sm font-medium mb-1 ${
-                      darkMode ? "text-gray-300" : "text-gray-600"
-                    }`}
-                  >
-                    No profile selected
-                  </p>
-                  <p
-                    className={`text-xs ${
-                      darkMode ? "text-gray-500" : "text-gray-400"
-                    }`}
-                  >
-                    Choose a Major or College above to see personalized course
-                    recommendations.
-                  </p>
-                </div>
-              ) : recommendedCourses.length === 0 ? (
-                <div className="text-center py-10 px-3">
-                  <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-green-400" />
-                  <p
-                    className={`text-sm font-medium mb-1 ${
-                      darkMode ? "text-gray-300" : "text-gray-600"
-                    }`}
-                  >
-                    All requirements covered!
-                  </p>
-                  <p
-                    className={`text-xs ${
-                      darkMode ? "text-gray-500" : "text-gray-400"
-                    }`}
-                  >
-                    Every requirement category is fulfilled by your current
-                    schedule.
-                  </p>
-                </div>
-              ) : (
-                recommendedCourses.map(({
-                  course,
-                  fulfilledCategories,
-                  primaryCategory,
-                  isFirstOfGroup,
-                  groupRemaining,
-                  groupCount,
-                }) => {
-                  const scheduledItem = selectedCourses.find(
-                    (s) => s.course.id === course.id
-                  );
-                  const isAdded = !!scheduledItem;
-                  const color = getColorForCourse(course);
-                  return (
-                    <Fragment key={course.id}>
-                      {isFirstOfGroup && (
-                        <div className="flex items-baseline justify-between gap-2 px-0.5 pt-2 pb-1">
-                          <span
-                            className={`text-[11px] font-bold uppercase tracking-wide ${
-                              darkMode ? "text-gray-300" : "text-gray-600"
-                            }`}
-                          >
-                            {primaryCategory}
-                          </span>
-                          <span
-                            className={`text-[10px] tabular-nums ${
-                              darkMode ? "text-gray-500" : "text-gray-400"
-                            }`}
-                          >
-                            {groupRemaining > 0
-                              ? `${groupRemaining} units to go · ${groupCount} option${groupCount === 1 ? "" : "s"}`
-                              : `${groupCount} option${groupCount === 1 ? "" : "s"}`}
-                          </span>
-                        </div>
-                      )}
-                    <div
-                      className={`rounded-lg border px-2.5 py-2 transition-colors ${
-                        darkMode
-                          ? "border-gray-700 bg-gray-800/60 hover:bg-gray-700/60"
-                          : "border-gray-100 bg-white hover:bg-gray-50"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        {/* Course info */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <span
-                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${color.bg} ${color.text}`}
-                            >
-                              {course.code}
+            {/* ── Recommended for you ── */}
+            {recCount > 0 ? (
+              <section aria-label="Recommended for you" className="mb-3">
+                <button
+                  type="button"
+                  onClick={() => setRecsFlag(recsOpen ? "0" : "1")}
+                  aria-expanded={recsOpen}
+                  className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left hover:bg-gray-50 dark:hover:bg-white/5"
+                >
+                  <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-gray-500 transition-transform ${recsOpen ? "rotate-90" : ""}`} />
+                  <Sparkles className="h-3.5 w-3.5 shrink-0 text-[#182B49] dark:text-[#FFCD00]" />
+                  <span className="whitespace-nowrap text-xs font-bold">Recommended for you</span>
+                  <span className="ml-auto shrink-0 text-[11px] tabular-nums text-gray-500 dark:text-gray-400">
+                    {recCount} this term
+                  </span>
+                </button>
+                {recsOpen && (
+                  <div className="mt-1 space-y-2">
+                    {groups.map((g) => {
+                      const key = g.category ?? "popular";
+                      const all = moreIn.has(key);
+                      const items = all ? g.items : g.items.slice(0, PER_GROUP);
+                      return (
+                        <div key={key}>
+                          <p className="flex items-baseline justify-between gap-2 px-1.5">
+                            <span className="truncate text-[11px] font-semibold text-gray-700 dark:text-gray-200">
+                              {g.category ?? `Popular in your major this term`}
                             </span>
-                            <span
-                              className={`text-[10px] ${
-                                darkMode ? "text-gray-500" : "text-gray-400"
-                              }`}
-                            >
-                              {course.units}u
-                            </span>
-                          </div>
-                          <p
-                            className={`text-xs mt-0.5 leading-snug ${
-                              darkMode ? "text-gray-200" : "text-gray-700"
-                            }`}
-                          >
-                            {course.title}
-                          </p>
-
-                          {/* Fulfillment badges */}
-                          <div className="flex flex-wrap gap-1 mt-1.5">
-                            {fulfilledCategories.map((cat) => (
-                              <span
-                                key={cat}
-                                className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full leading-tight"
-                              >
-                                Fulfills: {cat}
+                            {g.category && (
+                              <span className="shrink-0 text-[11px] tabular-nums text-gray-500 dark:text-gray-400">
+                                {g.remaining} units to go
                               </span>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Add / remove button */}
-                        <button
-                          onClick={() =>
-                            isAdded
-                              ? removeFromSchedule(scheduledItem!.id)
-                              : addToSchedule(course)
-                          }
-                          className={`flex-shrink-0 p-1 rounded transition-colors ${
-                            isAdded
-                              ? "text-green-600 hover:text-red-500 hover:bg-red-50"
-                              : "text-gray-400 hover:text-green-600 hover:bg-green-50"
-                          }`}
-                        >
-                          {isAdded ? (
-                            <CheckCircle2 className="w-4 h-4" />
-                          ) : (
-                            <Plus className="w-4 h-4" />
+                            )}
+                          </p>
+                          <ul className="m-0 list-none p-0">
+                            {items.map(({ row, also }) => renderRow(row, also.length ? `Also counts toward ${also.join(", ")}` : undefined))}
+                          </ul>
+                          {g.items.length > PER_GROUP && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setMoreIn((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(key)) next.delete(key);
+                                  else next.add(key);
+                                  return next;
+                                })
+                              }
+                              className="ml-1.5 mt-0.5 text-[11px] font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]"
+                            >
+                              {all ? "Show fewer" : `Show ${g.items.length - PER_GROUP} more`}
+                            </button>
                           )}
-                        </button>
-                      </div>
-                    </div>
-                    </Fragment>
+                        </div>
+                      );
+                    })}
+                    {!selectedCollege && (
+                      <p className="px-1.5 text-[11px] leading-snug text-gray-500 dark:text-gray-400">
+                        Choose your college (top right) to see courses for its GEs too.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </section>
+            ) : (
+              <p className="mb-3 rounded-lg bg-slate-50 px-2.5 py-2 text-[11px] leading-snug text-gray-600 dark:bg-white/5 dark:text-gray-300">
+                <Sparkles className="mr-1 inline h-3.5 w-3.5 text-[#182B49] dark:text-[#FFCD00]" />
+                {Object.keys(activeRequirements).length || myDepts.size
+                  ? "Nothing left to recommend — your schedule already covers what this term offers toward your program."
+                  : "Choose your major and college (top right) to see courses that count toward them."}
+              </p>
+            )}
+
+            {/* ── Every department ── */}
+            <section aria-label="All departments">
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <p className={sectionHead}>All departments</p>
+              </div>
+              {legend}
+              <div className="space-y-0.5">
+                {orderedDepts.map((dept) => {
+                  const rows = byDept[dept];
+                  const isExpanded = expandedDepts.includes(dept);
+                  return (
+                    <Collapsible key={dept} open={isExpanded} onOpenChange={() => toggleDept(dept)}>
+                      <CollapsibleTrigger
+                        className={`flex w-full items-center justify-between rounded-md px-1.5 py-1.5 text-xs font-semibold transition-colors ${
+                          darkMode ? "text-gray-200 hover:bg-white/5" : "text-gray-700 hover:bg-gray-100"
+                        }`}
+                      >
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-gray-500 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+                          <span className="truncate">{dept}</span>
+                        </span>
+                        <span className="ml-1 shrink-0 text-[11px] font-normal tabular-nums text-gray-500 dark:text-gray-400">
+                          {rows.length}
+                        </span>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="ml-2 pb-1">
+                          {divisionsOf(rows).map(([name, list]) => (
+                            <div key={name} className="mt-1">
+                              <p className="px-1.5 pb-0.5 pt-1 text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                                {name}
+                              </p>
+                              <ul className="m-0 list-none space-y-0.5 p-0">{list.map((row) => renderRow(row))}</ul>
+                            </div>
+                          ))}
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
                   );
-                })
-              )}
-            </div>
-          </div>
+                })}
+              </div>
+            </section>
 
-          {/* Footer */}
-          <div
-            className={`px-3 py-2 border-t text-xs flex-shrink-0 ${
-              darkMode
-                ? "border-gray-700 text-gray-500"
-                : "border-gray-200 text-gray-400"
-            }`}
-          >
-            {recommendedCourses.length} course
-            {recommendedCourses.length !== 1 ? "s" : ""} recommended
-          </div>
-        </>
-      )}
-
-      {/* ════════════════════════════════════════════════════════════════════════
-          AI ADVISOR TAB
-         ════════════════════════════════════════════════════════════════════════ */}
-      {activeTab === "advisor" && (
-        <AIAuditUploader
-          darkMode={darkMode}
-          selectedMajor={selectedMajor}
-          selectedMinor={selectedMinor}
-          selectedCollege={selectedCollege}
-          selectedCourses={selectedCourses}
-          addToSchedule={addToSchedule}
-          removeFromSchedule={removeFromSchedule}
-          plannedCourses={plannedCourses}
-          addAICourseToPlan={addAICourseToPlan}
-          removePlannedCourse={removePlannedCourse}
-        />
-      )}
-    </aside>
+            {AI_ADVISOR_ENABLED && (
+              <div className="mt-3 border-t border-gray-200 pt-2 dark:border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setAdvisorOpen((v) => !v)}
+                  className="text-xs font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]"
+                >
+                  {advisorOpen ? "Hide the AI advisor" : "Ask the AI advisor about your degree audit"}
+                </button>
+                {advisorOpen && (
+                  <AIAuditUploader
+                    darkMode={darkMode}
+                    selectedMajor={selectedMajor}
+                    selectedMinor={selectedMinor}
+                    selectedCollege={selectedCollege}
+                    selectedCourses={selectedCourses}
+                    addToSchedule={addToSchedule}
+                    removeFromSchedule={removeFromSchedule}
+                    plannedCourses={plannedCourses}
+                    addAICourseToPlan={addAICourseToPlan}
+                    removePlannedCourse={removePlannedCourse}
+                  />
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
   );
 }

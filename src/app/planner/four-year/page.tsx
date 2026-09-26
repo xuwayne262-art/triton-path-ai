@@ -9,6 +9,14 @@ import { usePlanner, type Quarter, type Year } from "../PlannerProvider";
 
 const YEARS: Year[] = [1, 2, 3, 4];
 const QUARTERS: Quarter[] = ["Fall", "Winter", "Spring"];
+/**
+ * Hosted AI answers 503 unconditionally until authentication, eligibility and
+ * usage limits exist (see "Hosted AI is turned off" in the README), so the
+ * auto-fill button could only ever report an error. It stays hidden until the
+ * server can say yes — flip this with it.
+ */
+const AI_AUTOFILL_ENABLED = false;
+
 const YEAR_LABELS: Record<Year, string> = {
   1: "Freshman",
   2: "Sophomore",
@@ -88,13 +96,13 @@ export default function FourYearPlanPage() {
               <Button
                 onClick={addToPlanner}
                 disabled={selectedCourses.length === 0}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-[#182B49] text-white hover:bg-[#1e3a63] dark:bg-[#FFCD00] dark:text-[#182B49] dark:hover:bg-[#FFD740]"
               >
                 <Plus className="w-4 h-4 mr-1" />
                 Add {selectedCourses.length} from this term
               </Button>
 
-              <div className="ml-auto flex items-center gap-2">
+              {AI_AUTOFILL_ENABLED && <div className="ml-auto flex items-center gap-2">
                 {planError && (
                   <span className="text-xs text-red-500 max-w-[180px] truncate">{planError}</span>
                 )}
@@ -115,7 +123,7 @@ export default function FourYearPlanPage() {
                     </>
                   )}
                 </button>
-              </div>
+              </div>}
             </div>
           </div>
 

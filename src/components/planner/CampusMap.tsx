@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { LatLng, Leg, Pin } from "@/lib/campus";
+import { footprintAt, polygonsOf, toPiece, type Footprint } from "@/lib/footprint";
 import s from "./CampusMap.module.css";
 
 /**
@@ -43,6 +44,12 @@ const CENTER: [number, number] = [-117.2375, 32.8795];
 const BOUNDS: [[number, number], [number, number]] = [[-117.285, 32.848], [-117.195, 32.908]];
 
 const NAVY = "#182B49";
+/**
+ * What the drawn footprints were last built from. Reset to this, which no real
+ * signature can equal — an empty week signs as "", and resetting to "" once
+ * left a removed course's building lit.
+ */
+const STALE = "stale";
 const GOLD = "#FFCD00";
 const EMPTY: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
 
@@ -64,11 +71,36 @@ function hasWebGL(): boolean {
   }
 }
 
-/** The style's own building footprints, whatever the layer is called in it. */
-function buildingLayers(map: maplibregl.Map): string[] {
-  return (map.getStyle()?.layers ?? [])
-    .filter((l) => "source-layer" in l && l["source-layer"] === "building" && (l.type === "fill" || l.type === "fill-extrusion"))
-    .map((l) => l.id);
+/**
+ * Where the style keeps its building footprints, and the deepest zoom its tiles
+ * are cut at. Only tiles at that zoom hold one polygon per building; the ones
+ * above it fuse neighbouring buildings into blobs.
+ */
+function buildingSource(map: maplibregl.Map): { source: string; tileZoom: number } | null {
+  const layer = (map.getStyle()?.layers ?? []).find(
+    (l) => "source-layer" in l && l["source-layer"] === "building" && (l.type === "fill" || l.type === "fill-extrusion"),
+  );
+  if (!layer || !("source" in layer) || typeof layer.source !== "string") return null;
+  const src = map.getSource(layer.source) as { maxzoom?: number } | undefined;
+  return { source: layer.source, tileZoom: src?.maxzoom ?? 14 };
+}
+
+/**
+ * Footprints found so far, by building code; null where the map has no
+ * building near the pin. Kept for the session, so a footprint found while
+ * zoomed in still shows once the map pulls back to fit the whole week.
+ */
+const footprints = new Map<string, Footprint | null>();
+
+function footprintFeatures(fp: Footprint, color: string): GeoJSON.Feature[] {
+  return [
+    ...fp.parts.map((poly): GeoJSON.Feature => ({
+      type: "Feature", properties: { color, kind: "fill" }, geometry: { type: "Polygon", coordinates: poly },
+    })),
+    ...fp.outline.map((line): GeoJSON.Feature => ({
+      type: "Feature", properties: { color, kind: "line" }, geometry: { type: "LineString", coordinates: line },
+    })),
+  ];
 }
 
 /** Our layers go under the style's labels, so street and building names stay legible. */
@@ -80,11 +112,15 @@ function addOverlay(map: maplibregl.Map) {
   const layers: maplibregl.AddLayerObject[] = [
     {
       id: "ucsd-hot-fill", type: "fill", source: "ucsd-hot",
-      paint: { "fill-color": ["get", "color"], "fill-opacity": 0.42 },
+      filter: ["==", ["get", "kind"], "fill"],
+      // Unsmoothed, so the two halves of a building a tile edge cut meet with
+      // no hairline; the outline above draws the building's real edge.
+      paint: { "fill-color": ["get", "color"], "fill-opacity": 0.38, "fill-antialias": false },
     },
     {
-      id: "ucsd-hot-line", type: "line", source: "ucsd-hot",
-      paint: { "line-color": ["get", "color"], "line-width": 1.5 },
+      id: "ucsd-hot-line", type: "line", source: "ucsd-hot", layout: round,
+      filter: ["==", ["get", "kind"], "line"],
+      paint: { "line-color": ["get", "color"], "line-width": 1.75 },
     },
     {
       id: "ucsd-legs-casing", type: "line", source: "ucsd-legs", layout: round,
@@ -187,7 +223,7 @@ export default function CampusMap(props: {
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markers = useRef(new Map<string, Marker>());
   const legLabels = useRef(new Map<string, maplibregl.Marker>());
-  const hotSig = useRef("");
+  const hotSig = useRef(STALE);
   const pinsRef = useRef(pins);
   const cbs = useRef(props);
   const firstDark = useRef(darkMode);
@@ -235,37 +271,51 @@ export default function CampusMap(props: {
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
     map.on("style.load", () => {
       addOverlay(map);
-      hotSig.current = "";
+      hotSig.current = STALE;
       setStyleGen((g) => g + 1);
     });
     map.on("click", () => cbs.current.onSelect(null));
 
-    // Light up each class building's real footprint. Only tiles on screen can
-    // be asked, so this re-runs as the map settles, and the signature stops it
-    // chasing its own repaint.
+    // Light up each class building's own footprint. A tile feature is never one
+    // building (see footprint.ts), so the polygons of the loaded tiles are taken
+    // apart and the one under each pin kept. That needs the deepest tiles, so a
+    // pin is only looked up once the map is zoomed in that far; what it found is
+    // remembered, and the signature stops this chasing its own repaint.
     map.on("idle", () => {
-      const ids = buildingLayers(map);
       const src = map.getSource("ucsd-hot") as maplibregl.GeoJSONSource | undefined;
-      if (!ids.length || !src) return;
-      const feats: GeoJSON.Feature[] = [];
-      const found: string[] = [];
-      for (const p of pinsRef.current) {
-        if (p.ghost) continue;
-        const pt = map.project(toLngLat(p.building.ll));
-        const hit = map
-          .queryRenderedFeatures([[pt.x - 3, pt.y - 3], [pt.x + 3, pt.y + 3]], { layers: ids })
-          .find((f) => f.geometry.type === "Polygon" || f.geometry.type === "MultiPolygon");
-        if (!hit) continue;
-        found.push(p.code);
-        feats.push({
-          type: "Feature",
-          properties: { color: p.colors.length === 1 ? p.colors[0] : NAVY },
-          geometry: hit.geometry,
-        });
+      if (!src) return;
+      const pins = pinsRef.current.filter((p) => !p.ghost);
+      const todo = pins.filter((p) => !footprints.has(p.code));
+      const tiles = buildingSource(map);
+      if (tiles && todo.length && map.getZoom() >= tiles.tileZoom) {
+        const pieces = map
+          .querySourceFeatures(tiles.source, { sourceLayer: "building" })
+          .flatMap((f) => polygonsOf(f.geometry))
+          .map(toPiece);
+        const view = map.getBounds();
+        for (const p of todo) {
+          const at = toLngLat(p.building.ll);
+          const fp = footprintAt(at, pieces, tiles.tileZoom);
+          // A miss only counts once the pin is on screen, where its tile is loaded.
+          if (fp || view.contains(at)) footprints.set(p.code, fp);
+        }
       }
-      const sig = `${found.join(",")}|${Math.round(map.getZoom())}`;
-      if (sig === hotSig.current) return;
-      hotSig.current = sig;
+      const drawn = new Set<string>();
+      const feats: GeoJSON.Feature[] = [];
+      const sig: string[] = [];
+      for (const p of pins) {
+        const fp = footprints.get(p.code);
+        if (!fp) continue;
+        // Ledden Auditorium is inside HSS: one building, filled once.
+        const where = fp.parts[0][0][0].join(",");
+        if (drawn.has(where)) continue;
+        drawn.add(where);
+        const color = p.colors.length === 1 ? p.colors[0] : NAVY;
+        sig.push(`${p.code}:${color}`);
+        feats.push(...footprintFeatures(fp, color));
+      }
+      if (sig.join("|") === hotSig.current) return;
+      hotSig.current = sig.join("|");
       src.setData({ type: "FeatureCollection", features: feats });
     });
 
@@ -338,7 +388,7 @@ export default function CampusMap(props: {
       m.base = p.ghost ? "4" : p.badges.length ? "2" : "1";
       m.el.style.zIndex = m.base;
     }
-    hotSig.current = "";
+    hotSig.current = STALE;
     map.triggerRepaint();
   }, [pins]);
 

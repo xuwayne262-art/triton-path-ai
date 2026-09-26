@@ -263,3 +263,123 @@ export function categoriesForGE(geKeys: string[] | undefined): CourseCategory[] 
   }
   return [...out];
 }
+
+// ── Recommendations ──────────────────────────────────────────────────────────
+
+/**
+ * Each college's core sequence and the subject that teaches it. These are not
+ * GE areas in the dataset — Revelle's humanities sequence is simply HUM 1–5 —
+ * so they are recognised by subject, and only below 60, which keeps HUM 88 and
+ * CAT 90 (seminars, not the sequence) out.
+ */
+const CORE_SEQUENCE: Record<string, { subject: string; category: CourseCategory }> = {
+  revelle: { subject: "HUM", category: "Humanities (HUM)" },
+  muir: { subject: "MCWP", category: "Muir Writing (MCWP)" },
+  marshall: { subject: "DOC", category: "DOC Sequence" },
+  warren: { subject: "WCWP", category: "Warren Writing" },
+  erc: { subject: "MMW", category: "MMW Sequence" },
+  sixth: { subject: "CAT", category: "CAT Sequence" },
+  seventh: { subject: "SYN", category: "Synthesis (SYN)" },
+};
+
+/**
+ * What a course counts toward for one student: their major's lower or upper
+ * division, and their OWN college's GE areas and core sequence. Another
+ * college's GE list is not theirs — "Natural Science" at Marshall and at ERC
+ * are different lists that happen to share a name.
+ */
+export function requirementCategories(
+  row: CourseRow,
+  majorSubs: Set<string>,
+  collegeSlug: string | null,
+): CourseCategory[] {
+  const out = new Set<CourseCategory>();
+  const num = parseInt(row.c, 10) || 0;
+  if (majorSubs.has(row.s)) {
+    if (num > 0 && num < 100) out.add("Lower Division");
+    else if (num >= 100 && num < 200) out.add("Upper Division");
+  }
+  if (collegeSlug) {
+    for (const c of categoriesForGE((row.ge ?? []).filter((k) => k.startsWith(`${collegeSlug}:`)))) out.add(c);
+    const core = CORE_SEQUENCE[collegeSlug];
+    if (core && row.s === core.subject && num > 0 && num < 60) out.add(core.category);
+  }
+  return [...out];
+}
+
+export interface Recommendation {
+  row: CourseRow;
+  /** Other requirements it also counts toward. */
+  also: string[];
+}
+
+/**
+ * Course numbers UCSD reserves for things you arrange or apply for rather than
+ * pick off a list: freshman and undergraduate seminars (87, 90), internships,
+ * directed group study and independent study (95–99), and upper-division
+ * seminars, honors projects, apprentice teaching, internships and independent
+ * study (191–199). Their many small sections gave CSE 199 more seats than any
+ * lecture, so they topped "most taken" — and no one should be told that
+ * independent study is the next course for their major. 190, the topics
+ * number, is a real course and stays.
+ */
+export function isArrangedCourse(row: CourseRow): boolean {
+  const n = parseInt(row.c, 10);
+  if (!Number.isFinite(n)) return false;
+  const last = n % 100;
+  if (n < 100) return last === 87 || last === 90 || last >= 95;
+  if (n < 200) return last >= 91;
+  return false;
+}
+
+export interface RecommendationGroup {
+  /** The requirement, or null for "popular in your major" when UCSD's rules for it are not modelled. */
+  category: string | null;
+  /** Units still to earn in it. */
+  remaining: number;
+  items: Recommendation[];
+}
+
+/**
+ * Courses offered THIS term that count toward what is still unmet. Each is
+ * filed once, under the requirement with the most left to earn, most-taken
+ * first — so a planner opening on a term shows courses it can actually put on
+ * the calendar, not a sample catalogue with invented times.
+ *
+ * `targets` is units per requirement; `earned` what the schedule already
+ * covers. A major with no modelled requirements still gets its own subjects'
+ * most popular lower-division courses, labelled as exactly that.
+ */
+export function recommend(
+  rows: CourseRow[],
+  targets: Record<string, number>,
+  earned: Record<string, number>,
+  scheduled: Set<string>,
+  majorSubs: Set<string>,
+  collegeSlug: string | null,
+  majorModelled: boolean,
+): RecommendationGroup[] {
+  const remaining = (cat: string) => (targets[cat] ?? 0) - (earned[cat] ?? 0);
+  const open = new Set(Object.keys(targets).filter((c) => remaining(c) > 0));
+  const groups = new Map<string, Recommendation[]>();
+  const popular: Recommendation[] = [];
+
+  for (const row of rows) {
+    if (!row.o || scheduled.has(row.k) || isArrangedCourse(row)) continue;
+    const hits = requirementCategories(row, majorSubs, collegeSlug).filter((c) => open.has(c));
+    if (hits.length) {
+      const [primary, ...also] = hits.sort((a, b) => remaining(b) - remaining(a) || a.localeCompare(b));
+      if (!groups.has(primary)) groups.set(primary, []);
+      groups.get(primary)!.push({ row, also });
+    } else if (!majorModelled && majorSubs.has(row.s) && (parseInt(row.c, 10) || 0) < 100) {
+      popular.push({ row, also: [] });
+    }
+  }
+
+  const byRow = (a: Recommendation, b: Recommendation) => byPopularity(a.row, b.row);
+  const out: RecommendationGroup[] = [...groups.entries()]
+    .map(([category, items]) => ({ category, remaining: remaining(category), items: items.sort(byRow) }))
+    .sort((a, b) => b.remaining - a.remaining || a.category.localeCompare(b.category));
+  if (popular.length) out.unshift({ category: null, remaining: 0, items: popular.sort(byRow) });
+  return out;
+}

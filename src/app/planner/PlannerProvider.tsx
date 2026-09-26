@@ -5,7 +5,6 @@ import {
 } from "react";
 import type { DropResult } from "@hello-pangea/dnd";
 import {
-  SAMPLE_COURSES,
   type Course,
   type CourseTime,
   type DayOfWeek,
@@ -122,11 +121,6 @@ export function generateSampleTime(code: string): CourseTime[] {
   }));
 }
 
-const coursesWithTimes: Course[] = SAMPLE_COURSES.map((c) => ({
-  ...c,
-  time: generateSampleTime(c.code),
-}));
-
 // ── Persistence ────────────────────────────────────────────────────────────────
 
 const STORAGE_KEY = "tritonplat-planner";
@@ -168,7 +162,6 @@ interface PlannerValue {
   searchQuery: string;
   setSearchQuery: (q: string) => void;
   platRows: PlatRow[];
-  allCourses: Course[];
   savedCourses: Array<{ course: Course; row: PlatRow }>;
   toggleSaved: (code: string) => void;
 
@@ -176,6 +169,12 @@ interface PlannerValue {
   addToSchedule: (course: Course) => void;
   removeFromSchedule: (id: string) => void;
   clearSchedule: () => void;
+  /**
+   * Undo for a removal: puts the schedule back as it was in `snapshot`, keeping
+   * anything added since. Section picks were never dropped, so they come back
+   * with their courses.
+   */
+  restoreSchedule: (snapshot: ScheduleCourse[]) => void;
 
   /** Real per-section rows, lazily fetched per subject. */
   sectionsByCode: Record<string, SectionTuple[]>;
@@ -663,6 +662,14 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
 
   const clearSchedule = useCallback(() => setSelectedCourses([]), []);
 
+  const restoreSchedule = useCallback((snapshot: ScheduleCourse[]) => {
+    setSelectedCourses((prev) => {
+      const inSnapshot = new Set(snapshot.map((e) => e.id));
+      const codes = new Set(snapshot.map((e) => e.course.code));
+      return [...snapshot, ...prev.filter((e) => !inSnapshot.has(e.id) && !codes.has(e.course.code))];
+    });
+  }, []);
+
   /**
    * Saving a course in the explorer puts it straight onto the schedule. It used
    * to only populate the sidebar list, so "Save to planner" appeared to do
@@ -869,8 +876,8 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     selectedMinor, setSelectedMinor,
     selectedCollege, setSelectedCollege,
     searchQuery, setSearchQuery,
-    platRows, allCourses: coursesWithTimes, savedCourses, toggleSaved,
-    selectedCourses, addToSchedule, removeFromSchedule, clearSchedule,
+    platRows, savedCourses, toggleSaved,
+    selectedCourses, addToSchedule, removeFromSchedule, clearSchedule, restoreSchedule,
     sectionsByCode, tssByCode, selections, setSelection, clearSelection, chooseOption,
     addCourseByCode, platByCode, term, buildings, optionEvents,
     autoPickFor, autoPickAll, sectionStatus, events, conflictCodes, totalUnits,

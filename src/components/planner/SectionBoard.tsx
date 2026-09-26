@@ -13,7 +13,7 @@ import { formatDistance, previewWalks, type LegStatus } from "@/lib/campus";
 import {
   CODE, INSTRUCTOR, TYPE,
   clashingCourses, eventsForRow, findFamily, groupSections, isWaitlistOnly, rowsFor,
-  sectionSeats, sectionTssUrl, sectionWaitlist, sectionWhere, shortWhen, typeLabel,
+  sectionSeats, sectionTopic, sectionTssUrl, sectionWaitlist, sectionWhere, shortWhen, typeLabel,
   type CalEvent, type LectureFamily, type SectionPart, type SectionSelection,
 } from "@/lib/sections";
 import type { Course } from "@/components/triton/types";
@@ -26,9 +26,14 @@ import type { ScheduleCourse, SectionStatus } from "@/app/planner/PlannerProvide
  * sections" expander per course — so a course went onto the calendar as a
  * bare "Meeting" block and the discussion it needed was never in view. Here
  * every course lists its options as it arrives, each option says what it
- * costs you — the class it collides with, the walk it leaves you, the seats
- * left — and hovering one draws it on the calendar and the map before you
- * commit to it.
+ * costs you — the class it collides with, the walk it leaves you — and
+ * hovering one draws it on the calendar and the map before you commit to it.
+ *
+ * Seats are not among the costs. Every option used to carry a green, amber or
+ * red count ("37 open", "2 left", "Full"), and on a discussion that number
+ * decides nothing: enrolling in the course places you in a discussion. It was
+ * also days old by the time anyone read it. What is left is one quiet word on
+ * a lecture that is full, because that means a waitlist.
  */
 
 /** An option being hovered: drawn as a ghost on the calendar and the map. */
@@ -41,27 +46,18 @@ export interface Preview {
 
 // ── Option facts ─────────────────────────────────────────────────────────────
 
-type Tone = "ok" | "warn" | "bad" | "none";
-
-function seatTag(s: SectionTuple): { text: string; tone: Tone } {
+/** "Full" on a lecture you would have to waitlist for; nothing otherwise. */
+function fullNote(s: SectionTuple): { text: string; title: string } | null {
   const seats = sectionSeats(s);
   const queued = sectionWaitlist(s) ?? 0;
   // Class Planner's own status outranks the seat count: a section it lists as
   // waitlist-only is taking a queue whatever the open number says.
-  if (isWaitlistOnly(s) || (seats.known && seats.full)) {
-    return { text: queued > 0 ? `Waitlist ${queued}` : isWaitlistOnly(s) ? "Waitlist" : "Full", tone: "bad" };
-  }
-  if (!seats.known) return { text: "", tone: "none" };
-  if (seats.tight) return { text: `${seats.open} left`, tone: "warn" };
-  return { text: `${seats.open} open`, tone: "ok" };
+  if (!isWaitlistOnly(s) && !(seats.known && seats.full)) return null;
+  return {
+    text: "Full",
+    title: `Full when UCSD last counted${queued > 0 ? ` — ${queued} on the waitlist` : ""}. Enrolling would put you on the waitlist.`,
+  };
 }
-
-const TONE_TEXT: Record<Tone, string> = {
-  ok: "text-emerald-600 dark:text-emerald-400",
-  warn: "text-amber-600 dark:text-amber-400",
-  bad: "text-red-600 dark:text-red-400",
-  none: "text-gray-400",
-};
 
 interface WalkWarning {
   status: LegStatus;
@@ -113,18 +109,23 @@ function optionFacts(
 // ── Pieces ───────────────────────────────────────────────────────────────────
 
 function OptionChip({
-  code, rows, selected, facts, showInstructor, onPick, onPreview,
+  code, rows, selected, facts, showInstructor, lecture, tabbable, onPick, onPreview,
 }: {
   code: string;
   rows: SectionTuple[];
   selected: boolean;
   facts: OptionFacts;
   showInstructor?: boolean;
+  /** A lecture choice: it may be full, and in a topics course it names its topic. */
+  lecture?: boolean;
+  /** The one option in its group reachable by Tab; arrow keys move between the rest. */
+  tabbable: boolean;
   onPick: () => void;
   onPreview: (on: boolean) => void;
 }) {
   const first = rows[0];
-  const seats = seatTag(first);
+  const full = lecture ? fullNote(first) : null;
+  const topic = lecture ? sectionTopic(first) : "";
   const where = [...new Set(rows.map(sectionWhere).filter(Boolean))].join(" · ");
   const clashes = facts.clash.length > 0;
 
@@ -133,7 +134,15 @@ function OptionChip({
       type="button"
       role="radio"
       aria-checked={selected}
-      aria-label={`${typeLabel(first[TYPE])} ${code}, ${rows.map(shortWhen).join(" and ")}${where ? `, ${where}` : ""}${clashes ? `, clashes with ${facts.clash.join(", ")}` : ""}`}
+      tabIndex={tabbable ? 0 : -1}
+      aria-label={[
+        `${typeLabel(first[TYPE])} ${code}`,
+        topic,
+        rows.map(shortWhen).join(" and "),
+        where,
+        full ? "full" : "",
+        clashes ? `clashes with ${facts.clash.join(", ")}` : "",
+      ].filter(Boolean).join(", ")}
       onClick={onPick}
       onMouseEnter={() => onPreview(true)}
       onMouseLeave={() => onPreview(false)}
@@ -143,7 +152,7 @@ function OptionChip({
         selected
           ? "border-[#182B49] bg-[#182B49]/[0.06] shadow-sm dark:border-[#FFCD00] dark:bg-[#FFCD00]/10"
           : clashes
-            ? "border-red-200 bg-red-50/40 hover:border-red-300 dark:border-red-500/30 dark:bg-red-500/[0.06]"
+            ? "border-red-200 bg-white hover:border-red-300 dark:border-red-500/30 dark:bg-transparent"
             : "border-gray-200 bg-white hover:border-[#182B49]/40 hover:bg-slate-50 dark:border-white/10 dark:bg-transparent dark:hover:border-white/25 dark:hover:bg-white/5"
       }`}
     >
@@ -154,38 +163,42 @@ function OptionChip({
               <Check className="h-2.5 w-2.5" strokeWidth={3} />
             </span>
           )}
-          <span className="font-mono text-[11px] font-bold">{code}</span>
+          <span className="font-mono text-xs font-bold">{code}</span>
         </span>
-        {seats.text && (
-          <span className={`text-[10px] font-semibold tabular-nums ${TONE_TEXT[seats.tone]}`}>{seats.text}</span>
+        {full && (
+          <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400" title={full.title}>
+            {full.text}
+          </span>
         )}
       </span>
+      {topic && <span className="truncate text-xs font-semibold leading-snug" title={topic}>{topic}</span>}
       {rows.map((r, i) => (
-        <span key={i} className="text-[11px] tabular-nums leading-snug text-gray-700 dark:text-gray-200">
+        <span key={i} className="text-xs tabular-nums leading-snug text-gray-800 dark:text-gray-100">
           {shortWhen(r)}
         </span>
       ))}
-      <span className="flex items-center gap-1 truncate text-[10px] text-gray-500 dark:text-gray-400">
+      <span className="flex items-center gap-1 truncate text-[11px] text-gray-600 dark:text-gray-400">
         {where ? <>{where}</> : "Room TBA"}
         {showInstructor && first[INSTRUCTOR] && (
           <span className="truncate">· {first[INSTRUCTOR].split(",")[0]}</span>
         )}
       </span>
+      {/* These wrap rather than truncate: the course named is the point. */}
       {clashes && (
-        <span className="mt-0.5 flex items-center gap-1 text-[10px] font-semibold text-red-600 dark:text-red-400">
-          <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
-          <span className="truncate">Clashes with {facts.clash.join(", ")}</span>
+        <span className="mt-0.5 flex items-start gap-1 text-[11px] font-semibold leading-tight text-red-700 dark:text-red-400">
+          <AlertTriangle className="mt-px h-3 w-3 shrink-0" />
+          <span>Clashes with {facts.clash.join(", ")}</span>
         </span>
       )}
       {!clashes && facts.walk && (
         <span
-          className={`mt-0.5 flex items-center gap-1 text-[10px] font-semibold ${
-            facts.walk.status === "late" ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400"
+          className={`mt-0.5 flex items-start gap-1 text-[11px] font-semibold leading-tight ${
+            facts.walk.status === "late" ? "text-red-700 dark:text-red-400" : "text-amber-700 dark:text-amber-400"
           }`}
           title={`${facts.walk.minutes}-minute walk (${formatDistance(facts.walk.meters)}) ${facts.walk.dir} ${facts.walk.other}, with a ${facts.walk.gap}-minute break`}
         >
-          <Footprints className="h-2.5 w-2.5 shrink-0" />
-          <span className="truncate">
+          <Footprints className="mt-px h-3 w-3 shrink-0" />
+          <span>
             {facts.walk.minutes} min {facts.walk.dir} {facts.walk.other} · {facts.walk.gap} min gap
           </span>
         </span>
@@ -202,18 +215,18 @@ function StatusPill({ status, families, selection, summary }: {
 }) {
   if (status.loading) {
     return (
-      <span className="flex items-center gap-1 text-[11px] text-gray-400">
-        <Loader2 className="h-3 w-3 animate-spin" /> Loading sections…
+      <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+        <Loader2 className="h-3 w-3 animate-spin motion-reduce:animate-none" /> Loading sections…
       </span>
     );
   }
   if (!status.available) {
-    return <span className="text-[11px] text-gray-400">No sections published this term</span>;
+    return <span className="text-xs text-gray-500 dark:text-gray-400">No sections published this term</span>;
   }
   if (status.complete) {
     return (
-      <span className="flex min-w-0 items-center gap-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
-        <Check className="h-3 w-3 shrink-0" /> <span className="truncate">{summary}</span>
+      <span className="flex min-w-0 items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+        <Check className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">{summary}</span>
       </span>
     );
   }
@@ -222,16 +235,18 @@ function StatusPill({ status, families, selection, summary }: {
     ? `a ${families[0]?.lecture ? typeLabel(families[0].lecture[TYPE]).toLowerCase() : "section"}`
     : status.missing.map((m) => `a ${m}`).join(" and ");
   return (
-    <span className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 dark:text-amber-400">
-      <span className="relative flex h-2 w-2">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-60" />
-        <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
-      </span>
+    <span className="flex items-center gap-1.5 text-xs font-semibold text-amber-800 dark:text-amber-300">
+      <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-amber-500" />
       Pick {need}
     </span>
   );
 }
 
+/**
+ * One choice among options. A radio group is one Tab stop; the arrow keys move
+ * between its options, each previewed as focus lands on it, and Enter or Space
+ * chooses — so trying five discussions is not five commitments.
+ */
 function PartGroup({
   title, count, children, filter,
 }: {
@@ -240,10 +255,20 @@ function PartGroup({
   children: React.ReactNode;
   filter?: React.ReactNode;
 }) {
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+    if (!step && e.key !== "Home" && e.key !== "End") return;
+    const radios = [...e.currentTarget.querySelectorAll<HTMLElement>('[role="radio"]')];
+    const at = radios.indexOf(document.activeElement as HTMLElement);
+    if (at < 0) return;
+    e.preventDefault();
+    const next = e.key === "Home" ? 0 : e.key === "End" ? radios.length - 1 : (at + step + radios.length) % radios.length;
+    radios[next]?.focus();
+  };
   return (
-    <div role="radiogroup" aria-label={title}>
+    <div role="radiogroup" aria-label={title} onKeyDown={onKeyDown}>
       <div className="mb-1 flex items-center justify-between gap-2">
-        <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
           {title} · {count} option{count === 1 ? "" : "s"}
         </p>
         {filter}
@@ -289,8 +314,9 @@ function CourseSections({
   const [autoFailed, setAutoFailed] = useState(false);
   const ref = useRef<HTMLLIElement>(null);
 
-  // A settled course folds to one line; an open decision stays in view.
-  const open = expanded ?? (!status.complete || focused || justPicked);
+  // A settled course folds to one line; an open decision stays in view — and a
+  // clash is an open decision, whatever has been picked.
+  const open = expanded ?? (!status.complete || conflicted || focused || justPicked);
 
   useEffect(() => {
     if (focused) ref.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
@@ -365,37 +391,37 @@ function CourseSections({
     >
       {/* ── Header ── */}
       <div className="flex items-start gap-2 p-2.5 pb-2">
-        <span aria-hidden className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: style.hex }} />
+        <span aria-hidden className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: style.hex }} />
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-1.5">
-            <Link href={courseHref(course.code)} className="truncate text-[13px] font-bold hover:underline">
+            <Link href={courseHref(course.code)} className="truncate text-sm font-bold hover:underline">
               {course.code}
             </Link>
-            <span className="shrink-0 text-[11px] tabular-nums text-gray-400">{course.units}u</span>
+            <span className="shrink-0 text-xs tabular-nums text-gray-500 dark:text-gray-400">{course.units} units</span>
             {status.available && (
               <button
                 type="button"
                 onClick={onToggleFocus}
                 aria-pressed={focused}
                 title={focused ? "Stop showing every option on the calendar" : "Show every option on the calendar, to choose there"}
-                className={`ml-auto flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold transition ${
+                className={`ml-auto flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold transition ${
                   focused
                     ? "bg-[#182B49] text-white dark:bg-[#FFCD00] dark:text-[#182B49]"
-                    : "text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-white/10 dark:hover:text-gray-200"
+                    : "text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-100"
                 }`}
               >
-                <CalendarSearch className="h-3 w-3" />
+                <CalendarSearch className="h-3.5 w-3.5" />
                 {focused ? "On calendar" : "Compare"}
               </button>
             )}
           </div>
-          <p className="truncate text-[11px] text-gray-500 dark:text-gray-400">{course.title}</p>
+          <p className="truncate text-xs text-gray-600 dark:text-gray-400">{course.title}</p>
           {row?.p && (
-            <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-gray-500 dark:text-gray-400">
+            <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-gray-600 dark:text-gray-400">
               <span className="truncate">{row.p}</span>
               {row.pq != null && (
-                <span className="flex shrink-0 items-center gap-0.5 text-amber-500">
-                  <Star className="h-2.5 w-2.5 fill-current" />
+                <span className="flex shrink-0 items-center gap-0.5 text-amber-600 dark:text-amber-400" title="RateMyProfessors quality">
+                  <Star className="h-3 w-3 fill-current" />
                   {row.pq.toFixed(1)}
                 </span>
               )}
@@ -405,8 +431,8 @@ function CourseSections({
             <StatusPill status={status} families={families} selection={selection} summary={summary} />
           </div>
           {conflicted && (
-            <p className="mt-1 flex items-center gap-1 text-[11px] font-medium text-red-600 dark:text-red-400">
-              <AlertTriangle className="h-3 w-3 shrink-0" />
+            <p className="mt-1 flex items-center gap-1 text-xs font-medium text-red-700 dark:text-red-400">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
               Overlaps another course — pick a different section below
             </p>
           )}
@@ -417,9 +443,10 @@ function CourseSections({
             type="button"
             onClick={onRemove}
             aria-label={`Remove ${course.code} from this term`}
-            className="rounded p-1 text-gray-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10"
+            title="Remove from this term"
+            className="rounded-md p-1.5 text-gray-500 transition hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-500/10"
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 className="h-4 w-4" />
           </button>
         </div>
       </div>
@@ -430,7 +457,7 @@ function CourseSections({
             <button
               type="button"
               onClick={() => setExpanded(true)}
-              className="flex w-full items-center gap-1 text-[11px] font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]"
+              className="flex w-full items-center gap-1 text-xs font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]"
             >
               <ChevronDown className="h-3.5 w-3.5 -rotate-90" />
               Change sections
@@ -443,16 +470,19 @@ function CourseSections({
                   title={families[0].lecture ? typeLabel(families[0].lecture[TYPE]) : "Section group"}
                   count={families.length}
                 >
-                  {families.map((f) => {
+                  {families.map((f, i) => {
                     const rows = f.lectureRows.length ? f.lectureRows : f.parts.flatMap((p) => p.sections);
+                    const selected = selection?.family === f.key;
                     return (
                       <OptionChip
                         key={f.key}
                         code={f.lecture ? f.lecture[CODE] : `${f.key} group`}
                         rows={rows}
-                        selected={selection?.family === f.key}
+                        selected={selected}
+                        tabbable={selected || (!family && i === 0)}
                         facts={optionFacts(src, f.lectureRows, others, buildings)}
                         showInstructor
+                        lecture
                         onPick={() => chooseFamily(f)}
                         onPreview={preview(f.lectureRows, f.lecture ? `${typeLabel(f.lecture[TYPE])} ${f.lecture[CODE]}` : `Group ${f.key}`)}
                       />
@@ -464,9 +494,9 @@ function CourseSections({
               ) : null}
 
               {multiLecture && !family && (
-                <p className="rounded-lg bg-amber-50 px-2 py-1.5 text-[11px] text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                <p className="rounded-lg bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
                   Each lecture has its own discussions — choose one above, or click a
-                  dashed block on the calendar.
+                  striped block on the calendar.
                 </p>
               )}
 
@@ -481,6 +511,7 @@ function CourseSections({
                   ? options.filter((o) => o.s[CODE] === chosen || (!o.facts.clash.length && o.facts.walk?.status !== "late"))
                   : options;
                 const hidden = options.length - shown.length;
+                const anyChosen = shown.some((o) => o.s[CODE] === chosen);
                 return (
                   <PartGroup
                     key={p.type}
@@ -488,31 +519,32 @@ function CourseSections({
                     count={p.sections.length}
                     filter={
                       p.sections.length > 4 && (
-                        <label className="flex cursor-pointer items-center gap-1 text-[10px] text-gray-500 dark:text-gray-400">
+                        <label className="flex cursor-pointer items-center gap-1 text-[11px] text-gray-600 dark:text-gray-400">
                           <input
                             type="checkbox"
                             checked={fitOnly}
                             onChange={(e) => setFitOnly(e.target.checked)}
-                            className="h-3 w-3 accent-[#182B49] dark:accent-[#FFCD00]"
+                            className="h-3.5 w-3.5 accent-[#182B49] dark:accent-[#FFCD00]"
                           />
                           Only ones that fit
                         </label>
                       )
                     }
                   >
-                    {shown.map(({ s, rows, facts }) => (
+                    {shown.map(({ s, rows, facts }, i) => (
                       <OptionChip
                         key={s[CODE]}
                         code={s[CODE]}
                         rows={rows}
                         selected={chosen === s[CODE]}
+                        tabbable={chosen === s[CODE] || (!anyChosen && i === 0)}
                         facts={facts}
                         onPick={() => choosePart(p, s[CODE])}
                         onPreview={preview(rows, `${p.label} ${s[CODE]}`)}
                       />
                     ))}
                     {hidden > 0 && (
-                      <p className="col-span-2 text-[10px] text-gray-400">
+                      <p className="col-span-2 text-[11px] text-gray-500 dark:text-gray-400">
                         {hidden} hidden — they clash or leave a walk you cannot make.
                       </p>
                     )}
@@ -530,20 +562,20 @@ function CourseSections({
                     if (ok) setJustPicked(true);
                   }}
                   title="Pick the sections that fit around the rest of your week"
-                  className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-semibold text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
+                  className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
                 >
-                  <Wand2 className="h-3 w-3" />
+                  <Wand2 className="h-3.5 w-3.5" />
                   Fit it for me
                 </button>
                 {autoFailed && (
-                  <span className="text-[10px] text-red-600 dark:text-red-400">Nothing fits around your week</span>
+                  <span role="status" className="text-[11px] text-red-700 dark:text-red-400">Nothing fits around your week</span>
                 )}
                 <span className="flex-1" />
                 {status.complete && expanded && (
                   <button
                     type="button"
                     onClick={() => setExpanded(null)}
-                    className="text-[11px] font-semibold text-gray-500 hover:underline dark:text-gray-400"
+                    className="rounded-md px-1.5 py-1 text-xs font-semibold text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/10"
                   >
                     Done
                   </button>
@@ -554,9 +586,9 @@ function CourseSections({
                     target="_blank"
                     rel="noreferrer noopener"
                     title="Opens this course on TSS, UC San Diego's enrolment site. It does not enrol you."
-                    className="flex items-center gap-1 text-[11px] font-semibold text-[#182B49] underline-offset-2 hover:underline dark:text-[#FFCD00]"
+                    className="flex items-center gap-1 text-xs font-semibold text-[#182B49] underline-offset-2 hover:underline dark:text-[#FFCD00]"
                   >
-                    Open in TSS <ExternalLink className="h-3 w-3" />
+                    Open in TSS <ExternalLink className="h-3.5 w-3.5" />
                   </a>
                 )}
               </div>
@@ -571,21 +603,27 @@ function CourseSections({
 /** A lecture there is no choosing between, stated once. */
 function FixedLecture({ rows }: { rows: SectionTuple[] }) {
   const first = rows[0];
-  const seats = seatTag(first);
+  const full = fullNote(first);
+  const topic = sectionTopic(first);
   return (
     <div className="rounded-lg bg-slate-50 px-2 py-1.5 dark:bg-white/5">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
           {typeLabel(first[TYPE])} {first[CODE]} · the only one
         </p>
-        {seats.text && <span className={`text-[10px] font-semibold ${TONE_TEXT[seats.tone]}`}>{seats.text}</span>}
+        {full && (
+          <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400" title={full.title}>
+            {full.text}
+          </span>
+        )}
       </div>
+      {topic && <p className="truncate text-xs font-semibold">{topic}</p>}
       {rows.map((r, i) => (
-        <p key={i} className="flex items-center gap-1.5 text-[11px] tabular-nums text-gray-700 dark:text-gray-200">
+        <p key={i} className="flex items-center gap-1.5 text-xs tabular-nums text-gray-800 dark:text-gray-100">
           {shortWhen(r)}
-          <span className="flex items-center gap-0.5 text-gray-500 dark:text-gray-400">
-            <MapPin className="h-2.5 w-2.5" />
-            {sectionWhere(r) || "Room TBA"}
+          <span className="flex min-w-0 items-center gap-0.5 text-gray-600 dark:text-gray-400">
+            <MapPin className="h-3 w-3 shrink-0" />
+            <span className="truncate">{sectionWhere(r) || "Room TBA"}</span>
           </span>
         </p>
       ))}

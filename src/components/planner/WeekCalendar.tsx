@@ -90,16 +90,16 @@ function Block({
         event.conflict ? "Conflicts with another course" : "",
       ].filter(Boolean).join("\n")}
     >
-      <p className={`truncate text-[11px] font-bold leading-tight ${lecture ? style.text : ""}`}>
+      <p className={`truncate text-xs font-bold leading-tight ${lecture ? style.text : ""}`}>
         {event.code}
       </p>
       {g.px >= 34 && (
-        <p className="truncate text-[10px] leading-tight text-gray-500 dark:text-gray-400">
+        <p className="truncate text-[11px] leading-tight text-gray-600 dark:text-gray-300">
           {event.sectionCode ? `${event.kindLabel} ${event.sectionCode}` : event.kindLabel}
         </p>
       )}
-      {g.px >= 48 && event.where && (
-        <p className="truncate text-[10px] font-medium leading-tight text-gray-500 dark:text-gray-400">
+      {g.px >= 50 && event.where && (
+        <p className="truncate text-[11px] font-medium leading-tight text-gray-600 dark:text-gray-300">
           {event.where}
         </p>
       )}
@@ -148,14 +148,14 @@ function OptionBlock({
         background: `repeating-linear-gradient(135deg, ${style.hex}1f 0 6px, transparent 6px 12px)`,
       }}
     >
-      <p className="truncate text-[11px] font-bold leading-tight">{event.code}</p>
+      <p className="truncate text-xs font-bold leading-tight">{event.code}</p>
       {g.px >= 34 && (
-        <p className="truncate text-[10px] leading-tight text-gray-600 dark:text-gray-300">
+        <p className="truncate text-[11px] leading-tight text-gray-700 dark:text-gray-300">
           {event.kindLabel} {event.sectionCode}
         </p>
       )}
-      {g.px >= 48 && (
-        <p className="truncate text-[10px] font-semibold leading-tight text-[#182B49] group-hover:underline dark:text-[#FFCD00]">
+      {g.px >= 50 && (
+        <p className="truncate text-[11px] font-semibold leading-tight text-[#182B49] group-hover:underline dark:text-[#FFCD00]">
           Choose
         </p>
       )}
@@ -174,9 +174,9 @@ function PreviewBlock({ event, windowStart }: { event: CalEvent; windowStart: nu
       className="pointer-events-none absolute inset-x-0.5 z-30 rounded-md border-2 border-dashed px-1.5 py-1 shadow-lg backdrop-blur-[1px]"
       style={{ top: `${top}px`, height: `${height}px`, borderColor: style.hex, background: `${style.hex}2e` }}
     >
-      <p className="truncate text-[11px] font-bold leading-tight">{event.code}</p>
+      <p className="truncate text-xs font-bold leading-tight">{event.code}</p>
       {height >= 34 && (
-        <p className="truncate text-[10px] font-semibold leading-tight">
+        <p className="truncate text-[11px] font-semibold leading-tight">
           {event.kindLabel} {event.sectionCode} · {event.where || "Room TBA"}
         </p>
       )}
@@ -300,8 +300,8 @@ export default function WeekCalendar({
           {hours.map((m) => (
             <div
               key={m}
-              className={`flex items-start justify-end pr-1.5 pt-0.5 text-[10px] tabular-nums ${
-                darkMode ? "text-gray-500" : "text-slate-400"
+              className={`flex items-start justify-end pr-1.5 pt-0.5 text-[11px] tabular-nums ${
+                darkMode ? "text-gray-400" : "text-slate-500"
               }`}
               style={{ height: `${PX_PER_HOUR}px` }}
             >

@@ -9,10 +9,13 @@ import { seatWarning, typicalGrade, workload } from "@/lib/plat";
  */
 export function GradeBadge({
   gpa, terms = 0, size = "md",
-}: { gpa: number | null | undefined; terms?: number; size?: "sm" | "md" | "lg" }) {
+}: { gpa: number | null | undefined; terms?: number; size?: "xs" | "sm" | "md" | "lg" }) {
   const v = typicalGrade(gpa, terms);
   const box =
-    size === "lg" ? "h-16 w-16 text-3xl" : size === "sm" ? "h-8 w-8 text-sm" : "h-11 w-11 text-lg";
+    size === "lg" ? "h-16 w-16 text-3xl"
+      : size === "sm" ? "h-8 w-8 text-sm"
+        : size === "xs" ? "h-6 w-7 text-xs !rounded-md"
+          : "h-11 w-11 text-lg";
 
   if (!v) {
     return (

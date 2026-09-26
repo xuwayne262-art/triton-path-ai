@@ -2,8 +2,8 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import {
   autoPick, buildEvents, clashingCourses, compactRange, forcedSelection, groupSections,
-  isChoosable, isWaitlistOnly, oneOffsFor, sectionBuildingCode, sectionWhere, selectedSections,
-  shortWhen,
+  isChoosable, isWaitlistOnly, oneOffsFor, sectionBuildingCode, sectionTopic, sectionWhere,
+  selectedSections, shortWhen,
 } from "./sections";
 import type { SectionTuple } from "./plat";
 
@@ -90,6 +90,47 @@ describe("groupSections", () => {
     const chosen = selectedSections([family], { family: "A", parts: { LA: "A02" } });
     const dates = oneOffsFor(sec, chosen);
     assert.deepEqual(dates.map((s) => s[1]), ["FI"]);
+  });
+
+  test("the family hangs off its 00 section, whatever type that is", () => {
+    // CAT 124: a practicum (A00) with a seminar under it (A01). By type alone
+    // the seminar looked like the lecture and the practicum like a choice.
+    const [cat] = groupSections([
+      row("A00", "PR", "M", "10:00a", "11:50a"),
+      row("A01", "SE", "W", "10:00a", "10:50a"),
+    ]);
+    assert.equal(cat.lecture?.[0], "A00");
+    assert.deepEqual(cat.parts.map((p) => [p.type, p.sections.map((s) => s[0])]), [["SE", ["A01"]]]);
+  });
+});
+
+describe("auto-pick and seats", () => {
+  test("a discussion is not picked for being emptier", () => {
+    // Enrolling in the course places you in a discussion, so its seat count is
+    // no reason to prefer it; the first that fits, in UCSD's order, is taken.
+    const sec = [
+      row("A00", "LE", "MWF", "9:00a", "9:50a"),
+      row("A01", "DI", "Tu", "1:00p", "1:50p", { avail: 0 }),
+      row("A02", "DI", "Th", "1:00p", "1:50p", { avail: 30 }),
+    ];
+    assert.deepEqual(autoPick(sec, []), { family: "A", parts: { DI: "A01" } });
+  });
+
+  test("a lecture with room still beats a full one", () => {
+    const sec = [
+      row("A00", "LE", "MWF", "9:00a", "9:50a", { avail: 0 }),
+      row("B00", "LE", "TuTh", "9:30a", "10:50a", { avail: 12 }),
+    ];
+    assert.equal(autoPick(sec, [])?.family, "B");
+  });
+});
+
+describe("topics courses", () => {
+  test("each section says which topic it teaches", () => {
+    const withTopic = row("B00", "LE", "MWF", "1:00p", "1:50p");
+    withTopic[19] = "Unsupervised Learning";
+    assert.equal(sectionTopic(withTopic), "Unsupervised Learning");
+    assert.equal(sectionTopic(row("A00", "LE", "MWF", "1:00p", "1:50p")), "");
   });
 });
 
