@@ -44,10 +44,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
-      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        {/* First thing in the body, so it still runs before anything is painted. It used to sit in a
+            hand-written <head>, which made server-rendered pages (/housing/new) fail to hydrate. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
         <ThemeProvider>
           <TooltipProvider>{children}</TooltipProvider>
         </ThemeProvider>

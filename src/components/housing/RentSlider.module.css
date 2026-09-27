@@ -1,0 +1,88 @@
+/*
+ * A native range input, restyled so it reads as part of the page: a thin rail,
+ * navy (gold in the dark) up to the thumb. The input itself is the tall, easy
+ * hit area; the rail is drawn inside it. --pct is set inline for WebKit, which
+ * has no pseudo-element for the filled part; Firefox has ::-moz-range-progress.
+ */
+
+.slider {
+  --fill: #182b49;
+  --rail: #e5e7eb;
+  --thumb: #fff;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 22px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(to right, var(--fill) 0 var(--pct), var(--rail) var(--pct) 100%);
+}
+
+.slider::-webkit-slider-thumb {
+  box-sizing: border-box;
+  width: 18px;
+  height: 18px;
+  /* (rail - thumb) / 2, so the thumb sits centred on the rail */
+  margin-top: -6px;
+  border: 2px solid var(--fill);
+  border-radius: 9999px;
+  background: var(--thumb);
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.25);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.slider::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--rail);
+}
+
+.slider::-moz-range-progress {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--fill);
+}
+
+.slider::-moz-range-thumb {
+  box-sizing: border-box;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--fill);
+  border-radius: 9999px;
+  background: var(--thumb);
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.25);
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.slider:active::-webkit-slider-thumb {
+  transform: scale(1.12);
+}
+
+.slider:active::-moz-range-thumb {
+  transform: scale(1.12);
+}
+
+/* The same gold ring as every other focused control on the site. */
+.slider:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px rgb(255 205 0 / 0.55);
+}
+
+.slider:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 4px rgb(255 205 0 / 0.55);
+}
+
+:global(.dark) .slider {
+  --fill: #ffcd00;
+  --rail: rgb(255 255 255 / 0.12);
+  --thumb: #0d1420;
+}

@@ -1,8 +1,8 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import {
-  EXPIRE_DAYS, REPORT_LIMIT, STALE_DAYS, buildListing, checkListing, headline, isListed, listingState,
-  posterName, toPublic, type StoredListing,
+  EXPIRE_DAYS, REPORT_LIMIT, STALE_DAYS, buildListing, checkListing, headline, isListed, listedUntil,
+  listingState, posterName, toPublic, type StoredListing,
 } from "./listing";
 
 const TODAY = "2026-09-27";
@@ -169,5 +169,11 @@ describe("presentation", () => {
     assert.equal(headline({ title: "", kind: "sublet", room: "private", bedrooms: 3 }), "Private room in a 3-bed place");
     assert.equal(headline({ title: "", kind: "whole", room: "private", bedrooms: 0 }), "Studio");
     assert.equal(headline({ title: "My place", kind: "whole", room: "private", bedrooms: 2 }), "My place");
+  });
+
+  test("a confirmation keeps a listing up for thirty more days, dated in San Diego", () => {
+    assert.equal(listedUntil(Date.parse("2026-09-27T19:00:00Z")), "Oct 27");
+    // 5pm on Sep 30 in San Diego is already Oct 1 in UTC.
+    assert.equal(listedUntil(Date.parse("2026-10-01T00:30:00Z")), "Oct 30");
   });
 });

@@ -36,7 +36,8 @@ export function unavailable(): Response {
     "[housing] no store configured: set SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY (or KV_REST_API_URL + KV_REST_API_TOKEN).",
   );
   return json(
-    { error: "Housing is not set up on this deployment yet, so nothing was saved.", code: "HOUSING_STORE_UNCONFIGURED" },
+    // Loading and saving both land here, so it says neither "saved" nor "loaded".
+    { error: "Housing is not set up on this deployment yet.", code: "HOUSING_STORE_UNCONFIGURED" },
     503,
   );
 }

@@ -24,6 +24,15 @@ export default function CommuteWeek({
   onMode: (m: Mode) => void;
   schedule: TermSchedule;
 }) {
+  // One transit link per building: a Tuesday/Thursday lecture in the same hall is the same trip.
+  const transitDays = new Set(
+    measure.kind === "week"
+      ? measure.week.days
+          .filter((d, i, all) => all.findIndex((x) => x.first.event.buildingCode === d.first.event.buildingCode) === i)
+          .map((d) => d.day)
+      : [],
+  );
+
   return (
     <section aria-labelledby="commute-h" className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-white/[0.03]">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -71,14 +80,16 @@ export default function CommuteWeek({
                     Also {d.unplaced.map((e) => e.code).join(", ")} — no room on the map yet.
                   </p>
                 )}
-                <a
-                  href={transitUrl(home, d.first.building.ll)}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="mt-1 inline-flex items-center gap-1 pl-5 text-[11px] font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]"
-                >
-                  <TramFront className="h-3 w-3" /> Bus &amp; trolley times in Google Maps <ExternalLink className="h-3 w-3" />
-                </a>
+                {transitDays.has(d.day) && (
+                  <a
+                    href={transitUrl(home, d.first.building.ll)}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="mt-1 inline-flex items-center gap-1 pl-5 text-[11px] font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]"
+                  >
+                    <TramFront className="h-3 w-3" /> Bus &amp; trolley to {d.first.building.n} in Google Maps <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
               </li>
             ))}
           </ol>

@@ -83,6 +83,32 @@ export function quartersFor(from: string, to: string): { quarter: Quarter; cover
     .filter((q) => q.coverage !== "none");
 }
 
+/** "Winter 2027", "Winter & Spring 2027", "Fall 2026 & Winter 2027", "Fall 2026 – Spring 2027" */
+function joinQuarters(qs: Quarter[]): string {
+  if (qs.length <= 1) return qs[0]?.name ?? "";
+  const first = qs[0].name;
+  const last = qs[qs.length - 1].name;
+  // Fully covered quarters are always consecutive, so three or more read as a range.
+  if (qs.length > 2) return `${first} – ${last}`;
+  const [season, year] = first.split(" ");
+  return last.endsWith(` ${year}`) ? `${season} & ${last}` : `${first} & ${last}`;
+}
+
+/**
+ * Which quarters a stay covers, in words, for a card that has one line to
+ * say it: "Winter & Spring 2027", "Winter 2027, part of Spring 2027". Null
+ * when it covers none of them worth mentioning.
+ */
+export function describeCoverage(from: string, to: string): string | null {
+  const touched = quartersFor(from, to);
+  const full = touched.filter((q) => q.coverage === "full").map((q) => q.quarter);
+  const part = touched.filter((q) => q.coverage === "partial").map((q) => q.quarter);
+  if (full.length && part.length) return `${joinQuarters(full)}, part of ${joinQuarters(part)}`;
+  if (full.length) return joinQuarters(full);
+  if (part.length) return `Part of ${joinQuarters(part)}`;
+  return null;
+}
+
 /** Quarters still worth searching for: the current one until its finals end, and later. */
 export function upcomingQuarters(today = todayInSanDiego(), count = 4): Quarter[] {
   return QUARTERS.filter((q) => q.end >= today).slice(0, count);

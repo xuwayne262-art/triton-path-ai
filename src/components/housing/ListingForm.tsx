@@ -9,10 +9,11 @@ import { ArrowLeft, ImagePlus, Loader2, MapPin, Search, X } from "lucide-react";
 import { useTheme } from "@/components/plat/theme";
 import { usePref } from "@/components/planner/usePref";
 import ListingCard, { photoUrl } from "./ListingCard";
+import { forgetListings, useBoardHref } from "./boardState";
 import { useTermSchedule } from "./useTermSchedule";
 import { CoverageChips, measureFrom } from "./parts";
 import { isMode, type Mode } from "@/lib/housing/commute";
-import type { Place } from "@/lib/housing/geocode";
+import { parseAddressQuery, type Place } from "@/lib/housing/geocode";
 import {
   KINDS, KIND_HINT, LAUNDRY, MAX_PHOTOS,
   type Laundry, type ListingKind, type PublicListing, type Share,
@@ -42,6 +43,13 @@ type UtilityMode = "included" | "amount" | "unknown";
 const input = "w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-[#182B49] dark:border-white/10 dark:bg-[#0d1420] dark:focus:border-[#FFCD00] max-md:text-base";
 const labelText = "mb-1 block text-xs font-semibold text-gray-700 dark:text-gray-200";
 
+/** Brings a field with a problem into view and puts the cursor in it, ready to fix. */
+function showField(field: string) {
+  const el = document.getElementById(`f-${field}`);
+  el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  el?.querySelector<HTMLElement>("input:not([type=hidden]), select, textarea")?.focus({ preventScroll: true });
+}
+
 /** Re-encoded on a canvas: scaled down, and stripped of the EXIF block that carries a phone's GPS fix. */
 async function toJpeg(file: File): Promise<Blob> {
   const bitmap = await createImageBitmap(file);
@@ -62,8 +70,12 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
   const router = useRouter();
   const { theme } = useTheme();
   const schedule = useTermSchedule();
+  const boardHref = useBoardHref();
   const [mode] = usePref<Mode>("ucsdplans-housing-mode", "walk", isMode);
   const today = useMemo(() => todayInSanDiego(), []);
+  /** Set by the student's first edit, so leaving asks first; loading an edit does not count. */
+  const [touched, setTouched] = useState(false);
+  const touch = () => setTouched(true);
 
   const [loading, setLoading] = useState(Boolean(editId));
   const [kind, setKind] = useState<ListingKind>("sublet");
@@ -139,11 +151,50 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
     };
   }, []);
 
+  // Leaving a half-filled form loses it, photos included, so it asks first: the
+  // browser's own prompt for a reload or a closed tab, and this one for links.
+  useEffect(() => {
+    if (!touched) return;
+    const question = editId
+      ? "Leave without saving your changes?"
+      : "Leave without posting? What you have filled in will be lost.";
+    const onUnload = (e: BeforeUnloadEvent) => {
+      if (saved.current) return;
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    const onClick = (e: MouseEvent) => {
+      if (saved.current || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const link = (e.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!link || link.target === "_blank" || link.hasAttribute("download")) return;
+      const to = new URL(link.href, window.location.href);
+      // Another site unloads the page, which the browser asks about; the same page is not leaving.
+      if (to.origin !== window.location.origin) return;
+      if (to.pathname === window.location.pathname && to.search === window.location.search) return;
+      if (!window.confirm(question)) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener("beforeunload", onUnload);
+    document.addEventListener("click", onClick, true);
+    return () => {
+      window.removeEventListener("beforeunload", onUnload);
+      document.removeEventListener("click", onClick, true);
+    };
+  }, [touched, editId]);
+
   // ── Address ───────────────────────────────────────────────────────────────
   const find = async () => {
     if (finding || query.trim().length < 5) return;
-    setFinding(true);
     setChoices(null);
+    // The server's own check, run here first so an address that cannot work is answered at once.
+    const parsed = parseAddressQuery(query);
+    if (!parsed.ok) {
+      setError({ field: "address", text: parsed.error });
+      return;
+    }
+    setFinding(true);
     setError(null);
     try {
       const res = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`);
@@ -167,6 +218,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
   // ── Photos ────────────────────────────────────────────────────────────────
   const addPhotos = async (files: FileList | null) => {
     if (!files?.length) return;
+    touch();
     setPhotoError(null);
     const slots = MAX_PHOTOS - photos.length - uploading;
     const batch = [...files].slice(0, Math.max(0, slots));
@@ -193,6 +245,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
   };
 
   const removePhoto = (ref: string) => {
+    touch();
     setPhotos((prev) => prev.filter((p) => p.ref !== ref));
     // A photo uploaded this visit can go now; a saved one goes when the edit is saved.
     if (uploadedHere.current.delete(ref)) {
@@ -200,7 +253,8 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
     }
   };
 
-  const movePhoto = (ref: string, by: -1 | 1) =>
+  const movePhoto = (ref: string, by: -1 | 1) => {
+    touch();
     setPhotos((prev) => {
       const i = prev.findIndex((p) => p.ref === ref);
       const j = i + by;
@@ -209,6 +263,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
       [next[i], next[j]] = [next[j], next[i]];
       return next;
     });
+  };
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const body = () => ({
@@ -231,7 +286,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
     if (saving || uploading) return;
     if (!place) {
       setError({ field: "address", text: "Find the address on the map first." });
-      document.getElementById("f-address")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      showField("address");
       return;
     }
     setSaving(true);
@@ -246,10 +301,13 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
       if (!res.ok || !out.listing) {
         const field = out.field ?? "form";
         setError({ field, text: out.error ?? "That did not save. Try again in a moment." });
-        document.getElementById(`f-${field}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+        // A problem with the listing as a whole is said beside the button that was just pressed.
+        if (field !== "form") showField(field);
         return;
       }
       saved.current = true;
+      // The board's kept list does not have this change yet.
+      forgetListings();
       router.push(`/housing/${out.listing.id}`);
     } catch {
       setError({ field: "form", text: "That did not save. Check your connection and try again." });
@@ -263,13 +321,14 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
     if (!place) return null;
     const now = new Date().toISOString();
     return {
+      // Rent and dates not given yet stay blank ("$—", "Dates to come") rather than read as $0 and today.
       id: "preview", kind, rent: Number(rent) || 0, utilities: null, address: place.address, area: place.area, ll: place.ll,
-      from: isIsoDate(from) ? from : today, to: isIsoDate(to) ? to : today,
+      from: isIsoDate(from) && isIsoDate(to) ? from : "", to: isIsoDate(from) && isIsoDate(to) ? to : "",
       room, bath, bedrooms: bedrooms === "" ? null : Number(bedrooms), housemates: null,
       furnished, laundry, parking, pets, title, about, contact: null, poster: "", photos: [],
       created: now, confirmed: now, status: "open", mine: false, state: "live",
     };
-  }, [place, kind, rent, from, to, today, room, bath, bedrooms, furnished, laundry, parking, pets, title, about]);
+  }, [place, kind, rent, from, to, room, bath, bedrooms, furnished, laundry, parking, pets, title, about]);
 
   const placed = schedule.events.some((e) => e.buildingCode && schedule.buildings[e.buildingCode]);
   const previewMeasure = preview ? measureFrom(preview.ll, placed ? schedule : null, mode) : null;
@@ -287,7 +346,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
 
   return (
     <div className="mx-auto max-w-6xl px-4 pb-16 pt-6 sm:px-6 lg:px-8">
-      <Link href="/housing" className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+      <Link href={boardHref} className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
         <ArrowLeft className="h-3.5 w-3.5" /> All housing
       </Link>
       <h1 className="mt-3 text-3xl font-black tracking-tight">{editId ? "Edit your listing" : "List your place"}</h1>
@@ -301,7 +360,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
       )}
 
       <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-12">
-        <form onSubmit={submit} className="space-y-8 lg:col-span-7" noValidate>
+        <form onSubmit={submit} onChange={touch} className="space-y-8 lg:col-span-7" noValidate>
           {/* ── What ── */}
           <fieldset id="f-kind" className="space-y-3">
             <legend className="text-sm font-bold">What are you offering?</legend>
@@ -364,7 +423,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
                     <p className="text-sm font-semibold">{place.address}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">{place.area}</p>
                   </div>
-                  <button type="button" onClick={() => { setPlace(null); setQuery(place.address.split(",")[0]); }} className="text-xs font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]">
+                  <button type="button" onClick={() => { touch(); setPlace(null); setQuery(place.address.split(",")[0]); }} className="text-xs font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]">
                     Change
                   </button>
                 </div>
@@ -405,7 +464,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
                 {choices && (
                   <div className="space-y-1">
                     {choices.map((c) => (
-                      <button key={c.address} type="button" onClick={() => { setPlace(c); setChoices(null); }} className="block w-full rounded-lg border border-gray-200 px-3 py-1.5 text-left text-xs hover:border-[#182B49] dark:border-white/10">
+                      <button key={c.address} type="button" onClick={() => { touch(); setPlace(c); setChoices(null); }} className="block w-full rounded-lg border border-gray-200 px-3 py-1.5 text-left text-xs hover:border-[#182B49] dark:border-white/10">
                         {c.address} <span className="text-gray-400">· {c.area}</span>
                       </button>
                     ))}
@@ -577,6 +636,9 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
             <p className="text-[11px] text-gray-500 dark:text-gray-400">
               It stays up for 30 days at a time — one click from you keeps it there.
             </p>
+            {error?.field === "form" && (
+              <p role="alert" className="w-full text-sm font-medium text-rose-600 dark:text-rose-400">{error.text}</p>
+            )}
           </div>
         </form>
 
@@ -586,7 +648,10 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
             <p className="text-xs font-bold uppercase tracking-[0.12em] text-gray-400">Preview</p>
             {preview && previewMeasure ? (
               <>
-                <ListingCard listing={preview} measure={previewMeasure} mode={mode} focused={false} onFocus={() => {}} />
+                {/* A picture of the card, not a way off a half-filled form: it cannot be clicked or tabbed into. */}
+                <div inert>
+                  <ListingCard listing={preview} measure={previewMeasure} mode={mode} focused={false} onFocus={() => {}} />
+                </div>
                 <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">
                   The commute line is worked out for whoever is looking — this one is from your own schedule. A
                   student with an 8am in Pepper Canyon sees something different from one with a noon class at Scripps.

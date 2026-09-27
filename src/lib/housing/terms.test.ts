@@ -1,8 +1,8 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import {
-  QUARTERS, coverage, daysBetween, formatStay, isIsoDate, quarterByKey, quartersFor, todayInSanDiego,
-  upcomingQuarters,
+  QUARTERS, coverage, daysBetween, describeCoverage, formatStay, isIsoDate, quarterByKey, quartersFor,
+  todayInSanDiego, upcomingQuarters,
 } from "./terms";
 
 const WI27 = quarterByKey("WI27")!;
@@ -41,6 +41,33 @@ describe("coverage", () => {
   test("a year's lease lists every quarter it spans", () => {
     const keys = quartersFor("2026-09-01", "2027-08-31").map((q) => `${q.quarter.key}:${q.coverage}`);
     assert.deepEqual(keys, ["FA26:full", "WI27:full", "SP27:full", "SU27:partial"]);
+  });
+});
+
+describe("coverage in words", () => {
+  test("one quarter is named in full", () => {
+    assert.equal(describeCoverage("2027-01-01", "2027-03-25"), "Winter 2027");
+  });
+
+  test("two quarters in one year share the year", () => {
+    assert.equal(describeCoverage("2027-01-02", "2027-06-30"), "Winter & Spring 2027");
+  });
+
+  test("two quarters across a new year keep both years", () => {
+    assert.equal(describeCoverage("2026-09-01", "2027-03-31"), "Fall 2026 & Winter 2027");
+  });
+
+  test("three or more read as a range, with the partial ones after", () => {
+    assert.equal(describeCoverage("2026-09-01", "2027-08-31"), "Fall 2026 – Spring 2027, part of Summer 2027");
+  });
+
+  test("a stay that only partly covers says so", () => {
+    assert.equal(describeCoverage("2027-04-05", "2027-06-11"), "Part of Spring 2027");
+    assert.equal(describeCoverage("2027-03-01", "2027-04-30"), "Part of Winter & Spring 2027");
+  });
+
+  test("a stay that covers no quarter has nothing to say", () => {
+    assert.equal(describeCoverage("2026-12-20", "2027-01-03"), null);
   });
 });
 

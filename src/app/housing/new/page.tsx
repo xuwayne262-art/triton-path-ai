@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { auth } from "@/auth";
 import PlatShell from "@/components/plat/PlatShell";
 import ListingForm from "@/components/housing/ListingForm";
+
+export const metadata: Metadata = { title: "List your place — UCSDPlans" };
 
 /**
  * `/housing/new`, and `/housing/new?edit=<id>` for a listing already posted.

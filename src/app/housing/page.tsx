@@ -4,15 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  ArrowRight, CalendarCheck, Check, Eye, List, Loader2, Map as MapIcon, MapPin, Pencil, Plus, RotateCcw,
-  Search, Trash2, X,
-} from "lucide-react";
+import { ArrowRight, CalendarCheck, List, Loader2, Map as MapIcon, Plus, Search, X } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import { useTheme } from "@/components/plat/theme";
 import { usePref } from "@/components/planner/usePref";
 import ListingCard, { street } from "@/components/housing/ListingCard";
+import RentSlider from "@/components/housing/RentSlider";
 import SafetyNote from "@/components/housing/SafetyNote";
+import { keepListings, keptListings, useBoardFilters } from "@/components/housing/boardState";
 import { useTermSchedule } from "@/components/housing/useTermSchedule";
 import { MAX_CHECKED, letterFor, useCheckedPlaces } from "@/components/housing/useCheckedPlaces";
 import {
@@ -20,9 +19,12 @@ import {
 } from "@/components/housing/parts";
 import type { ClassPin, HomePin, Spoke } from "@/components/housing/HousingMap";
 import { LIBRARY_WALK, isMode, type Mode } from "@/lib/housing/commute";
+import { NO_FILTERS, SPACES, type Sort, type Space } from "@/lib/housing/filters";
 import { coverage, quarterByKey, todayInSanDiego, upcomingQuarters } from "@/lib/housing/terms";
-import { dollars, headline, isListed, type ListingState, type PublicListing } from "@/lib/housing/listing";
-import type { Place } from "@/lib/housing/geocode";
+import {
+  dollars, headline, isListed, listedUntil, type ListingState, type PublicListing,
+} from "@/lib/housing/listing";
+import { parseAddressQuery, type Place } from "@/lib/housing/geocode";
 
 const HousingMap = dynamic(() => import("@/components/housing/HousingMap"), {
   ssr: false,
@@ -33,18 +35,13 @@ const HousingMap = dynamic(() => import("@/components/housing/HousingMap"), {
   ),
 });
 
-type Space = "any" | "private" | "shared" | "whole";
-type Sort = "commute" | "rent" | "newest";
-
-const SPACES: Record<Space, string> = {
-  any: "Any space",
-  private: "Private room",
-  shared: "Shared room",
-  whole: "Whole place",
-};
-
 const matchesSpace = (l: PublicListing, s: Space) =>
   s === "any" ? true : s === "whole" ? l.kind === "whole" : l.kind !== "whole" && l.room === s;
+
+/** The filter row's selects and input; 16px on phones so iOS does not zoom into them. */
+const FIELD =
+  "rounded-lg border border-gray-200 bg-white py-1.5 text-xs outline-none transition focus:border-[#182B49] " +
+  "dark:border-white/10 dark:bg-[#101a2b] dark:focus:border-[#FFCD00] max-md:text-base";
 
 /**
  * Housing, measured against your week.
@@ -62,20 +59,24 @@ export default function HousingPage() {
   const [mode, setMode] = usePref<Mode>("ucsdplans-housing-mode", "walk", isMode);
   const checked = useCheckedPlaces();
 
-  const [listings, setListings] = useState<PublicListing[] | null>(null);
+  // Coming back from a listing shows the list this tab already has, then refreshes it.
+  const [listings, setListings] = useState<PublicListing[] | null>(keptListings);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [quarter, setQuarter] = useState("any");
-  const [maxRent, setMaxRent] = useState("");
-  const [space, setSpace] = useState<Space>("any");
-  const [sort, setSort] = useState<Sort>("commute");
   const [focus, setFocus] = useState<string | null>(null);
   const [phoneView, setPhoneView] = useState<"list" | "map">("list");
+
+  const today = useMemo(() => todayInSanDiego(), []);
+  const quarters = useMemo(() => upcomingQuarters(today, 4), [today]);
+  const quarterKeys = useMemo(() => quarters.map((q) => q.key), [quarters]);
+  const [filters, setFilters] = useBoardFilters(quarterKeys);
+  const { quarter, space, rentCap, sort } = filters;
 
   const load = useCallback(async () => {
     try {
       const res = await fetch("/api/housing", { cache: "no-store" });
       const body = (await res.json().catch(() => ({}))) as { listings?: PublicListing[]; error?: string };
       if (!res.ok) throw new Error(body.error ?? "Could not load listings.");
+      keepListings(body.listings ?? []);
       setListings(body.listings ?? []);
       setLoadError(null);
     } catch (err) {
@@ -97,10 +98,7 @@ export default function HousingPage() {
   );
   const measure = useCallback((ll: [number, number]) => measureFrom(ll, against, mode), [against, mode]);
 
-  const today = useMemo(() => todayInSanDiego(), []);
-  const quarters = useMemo(() => upcomingQuarters(today, 4), [today]);
   const chosenQuarter = quarterByKey(quarter);
-  const rentCap = Number.parseInt(maxRent, 10);
 
   const listed = useMemo(() => (listings ?? []).filter((l) => isListed(l.state)), [listings]);
   const mine = useMemo(() => (listings ?? []).filter((l) => l.mine), [listings]);
@@ -108,7 +106,7 @@ export default function HousingPage() {
   const shown = useMemo(() => {
     const rows = listed
       .filter((l) => !chosenQuarter || coverage(l.from, l.to, chosenQuarter) !== "none")
-      .filter((l) => !Number.isFinite(rentCap) || l.rent <= rentCap)
+      .filter((l) => rentCap === null || l.rent <= rentCap)
       .filter((l) => matchesSpace(l, space))
       .map((l) => ({ l, m: measure(l.ll) }));
     // With a quarter chosen, places that cover all of it come before partial ones.
@@ -172,14 +170,15 @@ export default function HousingPage() {
     else router.push(`/housing/${id}`);
   };
 
-  const filtering = quarter !== "any" || maxRent !== "" || space !== "any";
+  const filtering = quarter !== "any" || rentCap !== null || space !== "any";
+  const clearFilters = () => setFilters({ ...NO_FILTERS, sort });
 
   return (
     <PlatShell>
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <section className="relative overflow-hidden border-b border-gray-200 bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:border-white/10 dark:from-[#101a2b] dark:via-[#0d1420] dark:to-[#101a2b]">
         <div aria-hidden className="pointer-events-none absolute -right-40 -top-40 h-[28rem] w-[28rem] rounded-full bg-[#FFC72C]/[0.08] blur-3xl" />
-        <div className="relative mx-auto flex max-w-7xl flex-col gap-6 px-4 py-10 sm:px-6 lg:flex-row lg:items-end lg:justify-between lg:px-8 lg:py-12">
+        <div className="relative mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 sm:py-10 lg:flex-row lg:items-end lg:justify-between lg:px-8 lg:py-12">
           <div className="max-w-2xl">
             <span className="inline-flex items-center gap-2 rounded-full border border-[#1B2C4F]/15 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#1B2C4F] shadow-sm dark:border-[#FFC72C]/25 dark:bg-white/5 dark:text-[#FFC72C]">
               <span className="h-1.5 w-1.5 rounded-full bg-[#FFC72C]" />
@@ -189,10 +188,9 @@ export default function HousingPage() {
               Live closer to
               <span className="text-[#1B2C4F] dark:text-[#FFC72C]"> your 8 a.m.</span>
             </h1>
-            <p className="mt-4 text-[15px] leading-relaxed text-gray-600 dark:text-gray-300">
-              Sublets and rooms from verified @ucsd.edu students, each one measured against the classes on
-              your schedule: when you would leave every morning, how long the trip is, and how many hours a
-              quarter you would spend making it.
+            <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-gray-600 dark:text-gray-300">
+              Sublets and rooms from verified @ucsd.edu students, each one measured by the trip to the
+              classes on your schedule.
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
@@ -234,10 +232,84 @@ export default function HousingPage() {
           ))}
         </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-6 lg:grid-cols-12">
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12 lg:gap-8">
           {/* ── The list ─────────────────────────────────────────────────── */}
-          <div className={`space-y-5 lg:col-span-5 ${phoneView === "map" ? "max-lg:hidden" : ""}`}>
+          <div className={`space-y-10 lg:col-span-5 ${phoneView === "map" ? "max-lg:hidden" : ""}`}>
             {mine.length > 0 && <MyListings rows={mine} onChanged={load} />}
+
+            <section aria-labelledby="listings-h">
+              <h2 id="listings-h" className="text-lg font-bold tracking-tight">Posted by students</h2>
+              {/* The count and the order share a line: both describe the list, neither is a filter. */}
+              <div className="mt-0.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {listings ? `${shown.length} ${shown.length === 1 ? "place" : "places"}` : "Loading…"}
+                  {filtering && (
+                    <>
+                      {" · "}
+                      <button
+                        type="button"
+                        onClick={clearFilters}
+                        className="font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]"
+                      >
+                        Clear filters
+                      </button>
+                    </>
+                  )}
+                </p>
+                <label className="flex shrink-0 items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                  Sort:
+                  <select
+                    value={sort}
+                    onChange={(e) => setFilters({ ...filters, sort: e.target.value as Sort })}
+                    className="cursor-pointer rounded-md bg-transparent py-0.5 font-semibold text-gray-800 outline-none transition hover:text-[#182B49] focus-visible:ring-2 focus-visible:ring-[#FFCD00] dark:text-gray-100 dark:hover:text-[#FFCD00] max-md:text-base max-md:font-medium"
+                  >
+                    <option value="commute">{placed.length ? "Shortest week" : "Closest to campus"}</option>
+                    <option value="rent">Lowest rent</option>
+                    <option value="newest">Newest</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+                <select value={quarter} onChange={(e) => setFilters({ ...filters, quarter: e.target.value })} aria-label="Quarter you need it for" className={`${FIELD} w-full px-2.5 sm:w-auto`}>
+                  <option value="any">Any quarter</option>
+                  {quarters.map((q) => <option key={q.key} value={q.key}>{q.name}</option>)}
+                </select>
+                <select value={space} onChange={(e) => setFilters({ ...filters, space: e.target.value as Space })} aria-label="Kind of space" className={`${FIELD} w-full px-2.5 sm:w-auto`}>
+                  {(Object.keys(SPACES) as Space[]).map((s) => <option key={s} value={s}>{SPACES[s]}</option>)}
+                </select>
+                {/* Its own row: a slider needs the width to be draggable with any precision. */}
+                <RentSlider value={rentCap} onChange={(v) => setFilters({ ...filters, rentCap: v })} className="col-span-2 mt-1 sm:basis-full" />
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {loadError && (
+                  <div role="alert" className="flex items-start justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                    <p>{loadError}</p>
+                    <button type="button" onClick={load} className="shrink-0 font-semibold underline underline-offset-2 hover:no-underline">
+                      Try again
+                    </button>
+                  </div>
+                )}
+                {!listings ? (
+                  <div className="h-44 animate-pulse rounded-2xl bg-gray-100 dark:bg-white/5" />
+                ) : shown.length ? (
+                  shown.map(({ l, m }) => (
+                    <ListingCard key={l.id} listing={l} measure={m} mode={mode} focused={focus === l.id} onFocus={setFocus} />
+                  ))
+                ) : filtering && listed.length ? (
+                  <div className="rounded-2xl border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500 dark:border-white/10 dark:text-gray-400">
+                    Nothing matches those filters yet.
+                    <button type="button" onClick={clearFilters} className="mt-2 block w-full text-xs font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]">
+                      Clear filters
+                    </button>
+                  </div>
+                ) : loadError ? null : (
+                  // A board that could not load says so above; inviting a post it could not save would mislead.
+                  <FirstPost />
+                )}
+              </div>
+            </section>
 
             <CheckAddress
               rows={checkedRows}
@@ -247,85 +319,6 @@ export default function HousingPage() {
               onAdd={(p) => { const added = checked.add(p); setFocus(added.id); }}
               onRemove={checked.remove}
             />
-
-            <section aria-labelledby="listings-h">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 id="listings-h" className="text-base font-bold">Posted by students</h2>
-                <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                  {listings ? `${shown.length} ${shown.length === 1 ? "place" : "places"}` : "Loading…"}
-                </p>
-              </div>
-
-              <div className="mt-3 space-y-2">
-                <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="When">
-                  <Chip on={quarter === "any"} onClick={() => setQuarter("any")}>Any time</Chip>
-                  {quarters.map((q) => (
-                    <Chip key={q.key} on={quarter === q.key} onClick={() => setQuarter(q.key)}>{q.name}</Chip>
-                  ))}
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <label className="relative">
-                    <span className="sr-only">Most you would pay a month</span>
-                    <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
-                    <input
-                      inputMode="numeric"
-                      value={maxRent}
-                      onChange={(e) => setMaxRent(e.target.value.replace(/\D/g, "").slice(0, 5))}
-                      placeholder="Max / mo"
-                      className="w-28 rounded-lg border border-gray-200 bg-white py-1.5 pl-5 pr-2 text-xs outline-none focus:border-[#182B49] dark:border-white/10 dark:bg-white/5 dark:focus:border-[#FFCD00] max-md:text-base"
-                    />
-                  </label>
-                  <select
-                    value={space}
-                    onChange={(e) => setSpace(e.target.value as Space)}
-                    aria-label="Kind of space"
-                    className="rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs outline-none dark:border-white/10 dark:bg-[#101a2b] max-md:text-base"
-                  >
-                    {(Object.keys(SPACES) as Space[]).map((s) => <option key={s} value={s}>{SPACES[s]}</option>)}
-                  </select>
-                  <select
-                    value={sort}
-                    onChange={(e) => setSort(e.target.value as Sort)}
-                    aria-label="Sort by"
-                    className="rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs outline-none dark:border-white/10 dark:bg-[#101a2b] max-md:text-base"
-                  >
-                    <option value="commute">{placed.length ? "Shortest week" : "Closest to campus"}</option>
-                    <option value="rent">Lowest rent</option>
-                    <option value="newest">Newest</option>
-                  </select>
-                  {filtering && (
-                    <button
-                      type="button"
-                      onClick={() => { setQuarter("any"); setMaxRent(""); setSpace("any"); }}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-                    >
-                      <X className="h-3 w-3" /> Clear
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-3 space-y-2.5">
-                {loadError && (
-                  <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-                    {loadError}
-                  </p>
-                )}
-                {!listings ? (
-                  [0, 1, 2].map((i) => <div key={i} className="h-32 animate-pulse rounded-2xl bg-gray-100 dark:bg-white/5" />)
-                ) : shown.length ? (
-                  shown.map(({ l, m }) => (
-                    <ListingCard key={l.id} listing={l} measure={m} mode={mode} focused={focus === l.id} onFocus={setFocus} />
-                  ))
-                ) : filtering && listed.length ? (
-                  <div className="rounded-2xl border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500 dark:border-white/10 dark:text-gray-400">
-                    Nothing matches those filters yet.
-                  </div>
-                ) : (
-                  <FirstPost />
-                )}
-              </div>
-            </section>
 
             <SafetyNote />
           </div>
@@ -355,24 +348,6 @@ export default function HousingPage() {
   );
 }
 
-function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={on}
-      onClick={onClick}
-      className={`rounded-full border px-3 py-1 text-xs font-semibold transition ${
-        on
-          ? "border-[#182B49] bg-[#182B49] text-white dark:border-[#FFCD00] dark:bg-[#FFCD00] dark:text-[#182B49]"
-          : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-white/10 dark:bg-white/5 dark:text-gray-300"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
 /** What every commute on the page is measured against, and the one control for how you travel. */
 function ScheduleBanner({
   schedule, placedCount, mode, onMode,
@@ -384,19 +359,17 @@ function ScheduleBanner({
 }) {
   const days = new Set(schedule.events.filter((e) => e.buildingCode && schedule.buildings[e.buildingCode]).map((e) => e.day));
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03] sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex min-w-0 items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#182B49]/[0.06] text-[#182B49] dark:bg-[#FFCD00]/10 dark:text-[#FFCD00]">
-          <CalendarCheck className="h-5 w-5" />
-        </span>
+    <div className="flex flex-col gap-3 rounded-2xl bg-slate-50 px-4 py-3 dark:bg-white/[0.03] sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-start gap-2.5">
+        <CalendarCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#182B49] dark:text-[#FFCD00]" />
         {schedule.status === "loading" ? (
-          <p className="pt-2 text-xs text-gray-500">Reading your schedule…</p>
+          <p className="text-xs text-gray-500">Reading your schedule…</p>
         ) : placedCount ? (
           <div className="min-w-0">
             <p className="text-sm font-semibold">
               Measured to your {schedule.termName} classes
               <span className="font-normal text-gray-500 dark:text-gray-400">
-                {" "}· {days.size} {days.size === 1 ? "day" : "days"} on campus
+                {" "}· <span className="whitespace-nowrap">{days.size} {days.size === 1 ? "day" : "days"} on campus</span>
               </span>
             </p>
             <p className="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
@@ -444,9 +417,15 @@ function CheckAddress({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (busy) return;
+    setChoices(null);
+    // The same check the server makes, so an address that cannot work is answered at once.
+    const parsed = parseAddressQuery(q);
+    if (!parsed.ok) {
+      setError(parsed.error);
+      return;
+    }
     setBusy(true);
     setError(null);
-    setChoices(null);
     try {
       const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
       const body = (await res.json().catch(() => ({}))) as { places?: Place[]; error?: string };
@@ -463,12 +442,9 @@ function CheckAddress({
   };
 
   return (
-    <section id="check" aria-labelledby="check-h" className="scroll-mt-24 rounded-2xl border border-[#182B49]/15 bg-[#182B49]/[0.025] p-4 dark:border-[#FFCD00]/20 dark:bg-[#FFCD00]/[0.03]">
-      <h2 id="check-h" className="flex items-center gap-2 text-sm font-bold">
-        <MapPin className="h-4 w-4 text-[#182B49] dark:text-[#FFCD00]" />
-        Found a place somewhere else?
-      </h2>
-      <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
+    <section id="check" aria-labelledby="check-h" className="scroll-mt-24">
+      <h2 id="check-h" className="text-base font-bold tracking-tight">Found a place somewhere else?</h2>
+      <p className="mt-1 text-[13px] leading-relaxed text-gray-500 dark:text-gray-400">
         Paste its address and see your commute from there, next to everything listed here.
       </p>
       <form onSubmit={submit} className="mt-3 flex gap-2">
@@ -509,23 +485,23 @@ function CheckAddress({
       )}
 
       {rows.length > 0 && (
-        <ul className="mt-3 space-y-2">
+        <ul className="-mx-3 mt-3 space-y-1">
           {rows.map(({ p, letter, m }) => (
             <li
               key={p.id}
               onMouseEnter={() => onFocus(p.id)}
               onMouseLeave={() => onFocus(null)}
-              className={`flex items-start gap-2.5 rounded-xl border bg-white p-2.5 transition dark:bg-white/[0.03] ${
-                focus === p.id ? "border-[#B38F00] dark:border-[#FFCD00]" : "border-gray-200 dark:border-white/10"
+              className={`flex items-start gap-3 rounded-xl px-3 py-2.5 transition ${
+                focus === p.id ? "bg-slate-50 dark:bg-white/5" : ""
               }`}
             >
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#FFCD00] text-xs font-black text-[#182B49]">
                 {letter}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-semibold">{street(p.address)}</p>
-                <p className="truncate text-[11px] text-gray-500 dark:text-gray-400">{p.area}</p>
-                <div className="mt-1.5"><CommuteLine measure={m} mode={mode} /></div>
+                <p className="truncate text-sm font-semibold">{street(p.address)}</p>
+                <p className="truncate text-xs text-gray-500 dark:text-gray-400">{p.area}</p>
+                <div className="mt-2"><CommuteLine measure={m} mode={mode} /></div>
               </div>
               <button
                 type="button"
@@ -539,7 +515,7 @@ function CheckAddress({
           ))}
         </ul>
       )}
-      <p className="mt-3 text-[10px] leading-snug text-gray-400">
+      <p className="mt-3 text-[11px] leading-snug text-gray-400 dark:text-gray-500">
         Up to {MAX_CHECKED} addresses, kept in this browser only. Looked up with the U.S. Census Bureau&rsquo;s
         geocoder; nothing else is sent.
       </p>
@@ -560,11 +536,14 @@ const STATE_LABEL: Record<ListingState, { text: string; tone: string }> = {
 function MyListings({ rows, onChanged }: { rows: PublicListing[]; onChanged: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** "Still available" changes nothing on screen, so it says what it did. */
+  const [confirmed, setConfirmed] = useState<{ id: string; until: string } | null>(null);
 
   const act = async (id: string, action: "confirm" | "taken" | "reopen" | "delete") => {
     if (action === "delete" && !window.confirm("Delete this listing and its photos for good?")) return;
     setBusy(id);
     setError(null);
+    setConfirmed(null);
     try {
       const res = await fetch(`/api/housing/${id}`, action === "delete"
         ? { method: "DELETE" }
@@ -573,6 +552,7 @@ function MyListings({ rows, onChanged }: { rows: PublicListing[]; onChanged: () 
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? "That did not work.");
       }
+      if (action === "confirm") setConfirmed({ id, until: listedUntil() });
       onChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : "That did not work.");
@@ -581,44 +561,49 @@ function MyListings({ rows, onChanged }: { rows: PublicListing[]; onChanged: () 
     }
   };
 
-  const btn = "inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold transition hover:bg-gray-100 disabled:opacity-40 dark:hover:bg-white/10";
+  // Plain words in a row: the upkeep is routine, so it should not shout.
+  const base = "font-semibold transition disabled:opacity-40";
+  const btn = `${base} text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white`;
 
   return (
-    <section aria-labelledby="mine-h" className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-white/10 dark:bg-white/[0.03]">
-      <h2 id="mine-h" className="text-sm font-bold">Your listings</h2>
-      <ul className="mt-2 divide-y divide-gray-100 dark:divide-white/5">
+    <section aria-labelledby="mine-h" className="rounded-2xl border border-gray-200 p-4 dark:border-white/10 sm:p-5">
+      <h2 id="mine-h" className="text-base font-bold tracking-tight">Your listings</h2>
+      <ul className="mt-1 divide-y divide-gray-100 dark:divide-white/5">
         {rows.map((l) => {
           const s = STATE_LABEL[l.state];
           return (
-            <li key={l.id} className="py-2">
-              <div className="flex items-baseline justify-between gap-2">
-                <Link href={`/housing/${l.id}`} className="min-w-0 truncate text-xs font-semibold hover:underline">
+            <li key={l.id} className="py-3">
+              <div className="flex items-baseline justify-between gap-3">
+                <Link href={`/housing/${l.id}`} className="min-w-0 truncate text-sm font-semibold hover:underline">
                   {dollars(l.rent)} · {headline(l)}
                 </Link>
-                <span className={`shrink-0 text-[10px] font-semibold ${s.tone}`}>{s.text}</span>
+                <span className={`shrink-0 text-[11px] font-semibold ${s.tone}`}>{s.text}</span>
               </div>
-              <div className="mt-1 flex flex-wrap gap-1">
+              <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs">
                 {l.state !== "taken" && l.state !== "ended" && (
-                  <button type="button" disabled={busy === l.id} onClick={() => act(l.id, "confirm")} className={`${btn} text-emerald-700 dark:text-emerald-300`}>
-                    <Check className="h-3 w-3" /> Still available
+                  <button type="button" disabled={busy === l.id} onClick={() => act(l.id, "confirm")} className={`${base} text-emerald-700 hover:text-emerald-900 dark:text-emerald-300 dark:hover:text-emerald-200`}>
+                    Still available
                   </button>
                 )}
                 {l.state === "taken" ? (
                   <button type="button" disabled={busy === l.id} onClick={() => act(l.id, "reopen")} className={btn}>
-                    <RotateCcw className="h-3 w-3" /> List again
+                    List again
                   </button>
                 ) : (
                   <button type="button" disabled={busy === l.id} onClick={() => act(l.id, "taken")} className={btn}>
-                    <Eye className="h-3 w-3" /> Mark taken
+                    Mark taken
                   </button>
                 )}
-                <Link href={`/housing/new?edit=${l.id}`} className={btn}>
-                  <Pencil className="h-3 w-3" /> Edit
-                </Link>
-                <button type="button" disabled={busy === l.id} onClick={() => act(l.id, "delete")} className={`${btn} text-rose-600 dark:text-rose-400`}>
-                  <Trash2 className="h-3 w-3" /> Delete
+                <Link href={`/housing/new?edit=${l.id}`} className={btn}>Edit</Link>
+                <button type="button" disabled={busy === l.id} onClick={() => act(l.id, "delete")} className={`${base} text-gray-500 hover:text-rose-600 dark:text-gray-400 dark:hover:text-rose-400`}>
+                  Delete
                 </button>
               </div>
+              {confirmed?.id === l.id && (
+                <p role="status" className="mt-1.5 text-xs text-emerald-700 dark:text-emerald-300">
+                  Confirmed — it stays listed until {confirmed.until}.
+                </p>
+              )}
             </li>
           );
         })}

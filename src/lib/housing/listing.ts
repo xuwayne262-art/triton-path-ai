@@ -1,6 +1,6 @@
 import type { LatLng } from "@/lib/campus";
 import { areaForAddress, inSanDiego } from "./geocode";
-import { daysBetween, isIsoDate } from "./terms";
+import { daysBetween, formatDay, isIsoDate, todayInSanDiego } from "./terms";
 
 /**
  * A place a student is offering, and the rules for accepting one.
@@ -152,6 +152,10 @@ export function listingState(
 }
 
 export const isListed = (s: ListingState) => s === "live" || s === "stale";
+
+/** "Oct 27": when a listing confirmed at `now` leaves the list, unless it is confirmed again. */
+export const listedUntil = (now = Date.now()) =>
+  formatDay(todayInSanDiego(new Date(now + EXPIRE_DAYS * 86_400_000)));
 
 export function toPublic(
   l: StoredListing,

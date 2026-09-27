@@ -111,46 +111,41 @@ export function toneFor(oneWay: number): string {
   return "text-rose-700 dark:text-rose-300";
 }
 
-/** The commute in two lines, for a card. */
+/**
+ * The commute for a card: one figure worth scanning a list for, and under it,
+ * quieter, when that means leaving. Each day's trip is on the listing itself
+ * (and in the tooltip here) rather than spelled out on every card.
+ */
 export function CommuteLine({ measure, mode }: { measure: Measure; mode: Mode }) {
+  const longWalk = mode === "walk" && measure.oneWay > LONG_WALK;
+  const figure = (text: string) => (
+    <span className={`font-semibold tabular-nums ${toneFor(measure.oneWay)}`}>{text}</span>
+  );
+
+  let headline: React.ReactNode;
+  let detail: string[];
+  let title: string | undefined;
   if (measure.kind === "campus") {
-    return (
-      <p className={`flex items-center gap-1.5 text-xs font-semibold ${toneFor(measure.oneWay)}`}>
-        <ModeIcon mode={mode} className="h-3.5 w-3.5 shrink-0" />
-        {measure.trip.minutes} min to Library Walk {MODES[mode].verb}
-        {mode === "walk" && measure.oneWay > LONG_WALK && (
-          <span className="font-medium text-gray-500 dark:text-gray-400">· {cycled(measure)} min by bike</span>
-        )}
-      </p>
-    );
+    headline = <>{figure(`${measure.trip.minutes} min`)} to Library Walk {MODES[mode].verb}</>;
+    detail = longWalk ? [`${cycled(measure)} min by bike`] : [];
+  } else {
+    const { week } = measure;
+    const early = earliestStart(week);
+    headline = <>{figure(formatDuration(week.minutes))} a week to your classes {MODES[mode].verb}</>;
+    detail = [
+      ...(early ? [`Leave by ${clockLabel(early.leaveBy)} on ${early.day}`] : []),
+      ...(longWalk ? [`${formatDuration(cycled(measure))} by bike`] : []),
+    ];
+    title = week.days.map((d) => `${d.day}: ${d.there.minutes} min to ${d.first.event.code} in ${d.first.building.n}`).join("\n");
   }
-  const { week } = measure;
-  const early = earliestStart(week);
+
   return (
-    <div>
-      <p className={`flex flex-wrap items-center gap-x-1.5 text-xs font-semibold ${toneFor(measure.oneWay)}`}>
-        <ModeIcon mode={mode} className="h-3.5 w-3.5 shrink-0" />
-        {formatDuration(week.minutes)} a week to your classes {MODES[mode].verb}
-        {mode === "walk" && measure.oneWay > LONG_WALK && (
-          <span className="font-medium text-gray-500 dark:text-gray-400">· {formatDuration(cycled(measure))} by bike</span>
-        )}
-        {early && (
-          <span className="font-medium text-gray-500 dark:text-gray-400">
-            · leave {clockLabel(early.leaveBy)} {early.day}
-          </span>
-        )}
-      </p>
-      <p className="mt-1 flex flex-wrap gap-1">
-        {week.days.map((d) => (
-          <span
-            key={d.day}
-            title={`${d.day}: ${d.there.minutes} min to ${d.first.event.code} in ${d.first.building.n}`}
-            className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold tabular-nums text-gray-600 dark:bg-white/10 dark:text-gray-300"
-          >
-            {DAY_SHORT[d.day]} {d.there.minutes}
-          </span>
-        ))}
-      </p>
+    <div className="flex min-w-0 items-start gap-2 text-[13px] leading-snug" title={title}>
+      <ModeIcon mode={mode} className="mt-px h-4 w-4 shrink-0 text-gray-400 dark:text-gray-500" />
+      <div className="min-w-0">
+        <p className="text-gray-700 dark:text-gray-200">{headline}</p>
+        {detail.length > 0 && <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{detail.join(" · ")}</p>}
+      </div>
     </div>
   );
 }

@@ -15,12 +15,15 @@ import { usePref } from "@/components/planner/usePref";
 import CommuteWeek from "@/components/housing/CommuteWeek";
 import SafetyNote from "@/components/housing/SafetyNote";
 import { photoUrl } from "@/components/housing/ListingCard";
+import { forgetListings, useBoardHref } from "@/components/housing/boardState";
 import { useTermSchedule } from "@/components/housing/useTermSchedule";
 import { DAY_SHORT, CoverageChips, measureFrom } from "@/components/housing/parts";
 import type { ClassPin, HomePin, Spoke } from "@/components/housing/HousingMap";
 import { LIBRARY_WALK, isMode, type Mode } from "@/lib/housing/commute";
 import { formatStay } from "@/lib/housing/terms";
-import { KINDS, KIND_HINT, dollars, headline, type Laundry, type PublicListing } from "@/lib/housing/listing";
+import {
+  KINDS, KIND_HINT, dollars, headline, listedUntil, type Laundry, type PublicListing,
+} from "@/lib/housing/listing";
 
 const LAUNDRY_SHORT: Record<Laundry, string> = { unit: "In unit", building: "On site", none: "None" };
 
@@ -50,6 +53,12 @@ export default function ListingPage() {
   const [mode, setMode] = usePref<Mode>("ucsdplans-housing-mode", "walk", isMode);
   const [listing, setListing] = useState<PublicListing | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const boardHref = useBoardHref();
+
+  // A tab or a bookmark should say which place this is, not just the site.
+  useEffect(() => {
+    if (listing) document.title = `${headline(listing)} — UCSDPlans housing`;
+  }, [listing]);
 
   const load = useCallback(async () => {
     try {
@@ -100,7 +109,7 @@ export default function ListingPage() {
   return (
     <PlatShell>
       <div className="mx-auto max-w-6xl px-4 pb-10 pt-6 sm:px-6 lg:px-8">
-        <Link href="/housing" className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+        <Link href={boardHref} className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
           <ArrowLeft className="h-3.5 w-3.5" /> All housing
         </Link>
 
@@ -108,7 +117,7 @@ export default function ListingPage() {
           <div className="mt-10 rounded-2xl border border-dashed border-gray-300 px-6 py-12 text-center dark:border-white/15">
             <p className="text-sm font-bold">{error}</p>
             <p className="mt-1 text-xs text-gray-500">It may have been taken, deleted, or not confirmed for a while.</p>
-            <Link href="/housing" className="mt-4 inline-block text-xs font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]">
+            <Link href={boardHref} className="mt-4 inline-block text-xs font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]">
               See everything that is listed →
             </Link>
           </div>
@@ -186,7 +195,7 @@ export default function ListingPage() {
 
               <ContactCard listing={listing} />
 
-              {listing.mine ? <OwnerControls listing={listing} onChanged={load} onDeleted={() => router.push("/housing")} /> : <ReportButton id={listing.id} />}
+              {listing.mine ? <OwnerControls listing={listing} onChanged={load} onDeleted={() => router.push(boardHref)} /> : <ReportButton id={listing.id} />}
 
               <SafetyNote />
             </div>
@@ -304,10 +313,13 @@ function ContactCard({ listing }: { listing: PublicListing }) {
 function OwnerControls({ listing, onChanged, onDeleted }: { listing: PublicListing; onChanged: () => void; onDeleted: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** "Still available" changes nothing on screen, so it says what it did. */
+  const [confirmedUntil, setConfirmedUntil] = useState<string | null>(null);
   const act = async (action: "confirm" | "taken" | "reopen" | "delete") => {
     if (action === "delete" && !window.confirm("Delete this listing and its photos for good?")) return;
     setBusy(true);
     setError(null);
+    setConfirmedUntil(null);
     try {
       const res = await fetch(`/api/housing/${listing.id}`, action === "delete"
         ? { method: "DELETE" }
@@ -316,6 +328,9 @@ function OwnerControls({ listing, onChanged, onDeleted }: { listing: PublicListi
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? "That did not work.");
       }
+      // The board's kept list no longer matches this listing.
+      forgetListings();
+      if (action === "confirm") setConfirmedUntil(listedUntil());
       if (action === "delete") onDeleted();
       else onChanged();
     } catch (err) {
@@ -343,6 +358,11 @@ function OwnerControls({ listing, onChanged, onDeleted }: { listing: PublicListi
         )}
         <button type="button" disabled={busy} onClick={() => act("delete")} className={`${btn} text-rose-600 dark:text-rose-400`}><Trash2 className="h-3.5 w-3.5" /> Delete</button>
       </div>
+      {confirmedUntil && (
+        <p role="status" className="mt-2 text-xs text-emerald-700 dark:text-emerald-300">
+          Confirmed — it stays listed until {confirmedUntil}.
+        </p>
+      )}
       {error && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
     </section>
   );
