@@ -38,12 +38,18 @@ export default function ImportPage() {
     fetch("/api/history", { cache: "no-store" })
       .then(async (res) => {
         if (!live) return;
+        // Nothing saved yet: the common case, and not an error.
         if (res.status === 204) return;
         if (!res.ok) throw new Error(String(res.status));
         setSaved((await res.json()) as ParsedHistory);
       })
       .catch(() => {
-        /* Nothing saved yet is the common case, not an error worth shouting. */
+        // A record that could not be fetched is not a record that does not
+        // exist. Saying nothing here showed an empty page — exactly what a
+        // student sees when their record "is not there" on another device.
+        if (!live) return;
+        setPhase("error");
+        setMessage("Could not load your saved record, so it is not shown here. Reload the page to try again.");
       })
       .finally(() => live && setLoading(false));
     return () => {

@@ -18,8 +18,9 @@ const DIFFICULTY_WORD: Record<number, string> = {
  * in one term — the point being that the same professor can be worth taking in
  * Fall and worth avoiding in Winter, which a single lifetime score hides.
  *
- * Saved to this browser only. There is no backend to pool ratings into a shared
- * average, so the copy says "your rating" throughout and never implies a crowd.
+ * Saved to the student's own account, so it follows them between devices, and
+ * never pooled: nothing combines ratings into a shared average, so the copy
+ * says "your rating" throughout and never implies a crowd.
  */
 export default function RateProfessor({
   term, termName, code, instructor, onClose,
@@ -165,8 +166,8 @@ export default function RateProfessor({
       </div>
 
       <p className="mt-3 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
-        Saved in this browser only — your ratings are not published or shared, and
-        they do not affect the RateMyProfessors score shown above.
+        Saved to your account for you alone — your ratings are not published or
+        shared, and they do not affect the RateMyProfessors score shown above.
       </p>
     </div>
   );

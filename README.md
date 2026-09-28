@@ -199,6 +199,42 @@ with the service role key, which bypasses RLS, from server code only.
 The driver talks to PostgREST with plain `fetch`, so neither store adds a
 dependency.
 
+## Your plan follows your account
+
+The planner (program, this term's courses and sections, the four-year plan),
+the courses a student stars and their own instructor ratings are saved to their
+account, so signing in on a phone shows the plan built on a laptop. They used
+to live only in the browser that made them.
+
+Each browser still keeps its own copy in localStorage — that is what makes the
+planner instant and lets it work offline — and `src/lib/plan/sync.ts` keeps
+that copy in step with `/api/plan`:
+
+- **On load, and whenever a tab comes back into view,** it fetches the
+  account's plan and merges it in. Hiding or closing a tab saves at once.
+- **After an edit** it saves within a second, naming the revision the edit was
+  based on. A save from an old revision — a laptop tab left open while the
+  phone was used — is refused and answered with the current plan; the two are
+  merged (`src/lib/plan/merge.ts`: a change on either side survives, removals
+  included, and a true conflict goes to the device in use) and the result is
+  saved. Nothing is overwritten blind.
+- **A plan made before syncing existed** joins the account's rather than
+  replacing it, so two devices that each built part of a plan end up with all
+  of it. An untouched planner never counts as a plan.
+- **A shared browser** never carries one student's plan into another's
+  account: each copy is tagged with the account it belongs to.
+
+The planner header shows a small cloud while the plan is saved, and says so in
+words when it is not. View choices (rail tab, map, theme) and the housing
+board's checked addresses stay per browser.
+
+**Setup: run [`supabase/003_student_plan.sql`](supabase/003_student_plan.sql)
+once** in the Supabase SQL editor. Like the other tables it has RLS on with no
+policy and is keyed by a salted hash of the email. Until it exists `/api/plan`
+answers 502 with the file named in the server log, and the planner keeps
+working in each browser while saying "Not saved yet". `next dev` with no
+Supabase variables uses `.history-store/plan/`.
+
 ## Housing
 
 `/housing` is a sublet and room board for @ucsd.edu students, and it knows

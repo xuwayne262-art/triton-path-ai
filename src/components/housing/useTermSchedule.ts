@@ -7,6 +7,7 @@ import {
   type CalEvent, type SectionSelection,
 } from "@/lib/sections";
 import { quarterByKey } from "@/lib/housing/terms";
+import { PLANNER_EVENT, PLANNER_KEY, useAccountSync } from "@/lib/plan/sync";
 
 /**
  * The week a student has built in the planner, read for the housing pages.
@@ -16,9 +17,11 @@ import { quarterByKey } from "@/lib/housing/terms";
  * let a housing page change someone's schedule. This reads the same stored plan
  * and derives the same committed meetings — chosen sections only, never the
  * ghost options — which is all a commute needs.
+ *
+ * On a device that has never opened the planner, the stored plan arrives from
+ * the student's account a moment after the page loads, so the week is worked
+ * out again whenever the sync replaces it.
  */
-
-const STORAGE_KEY = "tritonplat-planner";
 
 interface StoredCourse {
   course?: { code?: unknown; title?: unknown; departments?: unknown };
@@ -41,7 +44,7 @@ const EMPTY: TermSchedule = { status: "loading", events: [], buildings: {}, cour
 
 function readPlan(): { courses: { code: string; title: string; subject: string }[]; sections: Record<string, SectionSelection> } {
   try {
-    const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null") as {
+    const raw = JSON.parse(localStorage.getItem(PLANNER_KEY) ?? "null") as {
       schedule?: StoredCourse[];
       sections?: Record<string, SectionSelection>;
     } | null;
@@ -60,7 +63,16 @@ function readPlan(): { courses: { code: string; title: string; subject: string }
 }
 
 export function useTermSchedule(): TermSchedule {
+  useAccountSync();
   const [state, setState] = useState<TermSchedule>(EMPTY);
+  /** Bumped when the stored plan is replaced by the account's copy. */
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    const onSynced = () => setVersion((v) => v + 1);
+    window.addEventListener(PLANNER_EVENT, onSynced);
+    return () => window.removeEventListener(PLANNER_EVENT, onSynced);
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -101,7 +113,7 @@ export function useTermSchedule(): TermSchedule {
     })();
 
     return () => { live = false; };
-  }, []);
+  }, [version]);
 
   return state;
 }

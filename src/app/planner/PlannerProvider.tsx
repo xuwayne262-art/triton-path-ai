@@ -30,6 +30,13 @@ import {
   groupSections, isComplete, meetingsOfRows, missingParts, selectedSections,
   type CalEvent, type EventSource, type SectionSelection,
 } from "@/lib/sections";
+import {
+  cleanPlanner, DEFAULT_MAJOR, DEFAULT_MINOR,
+  type PlannedCourse, type PlannerDoc, type PlanQuarter, type PlanYear, type ScheduleCourse,
+} from "@/lib/plan/record";
+import {
+  noteLocalChange, PLANNER_EVENT, PLANNER_KEY, useAccountSync, type SyncStatus,
+} from "@/lib/plan/sync";
 
 /**
  * The planner's own `CourseTime` uses 24-hour "09:30"; the schedule snapshot
@@ -53,20 +60,10 @@ function clockToMinutes(t: string): number | null {
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
-export interface ScheduleCourse {
-  course: Course;
-  id: string;
-}
-
-export type Year = 1 | 2 | 3 | 4;
-export type Quarter = "Fall" | "Winter" | "Spring";
-
-export interface PlannedCourse {
-  courseId: string;
-  course: Course;
-  year: Year;
-  quarter: Quarter;
-}
+// The stored shapes are defined with the rest of the synced plan.
+export type { ScheduleCourse, PlannedCourse };
+export type Year = PlanYear;
+export type Quarter = PlanQuarter;
 
 export interface CourseColor {
   bg: string;
@@ -122,25 +119,15 @@ export function generateSampleTime(code: string): CourseTime[] {
 }
 
 // ── Persistence ────────────────────────────────────────────────────────────────
+// The plan is stored in this browser and kept with the student's account; the
+// sync in lib/plan/sync.ts moves it between the two. This provider only reads
+// and writes the local copy, and hears from the sync when a copy saved on
+// another device has replaced it.
 
-const STORAGE_KEY = "tritonplat-planner";
-
-interface Persisted {
-  major: string;
-  minor: string;
-  college: College | null;
-  schedule: ScheduleCourse[];
-  planned: PlannedCourse[];
-  /** Saved codes already pushed onto the schedule, so removals stick. */
-  synced: string[];
-  /** Chosen sections per course: { "CSE 11": { family: "A", parts: { DI: "A01" } } } */
-  sections: Record<string, SectionSelection>;
-}
-
-function readPersisted(): Partial<Persisted> | null {
+/** The stored plan, cleaned — localStorage is editable and outlives deploys. */
+function readPersisted(): PlannerDoc | null {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as Partial<Persisted>) : null;
+    return cleanPlanner(JSON.parse(localStorage.getItem(PLANNER_KEY) ?? "null"));
   } catch {
     return null;
   }
@@ -151,6 +138,8 @@ function readPersisted(): Partial<Persisted> | null {
 interface PlannerValue {
   darkMode: boolean;
   toggleDarkMode: () => void;
+  /** Whether the plan on screen is saved to the student's account. */
+  syncStatus: SyncStatus;
 
   selectedMajor: string;
   setSelectedMajor: (m: string) => void;
@@ -240,9 +229,10 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   // clear the `dark` class on mount, silently undoing the user's choice.
   const { theme, toggle: toggleDarkMode } = useTheme();
   const darkMode = theme === "dark";
+  const syncStatus = useAccountSync();
 
-  const [selectedMajor, setSelectedMajor] = useState<string>("Computer Science (BS)");
-  const [selectedMinor, setSelectedMinor] = useState<string>("None");
+  const [selectedMajor, setSelectedMajor] = useState<string>(DEFAULT_MAJOR);
+  const [selectedMinor, setSelectedMinor] = useState<string>(DEFAULT_MINOR);
   const [selectedCollege, setSelectedCollege] = useState<College | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCourses, setSelectedCourses] = useState<ScheduleCourse[]>([]);
@@ -296,22 +286,30 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
+    /** Puts a stored plan on screen; with none, the untouched defaults. */
+    const apply = (saved: PlannerDoc | null) => {
+      setSelectedMajor(saved?.major ?? DEFAULT_MAJOR);
+      setSelectedMinor(saved?.minor ?? DEFAULT_MINOR);
+      setSelectedCollege(saved?.college ?? null);
+      setSelectedCourses(saved?.schedule ?? []);
+      setPlannedCourses(saved?.planned ?? []);
+      syncedRef.current = new Set(saved?.synced ?? []);
+      setSelections(saved?.sections ?? {});
+    };
     const saved = readPersisted();
-    if (saved) {
-      if (saved.major) setSelectedMajor(saved.major);
-      if (saved.minor) setSelectedMinor(saved.minor);
-      if (saved.college !== undefined) setSelectedCollege(saved.college);
-      if (Array.isArray(saved.schedule)) setSelectedCourses(saved.schedule);
-      if (Array.isArray(saved.planned)) setPlannedCourses(saved.planned);
-      if (Array.isArray(saved.synced)) syncedRef.current = new Set(saved.synced);
-      if (saved.sections && typeof saved.sections === "object") setSelections(saved.sections);
-    }
+    if (saved) apply(saved);
     setHydrated(true);
+
+    // The account's copy replaced this browser's: another device's edits
+    // arrived, or this browser last held someone else's plan.
+    const onSynced = () => apply(readPersisted());
+    window.addEventListener(PLANNER_EVENT, onSynced);
+    return () => window.removeEventListener(PLANNER_EVENT, onSynced);
   }, []);
 
   useEffect(() => {
     if (!hydrated) return;
-    const payload: Persisted = {
+    const payload: PlannerDoc = {
       major: selectedMajor,
       minor: selectedMinor,
       college: selectedCollege,
@@ -320,7 +318,8 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       synced: [...syncedRef.current],
       sections: selections,
     };
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(payload)); } catch {}
+    try { localStorage.setItem(PLANNER_KEY, JSON.stringify(payload)); } catch {}
+    noteLocalChange();
   }, [
     hydrated, selectedMajor, selectedMinor, selectedCollege,
     selectedCourses, plannedCourses, selections,
@@ -871,7 +870,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   }, [selectedCourses, selectedCollege, selectedMajor, selectedMinor, activeRequirements]);
 
   const value: PlannerValue = {
-    darkMode, toggleDarkMode,
+    darkMode, toggleDarkMode, syncStatus,
     selectedMajor, setSelectedMajor,
     selectedMinor, setSelectedMinor,
     selectedCollege, setSelectedCollege,

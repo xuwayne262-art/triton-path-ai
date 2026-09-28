@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { ArrowLeft, Calendar, LayoutGrid, Moon, Sun } from "lucide-react";
 import TridentMark from "@/components/plat/TridentMark";
 import ProgramPicker from "@/components/planner/ProgramPicker";
+import SyncBadge from "@/components/planner/SyncBadge";
 import { PlannerProvider, usePlanner } from "./PlannerProvider";
 
 /**
@@ -26,7 +27,7 @@ const TABS = [
 function PlannerChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const {
-    darkMode, toggleDarkMode,
+    darkMode, toggleDarkMode, syncStatus,
     selectedMajor, setSelectedMajor,
     selectedMinor, setSelectedMinor,
     selectedCollege, setSelectedCollege,
@@ -86,6 +87,7 @@ function PlannerChrome({ children }: { children: React.ReactNode }) {
             onMinor={setSelectedMinor}
             onCollege={setSelectedCollege}
           />
+          <SyncBadge status={syncStatus} />
           <button
             type="button"
             onClick={toggleDarkMode}
