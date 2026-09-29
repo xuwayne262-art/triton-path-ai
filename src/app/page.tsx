@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, GraduationCap, House, Layers, Search, Sparkles, Star, TrendingUp } from "lucide-react";
+import {
+  ArrowRight, ArrowUpRight, GraduationCap, House, Instagram, Layers, Search, Sparkles, Star, TrendingUp,
+} from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import CourseRow from "@/components/plat/CourseRow";
 import PassTimeline from "@/components/plat/PassTimeline";
@@ -197,6 +199,33 @@ export default function HomePage() {
                   all {DEPARTMENTS.length} departments →
                 </Link>
               </div>
+
+              {/* Who made this and how to reach him: a signature under the way
+                  in, on the first screen of every device, where it is seen
+                  without competing with the headline or the search. */}
+              <a
+                href="https://www.instagram.com/hereswaynex/"
+                target="_blank"
+                rel="noreferrer noopener"
+                className="group mt-7 inline-flex max-w-xl items-center gap-3 rounded-2xl border border-gray-200 bg-white py-2 pl-2 pr-4 shadow-sm transition hover:border-[#1B2C4F]/40 hover:shadow-md dark:border-white/10 dark:bg-white/5 dark:hover:border-[#FFC72C]/40"
+              >
+                <span
+                  aria-hidden
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#feda75] via-[#d62976] to-[#4f5bd5] text-white"
+                >
+                  <Instagram className="h-[18px] w-[18px]" />
+                </span>
+                <span className="min-w-0 leading-tight">
+                  <span className="block text-[13px] text-gray-600 dark:text-gray-300">
+                    Made by <span className="font-semibold text-gray-900 dark:text-white">@hereswaynex</span>
+                  </span>
+                  <span className="mt-0.5 flex items-center gap-1 text-xs font-semibold text-[#1B2C4F] dark:text-[#FFC72C]">
+                    Connect with me on Instagram
+                    <ArrowUpRight className="h-3.5 w-3.5 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                  </span>
+                </span>
+                <span className="sr-only"> (opens Instagram in a new tab)</span>
+              </a>
             </div>
 
             {/* Right: the term itself — numbers and the enrollment clock */}
