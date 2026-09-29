@@ -86,6 +86,12 @@ const SUBJECT_NAMES = {
   CSS: "Computational Social Science",
   JWSP: "Jewish Studies",
   PH: "Public Health",
+  // School of Medicine departments, named from their own course titles
+  // ("Psychiatry Core Clerkship" is PSY, not PSYC's Psychology).
+  ANES: "Anesthesiology", DERM: "Dermatology", EMED: "Emergency Medicine",
+  OBG: "Obstetrics & Gynecology", OPTH: "Ophthalmology", ORTH: "Orthopaedic Surgery",
+  PATH: "Pathology", PEDS: "Pediatrics", PHAR: "Pharmacology", PSY: "Psychiatry",
+  RMAS: "Radiation Medicine & Applied Sciences", SURG: "Surgery", UROL: "Urology",
 };
 
 async function download() {
@@ -314,12 +320,12 @@ function build() {
     if (keys.size) teachingThisTerm.set(code, keys);
   }
 
-  // ── course code -> GE areas it satisfies ──────────────────────────────────
+  // ── GE areas, as the lists publish them ───────────────────────────────────
   // Some colleges nest a level deeper (ERC "Regional Specialization" -> "Africa"),
-  // so flatten those into "Area · Subarea".
-  const geByCourse = new Map();
+  // so flatten those into "Area · Subarea". The codes are matched to courses
+  // further down, once every source has been read.
   const geAreas = [];
-  const geLists = {};
+  const geRaw = [];
   for (const [college, areas] of Object.entries(ge.colleges)) {
     for (const [area, value] of Object.entries(areas)) {
       const groups = Array.isArray(value)
@@ -328,11 +334,7 @@ function build() {
       for (const [label, codes] of groups) {
         const key = `${college}:${label}`;
         geAreas.push({ key, college, area: label, n: codes.length });
-        geLists[key] = codes;
-        for (const code of codes) {
-          if (!geByCourse.has(code)) geByCourse.set(code, []);
-          geByCourse.get(code).push(key);
-        }
+        geRaw.push([key, codes]);
       }
     }
   }
@@ -450,6 +452,38 @@ function build() {
   // Both now come from Class Planner in the schedule loop above — the seat link
   // as a real TSS booking URL, the instructors per course rather than per term.
 
+  // ── GE list codes -> courses ──────────────────────────────────────────────
+  // A list can name a course by a code UCSD has since changed. Political Science
+  // added a "D" to its lower-division numbers, so a list still saying "POLI 13R"
+  // meant POLI 13DR — and matching the text exactly dropped the course from
+  // Eighth College's social-science breadth without a word. A code that matches
+  // no course therefore tries its "D" form. A code that still matches nothing is
+  // kept: the GE page lists it as approved-but-unknown rather than leave it out.
+  const resolveGe = (code) => {
+    if (byCourse.has(code)) return code;
+    const withD = code.replace(/^(\S+ \d+)/, "$1D");
+    return byCourse.has(withD) ? withD : code;
+  };
+  const geByCourse = new Map();
+  const geLists = {};
+  const renamed = new Set();
+  for (const [key, codes] of geRaw) {
+    const list = [...new Set(codes.map((code) => {
+      const to = resolveGe(code);
+      if (to !== code) renamed.add(`${code} -> ${to}`);
+      return to;
+    }))];
+    geLists[key] = list;
+    for (const code of list) {
+      if (!geByCourse.has(code)) geByCourse.set(code, []);
+      geByCourse.get(code).push(key);
+    }
+  }
+  for (const area of geAreas) area.n = geLists[area.key].length;
+  const unknownGe = new Set(Object.values(geLists).flat().filter((code) => !byCourse.has(code)));
+  console.log(`  GE codes renumbered: ${[...renamed].join(", ") || "none"}`);
+  console.log(`  GE codes with no course anywhere: ${[...unknownGe].join(", ") || "none"}`);
+
   // ── derive aggregates ─────────────────────────────────────────────────────
   const index = [];
   const bySubject = new Map();
@@ -508,6 +542,10 @@ function build() {
       r: c.terms,
       o: c.offered ? 1 : 0,
       pr: c.pre ? 1 : 0,
+      // Only a course the catalog does not list says so. Off the schedule too,
+      // it is retired or renumbered, and its prerequisites are unknown — `pr: 0`
+      // there means "no record", not "none".
+      ...(c.inCatalog ? {} : { ct: 0 }),
       ge: c.ge.length ? c.ge : undefined,
       sa: seatsAvail,
       sl: seatsLimit,

@@ -28,7 +28,9 @@ function GESearch() {
   const [college, setCollege] = useState(search.get("college") ?? "revelle");
   const [area, setArea] = useState<string | null>(search.get("area"));
   const [discipline, setDiscipline] = useState<string | null>(null);
-  const [filters, setFilters] = useState<ResultFilters>({ ...DEFAULT_FILTERS, sort: "grade", hasGrades: true });
+  // Every approved course, ranked by grades. Courses with no history used to be
+  // filtered out by default; they now come last, where the ranking puts them.
+  const [filters, setFilters] = useState<ResultFilters>({ ...DEFAULT_FILTERS, sort: "grade" });
 
   useEffect(() => { loadIndex().then(setIndex).catch(() => {}); }, []);
   useEffect(() => { loadGE().then(setGE).catch(() => {}); }, []);
@@ -48,16 +50,21 @@ function GESearch() {
   // college's list by a rule that does not apply to it.
   if (discipline !== null && !isWarren) setDiscipline(null);
 
-  const rows: CourseRow[] = useMemo(() => {
-    if (!index || !ge) return [];
+  const { rows, unknown } = useMemo((): { rows: CourseRow[]; unknown: string[] } => {
+    if (!index || !ge) return { rows: [], unknown: [] };
     // A Warren discipline is not a published list — it is every course a
     // department in that discipline offers.
     if (discipline) {
-      return index.courses.filter((c) => disciplineForSubject(c.s)?.id === discipline);
+      return { rows: index.courses.filter((c) => disciplineForSubject(c.s)?.id === discipline), unknown: [] };
     }
     const keys = area ? [area] : areas.map((a) => a.key);
     const codes = new Set(keys.flatMap((k) => ge.lists[k] ?? []));
-    return index.courses.filter((c) => codes.has(c.k));
+    const listed = index.courses.filter((c) => codes.has(c.k));
+    // An approved code that no UCSD source knows — not the catalog, the grade
+    // archive or this term's schedule — has nothing to rank, but leaving it out
+    // silently would make the list look complete when it is not.
+    const known = new Set(listed.map((c) => c.k));
+    return { rows: listed, unknown: [...codes].filter((k) => !known.has(k)).sort() };
   }, [index, ge, area, areas, discipline]);
 
   return (
@@ -135,8 +142,15 @@ function GESearch() {
             rows={rows}
             filters={filters}
             onChange={setFilters}
-            emptyHint={index && ge ? "Nothing here is offered this term — try turning off that filter." : "Loading…"}
+            termName={index?.meta.termName}
+            emptyHint={index && ge ? "No approved courses match these filters." : "Loading…"}
           />
+          {unknown.length > 0 && (
+            <p className="mt-4 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+              Also approved here, but not yet in UCSD&rsquo;s catalog, grade archive or schedule, so there is
+              nothing to rank them by: <span className="font-mono">{unknown.join(", ")}</span>.
+            </p>
+          )}
         </div>
 
         {ge && (

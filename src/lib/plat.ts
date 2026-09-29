@@ -20,6 +20,7 @@ export interface CourseRow {
   r: number;          // number of graded terms behind g/a
   o: 0 | 1;           // offered this term
   pr: 0 | 1;          // has prerequisites
+  ct?: 0;             // present only when UCSD's current catalog does not list it
   ge?: string[];      // GE area keys, "revelle:Mathematics"
   sa: number | null;  // seats available
   sl: number | null;  // seat limit
@@ -273,13 +274,13 @@ export interface Tier {
   label: string;
 }
 
-const A_TIERS: [number, Tier][] = [
-  [60, { pill: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300", text: "text-emerald-600 dark:text-emerald-400", hex: "#059669", label: "Very generous" }],
-  [45, { pill: "bg-green-100 text-green-800 dark:bg-green-500/15 dark:text-green-300", text: "text-green-600 dark:text-green-400", hex: "#16a34a", label: "Generous" }],
-  [32, { pill: "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300", text: "text-amber-600 dark:text-amber-400", hex: "#d97706", label: "Average" }],
-  [20, { pill: "bg-orange-100 text-orange-800 dark:bg-orange-500/15 dark:text-orange-300", text: "text-orange-600 dark:text-orange-400", hex: "#ea580c", label: "Tough" }],
-  [0, { pill: "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300", text: "text-red-600 dark:text-red-400", hex: "#dc2626", label: "Brutal" }],
-];
+const TIER = {
+  veryGenerous: { pill: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300", text: "text-emerald-600 dark:text-emerald-400", hex: "#059669", label: "Very generous" },
+  generous: { pill: "bg-green-100 text-green-800 dark:bg-green-500/15 dark:text-green-300", text: "text-green-600 dark:text-green-400", hex: "#16a34a", label: "Generous" },
+  average: { pill: "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300", text: "text-amber-600 dark:text-amber-400", hex: "#d97706", label: "Average" },
+  tough: { pill: "bg-orange-100 text-orange-800 dark:bg-orange-500/15 dark:text-orange-300", text: "text-orange-600 dark:text-orange-400", hex: "#ea580c", label: "Tough" },
+  brutal: { pill: "bg-red-100 text-red-800 dark:bg-red-500/15 dark:text-red-300", text: "text-red-600 dark:text-red-400", hex: "#dc2626", label: "Brutal" },
+} satisfies Record<string, Tier>;
 
 const NEUTRAL: Tier = {
   pill: "bg-gray-100 text-gray-500 dark:bg-white/10 dark:text-gray-400",
@@ -287,16 +288,6 @@ const NEUTRAL: Tier = {
   hex: "#9ca3af",
   label: "No data",
 };
-
-/** Color tier for an average GPA, mapped onto the same scale. */
-export function gpaTier(g: number | null | undefined): Tier {
-  if (g == null || g <= 0) return NEUTRAL;
-  if (g >= 3.7) return A_TIERS[0][1];
-  if (g >= 3.4) return A_TIERS[1][1];
-  if (g >= 3.0) return A_TIERS[2][1];
-  if (g >= 2.6) return A_TIERS[3][1];
-  return A_TIERS[4][1];
-}
 
 // ── The one headline signal ──────────────────────────────────────────────────
 // Students think in letter grades, not in "49.6% A / 3.19 GPA / score 52". One
@@ -310,16 +301,57 @@ export interface Verdict {
   thin: boolean;
 }
 
-const LETTER_CUTS: [number, string][] = [
-  [3.85, "A"], [3.5, "A−"], [3.15, "B+"], [2.85, "B"],
-  [2.5, "B−"], [2.15, "C+"], [1.85, "C"], [0, "C−"],
+/**
+ * Average GPA -> the nearest official UCSD grade point, and the colour that
+ * letter always wears.
+ *
+ * Each cut is the midpoint between two grade points (A 4.0 and A− 3.7 meet at
+ * 3.85). The colour used to follow a scale of its own — green from 3.40, amber
+ * from 3.00 — so one letter came in two colours: a B+ at 3.45 was green and a
+ * B+ at 3.30 amber, and A−, B and B− were split the same way. Colour is now a
+ * property of the letter, so the same letter always looks the same.
+ */
+export const LETTER_SCALE: readonly (readonly [min: number, letter: string, tier: Tier])[] = [
+  [3.85, "A", TIER.veryGenerous],
+  [3.5, "A−", TIER.generous],
+  [3.15, "B+", TIER.average],
+  [2.85, "B", TIER.tough],
+  [2.5, "B−", TIER.tough],
+  [2.15, "C+", TIER.brutal],
+  [1.85, "C", TIER.brutal],
+  [1.5, "C−", TIER.brutal],
+  [1.15, "D+", TIER.brutal],
+  [0.85, "D", TIER.brutal],
+  [0.35, "D−", TIER.brutal],
+  [0, "F", TIER.brutal],
 ];
+
+const onScale = (gpa: number) =>
+  LETTER_SCALE.find(([min]) => gpa >= min) ?? LETTER_SCALE[LETTER_SCALE.length - 1];
+
+/** Colour for an average GPA: the colour of the letter it rounds to. */
+export function gpaTier(g: number | null | undefined): Tier {
+  if (g == null || g <= 0) return NEUTRAL;
+  return onScale(g)[2];
+}
 
 /** Average GPA -> the letter a typical student walks away with. */
 export function typicalGrade(gpa: number | null | undefined, terms = 0): Verdict | null {
   if (gpa == null || gpa <= 0) return null;
-  const letter = (LETTER_CUTS.find(([min]) => gpa >= min) ?? LETTER_CUTS[LETTER_CUTS.length - 1])[1];
-  return { letter, tier: gpaTier(gpa), thin: terms > 0 && terms < 2 };
+  const [, letter, tier] = onScale(gpa);
+  return { letter, tier, thin: terms > 0 && terms < 2 };
+}
+
+/**
+ * RateMyProfessors quality (1-5) -> the colour every rating on the site wears.
+ * The course and professor pages and the search dropdown painted every rating
+ * amber, so a 4.8 there looked like the 3.2 the lists colour amber.
+ */
+export function ratingTone(q: number | null | undefined): string {
+  if (q == null || q <= 0) return "text-gray-400";
+  if (q >= 4) return "text-emerald-600 dark:text-emerald-400";
+  if (q >= 3) return "text-amber-600 dark:text-amber-400";
+  return "text-red-500 dark:text-red-400";
 }
 
 export type Load = { label: string; text: string } | null;
@@ -486,28 +518,41 @@ export function searchCourses(courses: CourseRow[], query: string, limit = 30): 
  */
 export type SortKey = "grade" | "code" | "rating";
 
-export function sortCourses(rows: CourseRow[], key: SortKey): CourseRow[] {
+/** The average GPA, or -1 for a course with no published history, which sorts last. */
+const gradeKey = (c: CourseRow) => (c.g != null && c.g > 0 ? c.g : -1);
+
+/** This term's instructor's rating, or -1 when there is none. */
+const ratingKey = (c: CourseRow) => (c.pq != null && c.pq > 0 ? c.pq : -1);
+
+/**
+ * Level band first, so a department spanning several prefixes leads with
+ * lower-division undergraduate courses rather than whichever prefix happens to
+ * sort first alphabetically (Biology opened on graduate BGGN). Also the last
+ * tie-break of every other sort, so equal rows always come out in one order.
+ */
+function byCode(a: CourseRow, b: CourseRow): number {
   const num = (c: CourseRow) => parseInt(c.c, 10) || 9999;
+  return levelBand(a) - levelBand(b) || a.s.localeCompare(b.s) || num(a) - num(b) || a.c.localeCompare(b.c);
+}
+
+export function sortCourses(rows: CourseRow[], key: SortKey): CourseRow[] {
   const out = [...rows];
   switch (key) {
     case "grade":
-      // Thin histories get pulled toward the middle so one lucky quarter cannot
-      // outrank a course with a decade of evidence behind it.
-      return out.sort((a, b) => confidentGpa(b) - confidentGpa(a));
+      // The average itself, highest first: the number the letter is read from,
+      // so the letters and the GPAs printed under them both descend. Thin
+      // histories used to be pulled toward 3.2 for sorting only, which put a
+      // one-term A (CHEM 163, 3.95) below a run of B+s — the letters read out
+      // of order. The amber dot on a thin badge carries that caution instead.
+      // Equal averages go to the one with more terms behind it.
+      return out.sort((a, b) => gradeKey(b) - gradeKey(a) || b.r - a.r || byCode(a, b));
     case "rating":
-      return out.sort((a, b) => (b.pq ?? -1) - (a.pq ?? -1));
+      // Then by how many ratings stand behind the score, then by grades.
+      return out.sort((a, b) =>
+        ratingKey(b) - ratingKey(a) || (b.pn ?? 0) - (a.pn ?? 0) || gradeKey(b) - gradeKey(a) || byCode(a, b));
     case "code":
     default:
-      // Level band first, so a department spanning several prefixes leads with
-      // lower-division undergraduate courses rather than whichever prefix
-      // happens to sort first alphabetically (Biology opened on graduate BGGN).
-      return out.sort(
-        (a, b) =>
-          levelBand(a) - levelBand(b) ||
-          a.s.localeCompare(b.s) ||
-          num(a) - num(b) ||
-          a.c.localeCompare(b.c),
-      );
+      return out.sort(byCode);
   }
 }
 
@@ -519,12 +564,12 @@ export function levelBand(c: CourseRow): number {
   return 0;
 }
 
-/** Average GPA shrunk toward the ~3.2 campus mean when the sample is small. */
-export function confidentGpa(c: CourseRow): number {
-  if (c.g == null || c.g <= 0) return -1;
-  const weight = Math.min(1, c.r / 4);
-  return c.g * weight + 3.2 * (1 - weight);
-}
+/**
+ * Whether the dataset actually knows this course's prerequisites. The catalog
+ * and this term's schedule both record them; a course in neither is retired or
+ * renumbered, and `pr: 0` there means "no record", not "no prerequisite".
+ */
+export const prereqKnown = (c: CourseRow) => c.ct !== 0 || c.o === 1;
 
 /** Route helper — "CSE 11" becomes /course/CSE/11. */
 export const courseHref = (code: string) => {

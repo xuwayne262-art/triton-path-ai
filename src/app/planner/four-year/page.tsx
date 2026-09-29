@@ -35,8 +35,14 @@ export default function FourYearPlanPage() {
     plannedCourses, removePlannedCourse, addToPlanner, movePlannedCourse,
     plannerYear, setPlannerYear, plannerQuarter, setPlannerQuarter,
     isGeneratingPlan, planError, generateFourYearPlan,
-    selectedCourses, selectedCollege, degreeProgress, getColorForCourse,
+    selectedCourses, selectedCollege, degreeProgress, progressCourses, getColorForCourse,
   } = usePlanner();
+
+  // What the add button will actually move: this term's courses not already
+  // somewhere in the plan. It used to promise every course on the schedule and
+  // then add none when they were all planned already.
+  const planned = new Set(plannedCourses.map((p) => p.course.code));
+  const toAdd = selectedCourses.filter((sc) => !planned.has(sc.course.code)).length;
 
   const selectCls = `px-3 py-1.5 text-sm rounded-lg border ${
     darkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-200"
@@ -97,11 +103,18 @@ export default function FourYearPlanPage() {
               {/* Names the courses it will move, since they live on the other page. */}
               <Button
                 onClick={addToPlanner}
-                disabled={selectedCourses.length === 0}
+                disabled={toAdd === 0}
+                title={
+                  selectedCourses.length > 0 && toAdd === 0
+                    ? "Every course on this term's schedule is already in the plan"
+                    : undefined
+                }
                 className="bg-[#182B49] text-white hover:bg-[#1e3a63] dark:bg-[#FFCD00] dark:text-[#182B49] dark:hover:bg-[#FFD740]"
               >
                 <Plus className="w-4 h-4 mr-1" />
-                Add {selectedCourses.length} from this term
+                {selectedCourses.length > 0 && toAdd === 0
+                  ? "This term is already planned"
+                  : `Add ${toAdd} from this term`}
               </Button>
 
               {AI_AUTOFILL_ENABLED && <div className="ml-auto flex items-center gap-2">
@@ -264,7 +277,7 @@ export default function FourYearPlanPage() {
       <RightSidebar
         darkMode={darkMode}
         degreeProgress={degreeProgress}
-        selectedCourses={selectedCourses}
+        courses={progressCourses}
         selectedCollege={selectedCollege}
       />
     </div>

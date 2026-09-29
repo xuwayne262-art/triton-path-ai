@@ -164,8 +164,15 @@ export const DEPARTMENTS: Department[] = [
   { id: "pharmacy", name: "Skaggs School of Pharmacy", schoolId: "health", subjects: ["SPPS"] },
   { id: "audiology", name: "Audiology and Speech Sciences", schoolId: "health", subjects: ["AUD"] },
   {
+    // The clinical departments' prefixes (clerkships, electives, the MD core)
+    // were missing, which left 184 of this term's courses reachable only by
+    // search. ucsdStructure.test.ts now fails if any subject has no page.
     id: "medicine", name: "School of Medicine", schoolId: "health",
-    subjects: ["MED", "RAD", "BIOM", "PAE", "CLRE", "DDPM", "LHCO"],
+    subjects: [
+      "MED", "RAD", "BIOM", "PAE", "CLRE", "DDPM", "LHCO",
+      "SOMC", "SOMI", "ANES", "DERM", "EMED", "ICEP", "OBG", "OPTH", "ORTH",
+      "PATH", "PEDS", "PHAR", "PSY", "RMAS", "SURG", "UROL",
+    ],
   },
 
   // ── Rady ──────────────────────────────────────────────────────────────────

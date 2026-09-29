@@ -214,6 +214,8 @@ interface PlannerValue {
   getColorForCourse: (course: Course) => CourseColor;
   activeRequirements: Record<string, number>;
   degreeProgress: DegreeProgressGroup[];
+  /** What degree progress counts: the four-year plan plus this term, once each. */
+  progressCourses: Course[];
 }
 
 const PlannerCtx = createContext<PlannerValue | null>(null);
@@ -404,9 +406,25 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     majorSubjects: majorSubjectSet,
   }), [selectedMajor, selectedMinor, selectedCollege, majorSubjectSet]);
 
+  /**
+   * A course's requirement categories as they stand for the program chosen now.
+   * A stored course keeps the categories it was given when it was added — its GE
+   * areas, plus "Lower/Upper Division" if its subject belonged to the major then
+   * — so after switching from Computer Science to Mathematics, CSE courses went
+   * on counting toward Mathematics' division requirements.
+   */
+  const currentCategories = useCallback(
+    (course: Course): Course["categories"] => {
+      const row = platByCode.get(course.code);
+      return row ? platRowToCourse(row, majorSubjectSet).categories : course.categories;
+    },
+    [platByCode, majorSubjectSet],
+  );
+
   const roleOf = useCallback(
-    (course: Course): CourseRole => courseRole(course, roleContext),
-    [roleContext],
+    (course: Course): CourseRole =>
+      courseRole({ ...course, categories: currentCategories(course) }, roleContext),
+    [roleContext, currentCategories],
   );
 
   // ── Calendar events ─────────────────────────────────────────────────────────
@@ -427,7 +445,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       return {
         code: course.code,
         title: course.title,
-        role: courseRole(course, roleContext),
+        role: roleOf(course),
         sections: chosen,
         fallback: sec.length || !row?.o
           ? []
@@ -442,7 +460,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       };
     });
     return buildEvents(sources);
-  }, [selectedCourses, sectionsByCode, selections, roleContext, platByCode]);
+  }, [selectedCourses, sectionsByCode, selections, roleOf, platByCode]);
 
   const optionEvents = useMemo((): CalEvent[] => {
     const out: CalEvent[] = [];
@@ -451,7 +469,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       if (!sec?.length) continue;
       const families = groupSections(sec);
       if (findFamily(families, selections[course.code]?.family)) continue;
-      const src = { code: course.code, title: course.title, role: courseRole(course, roleContext) };
+      const src = { code: course.code, title: course.title, role: roleOf(course) };
       for (const f of families) {
         if (f.lectureRows.length) {
           for (const r of f.lectureRows) {
@@ -476,7 +494,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       }
     }
     return out;
-  }, [selectedCourses, sectionsByCode, selections, roleContext]);
+  }, [selectedCourses, sectionsByCode, selections, roleOf]);
 
   /**
    * Makes the choices that are not really choices — the only lecture on offer,
@@ -712,9 +730,10 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
 
   const addToPlanner = useCallback(() => {
     setPlannedCourses((prev) => {
-      const have = new Set(prev.map((pc) => pc.courseId));
+      // By code, so a course already somewhere in the plan is never planned twice.
+      const have = new Set(prev.map((pc) => pc.course.code));
       const additions = selectedCourses
-        .filter((sc) => !have.has(sc.course.id))
+        .filter((sc) => !have.has(sc.course.code))
         .map((sc) => ({
           courseId: sc.course.id,
           course: sc.course,
@@ -828,13 +847,26 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     return { ...majorReqs, ...minorReqs, ...collegeReqs };
   }, [selectedMajor, selectedMinor, selectedCollege]);
 
+  /**
+   * The courses degree progress counts: everything in the four-year plan, plus
+   * this term's schedule where it has not been added to the plan yet — each
+   * course once. Progress used to count this term's schedule alone, so a full
+   * four-year plan beside it showed almost nothing done.
+   */
+  const progressCourses = useMemo((): Course[] => {
+    const byCode = new Map<string, Course>();
+    for (const { course } of plannedCourses) if (!byCode.has(course.code)) byCode.set(course.code, course);
+    for (const { course } of selectedCourses) if (!byCode.has(course.code)) byCode.set(course.code, course);
+    return [...byCode.values()];
+  }, [plannedCourses, selectedCourses]);
+
   const degreeProgress = useMemo((): DegreeProgressGroup[] => {
     const tally: Record<string, number> = {};
-    selectedCourses.forEach(({ course }) => {
-      course.categories?.forEach((cat) => {
+    for (const course of progressCourses) {
+      currentCategories(course)?.forEach((cat) => {
         if (cat in activeRequirements) tally[cat] = (tally[cat] ?? 0) + course.units;
       });
-    });
+    }
 
     const majorReqs = MAJOR_REQUIREMENTS[selectedMajor] ?? {};
     const groups: DegreeProgressGroup[] = [{
@@ -867,7 +899,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     }
 
     return groups;
-  }, [selectedCourses, selectedCollege, selectedMajor, selectedMinor, activeRequirements]);
+  }, [progressCourses, currentCategories, selectedCollege, selectedMajor, selectedMinor, activeRequirements]);
 
   const value: PlannerValue = {
     darkMode, toggleDarkMode, syncStatus,
@@ -883,7 +915,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     plannedCourses, addAICourseToPlan, removePlannedCourse, addToPlanner, movePlannedCourse,
     plannerYear, setPlannerYear, plannerQuarter, setPlannerQuarter,
     isGeneratingPlan, planError, generateFourYearPlan,
-    roleOf, getColorForCourse, activeRequirements, degreeProgress,
+    roleOf, getColorForCourse, activeRequirements, degreeProgress, progressCourses,
   };
 
   return <PlannerCtx.Provider value={value}>{children}</PlannerCtx.Provider>;

@@ -10,7 +10,7 @@ import PassTimeline from "@/components/plat/PassTimeline";
 import ProfessorRow from "@/components/plat/ProfessorShelf";
 import SearchResults, { type Combined } from "@/components/plat/SearchResults";
 import {
-  confidentGpa, loadIndex, loadProfessors, professorHref, searchCourses, searchProfessors,
+  loadIndex, loadProfessors, professorHref, searchCourses, searchProfessors, sortCourses,
   type CourseRow as Row, type PlatIndex, type ProfessorRecord,
 } from "@/lib/plat";
 import { DEPARTMENTS } from "@/data/ucsdStructure";
@@ -67,6 +67,10 @@ export default function HomePage() {
   useEffect(() => { loadIndex().then(setData).catch(() => {}); }, []);
   useEffect(() => { loadProfessors().then((d) => setProfs(d.professors)).catch(() => {}); }, []);
 
+  // Everyone in the grade archive is on file, but little more than half have a
+  // RateMyProfessors score; this used to print the whole file (4,205) as rated.
+  const rated = useMemo(() => profs.filter((p) => p.q != null && p.q > 0).length, [profs]);
+
   const results = useMemo<Combined>(
     () => ({
       profs: searchProfessors(profs, q, 4),
@@ -101,12 +105,9 @@ export default function HomePage() {
     if (!data) return null;
     const pool = data.courses.filter(REAL_CLASS);
 
-    const easiest = varied(
-      [...pool]
-        .filter((c) => c.g != null && c.g > 0)
-        .sort((a, b) => confidentGpa(b) - confidentGpa(a)),
-      6,
-    );
+    // The same order as "Best grades" everywhere else, so the shelf's letters
+    // descend too. REAL_CLASS already demands three terms of history.
+    const easiest = varied(sortCourses(pool.filter((c) => c.g != null && c.g > 0), "grade"), 6);
 
     return { easiest };
   }, [data]);
@@ -213,7 +214,7 @@ export default function HomePage() {
                   <dl className="mt-5 grid grid-cols-3 gap-3">
                     <Stat label="on the schedule" value={data?.meta.offered} />
                     <Stat label="courses catalogued" value={data?.meta.catalogCourses} />
-                    <Stat label="professors rated" value={profs.length || undefined} />
+                    <Stat label="professors rated" value={rated || undefined} />
                   </dl>
 
                   <div className="mt-5 border-t border-gray-100 pt-1 dark:border-white/5">

@@ -16,28 +16,21 @@ interface DegreeProgressGroup {
   requirements: Requirement[];
 }
 
-interface ScheduleCourse {
-  course: { units: number };
-  id: string;
-}
-
 interface RightSidebarProps {
   darkMode: boolean;
   degreeProgress: DegreeProgressGroup[];
-  selectedCourses: ScheduleCourse[];
+  /** The courses the progress counts: the four-year plan plus this term's schedule, once each. */
+  courses: { units: number }[];
   selectedCollege: string | null;
 }
 
 export default function RightSidebar({
   darkMode,
   degreeProgress,
-  selectedCourses,
+  courses,
   selectedCollege,
 }: RightSidebarProps) {
-  const totalUnits = selectedCourses.reduce(
-    (sum, c) => sum + c.course.units,
-    0
-  );
+  const totalUnits = courses.reduce((sum, c) => sum + c.units, 0);
 
   return (
     <aside
@@ -163,13 +156,16 @@ export default function RightSidebar({
         }`}
       >
         <div className="flex justify-between mb-1">
-          <span>Selected courses</span>
-          <span className="font-semibold">{selectedCourses.length}</span>
+          <span>Courses counted</span>
+          <span className="font-semibold">{courses.length}</span>
         </div>
         <div className="flex justify-between">
-          <span>Total units</span>
+          <span>Units counted</span>
           <span className="font-semibold">{totalUnits}</span>
         </div>
+        <p className={`mt-1.5 text-[10px] leading-snug ${darkMode ? "text-gray-500" : "text-gray-400"}`}>
+          Your four-year plan, plus this term&rsquo;s courses not yet in it.
+        </p>
       </div>
     </aside>
   );

@@ -3,54 +3,12 @@
 import { useMemo, useState } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
 import CourseRow from "./CourseRow";
-import { sortCourses, type CourseRow as Row, type SortKey } from "@/lib/plat";
+import { applyFilters, type ResultFilters } from "@/lib/courseFilters";
+import type { CourseRow as Row, SortKey } from "@/lib/plat";
 
-export interface ResultFilters {
-  q: string;
-  units: string;
-  offeredOnly: boolean;
-  openOnly: boolean;
-  noPre: boolean;
-  hasGrades: boolean;
-  /** Ceiling on RateMyProfessors difficulty: "any" | "2.2" | "3.2" | "4". */
-  load: string;
-  sort: SortKey;
-}
-
-export const DEFAULT_FILTERS: ResultFilters = {
-  q: "",
-  units: "any",
-  offeredOnly: true,
-  openOnly: false,
-  noPre: false,
-  hasGrades: false,
-  load: "any",
-  sort: "grade",
-};
-
-export function applyFilters(rows: Row[], f: ResultFilters): Row[] {
-  const q = f.q.trim().toLowerCase();
-  const maxUnits = f.units === "any" ? Infinity : Number(f.units);
-  const maxLoad = f.load === "any" ? Infinity : Number(f.load);
-
-  const filtered = rows.filter((c) => {
-    if (f.offeredOnly && !c.o) return false;
-    if (f.openOnly && !(c.sa != null && c.sa > 0)) return false;
-    if (f.noPre && c.pr) return false;
-    if (f.hasGrades && !(c.r > 0 && c.g != null && c.g > 0)) return false;
-    // Workload comes from the instructor's difficulty score, so a course with
-    // no rated instructor cannot answer the question and is filtered out.
-    if (maxLoad !== Infinity && !(c.pd != null && c.pd > 0 && c.pd <= maxLoad)) return false;
-    if (maxUnits !== Infinity) {
-      const u = c.u ? parseFloat(c.u) : null;
-      if (u == null || u > maxUnits) return false;
-    }
-    if (q && !`${c.k} ${c.t} ${c.p ?? ""}`.toLowerCase().includes(q)) return false;
-    return true;
-  });
-
-  return sortCourses(filtered, f.sort);
-}
+// The filter rules live in lib/courseFilters.ts, where they are tested; the
+// pages that render this list import them from here as they always have.
+export { applyFilters, DEFAULT_FILTERS, type ResultFilters } from "@/lib/courseFilters";
 
 /**
  * Workload ceilings, matching the thresholds workload() uses to name them, so
@@ -84,12 +42,15 @@ export default function CourseResults({
   onChange,
   noteFor,
   emptyHint = "No courses match these filters.",
+  termName,
 }: {
   rows: Row[];
   filters: ResultFilters;
   onChange: (f: ResultFilters) => void;
   noteFor?: (row: Row) => string | undefined;
   emptyHint?: string;
+  /** "Fall 2026", for the switch between every course and this term's. */
+  termName?: string;
 }) {
   const [showFilters, setShowFilters] = useState(false);
   const [limit, setLimit] = useState(PAGE);
@@ -107,9 +68,9 @@ export default function CourseResults({
   const set = <K extends keyof ResultFilters>(k: K, v: ResultFilters[K]) =>
     onChange({ ...filters, [k]: v });
 
-  // Only non-default filters are worth showing back to the user.
+  // Only non-default filters are worth showing back to the user. Which term is
+  // shown has its own switch in the header, so it needs no chip.
   const chips: { label: string; clear: () => void }[] = [];
-  if (!filters.offeredOnly) chips.push({ label: "Including unscheduled", clear: () => set("offeredOnly", true) });
   if (filters.openOnly) chips.push({ label: "Open seats only", clear: () => set("openOnly", false) });
   if (filters.noPre) chips.push({ label: "No prerequisite", clear: () => set("noPre", false) });
   if (filters.hasGrades) chips.push({ label: "Has grade history", clear: () => set("hasGrades", false) });
@@ -124,7 +85,28 @@ export default function CourseResults({
           {results.length === 1 ? "course" : "courses"}
         </span>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <div
+            role="group"
+            aria-label="Which courses to list"
+            className="flex rounded-lg border border-gray-200 p-0.5 dark:border-white/10"
+          >
+            {([[false, "All courses"], [true, termName ?? "This term"]] as const).map(([only, label]) => (
+              <button
+                key={label}
+                type="button"
+                aria-pressed={filters.offeredOnly === only}
+                onClick={() => set("offeredOnly", only)}
+                className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                  filters.offeredOnly === only
+                    ? "bg-[#182B49] text-white dark:bg-[#FFCD00] dark:text-[#182B49]"
+                    : "text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <select
             value={filters.sort}
             onChange={(e) => set("sort", e.target.value as SortKey)}
@@ -193,7 +175,6 @@ export default function CourseResults({
                 {LOADS.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
               </select>
             </label>
-            <Check label="Offered this term" checked={filters.offeredOnly} onChange={(v) => set("offeredOnly", v)} />
             <Check label="Open seats only" checked={filters.openOnly} onChange={(v) => set("openOnly", v)} />
             <Check label="No prerequisite" checked={filters.noPre} onChange={(v) => set("noPre", v)} />
             <Check label="Has grade history" checked={filters.hasGrades} onChange={(v) => set("hasGrades", v)} />

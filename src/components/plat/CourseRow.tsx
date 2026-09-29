@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { Star } from "lucide-react";
 import { GradeBadge, LoadTag, SeatWarning } from "./Grade";
-import { courseHref, prettyTime, splitDays, type CourseRow as Row } from "@/lib/plat";
+import {
+  courseHref, prereqKnown, prettyTime, ratingTone, splitDays, type CourseRow as Row,
+} from "@/lib/plat";
 
 /** "TuTh 9:30 AM" — compact enough to sit on the meta line. */
 function meetingText(row: Row): string | null {
@@ -15,13 +17,9 @@ function meetingText(row: Row): string | null {
 /** RateMyProfessors score, colored so a weak rating is visible at a glance. */
 export function Rating({ q, n }: { q: number | null; n?: number | null }) {
   if (q == null || q <= 0) return null;
-  const tone =
-    q >= 4 ? "text-emerald-600 dark:text-emerald-400"
-      : q >= 3 ? "text-amber-600 dark:text-amber-400"
-        : "text-red-500 dark:text-red-400";
   return (
     <span
-      className={`inline-flex items-center gap-0.5 text-xs font-bold ${tone}`}
+      className={`inline-flex items-center gap-0.5 text-xs font-bold ${ratingTone(q)}`}
       title={n ? `${n} RateMyProfessors ratings` : undefined}
     >
       <Star className="h-3 w-3 fill-current" />
@@ -68,8 +66,12 @@ export default function CourseRow({
         <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-gray-500 dark:text-gray-400">
           {row.u && <span>{parseFloat(row.u)} units</span>}
           {meeting && <><Dot /><span>{meeting}</span></>}
-          {!row.pr && <><Dot /><span className="text-emerald-600 dark:text-emerald-400">no prereq</span></>}
-          {!row.o && <><Dot /><span>not offered this term</span></>}
+          {!row.pr && prereqKnown(row) && (
+            <><Dot /><span className="text-emerald-600 dark:text-emerald-400">no prereq</span></>
+          )}
+          {!row.o && (
+            <><Dot /><span>{row.ct === 0 ? "not in the current catalog" : "not offered this term"}</span></>
+          )}
           {note && <><Dot /><span className="text-indigo-600 dark:text-indigo-400">{note}</span></>}
         </span>
       </span>

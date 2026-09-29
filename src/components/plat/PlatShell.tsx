@@ -144,12 +144,12 @@ export default function PlatShell({
             take every published grade record (one per instructor per quarter), average their GPAs
             weighted by the number of quarters each instructor taught it, and round that average to
             the nearest official UCSD grade point — 3.85+ shows A, 3.50+ A−, 3.15+ B+, 2.85+ B, 2.50+
-            B−, 2.15+ C+, 1.85+ C, anything lower C−. Quarters the archive publishes without a GPA
+            B−, 2.15+ C+, 1.85+ C, 1.50+ C−, and D or F below that. Quarters the archive publishes without a GPA
             (fully pass/no-pass offerings, sections too small to report) are left out of that average
-            rather than counted as zeros. The colour follows a coarser scale of the same
-            average (3.70+ very generous, 3.40+ generous, 3.00+ average, 2.60+ tough, below that
-            brutal), an amber dot means a single term of history stands behind the letter, and a dash
-            means no published history at all. Weighting counts terms taught rather than students
+            rather than counted as zeros. Each letter always has the same colour: A dark green, A− green,
+            B+ amber, B and B− orange, C+ and below red. Sorting by best grades orders courses by that
+            same average, highest first. An amber dot means a single term of history stands behind the
+            letter, and a dash means no published history at all. Weighting counts terms taught rather than students
             enrolled, so an instructor with many small sections pulls the average further than one
             with a couple of large lectures. Professor badges apply the same rule to that professor’s
             own records.

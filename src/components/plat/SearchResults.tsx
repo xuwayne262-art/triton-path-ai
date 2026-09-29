@@ -3,7 +3,7 @@
 import { Star, User } from "lucide-react";
 import { GradeBadge } from "./Grade";
 import {
-  professorHref, type CourseRow, type ProfessorRecord, type SearchHit,
+  professorHref, ratingTone, type CourseRow, type ProfessorRecord, type SearchHit,
 } from "@/lib/plat";
 
 export interface Combined {
@@ -81,7 +81,7 @@ export default function SearchResults({
                     </span>
                   )}
                   {prof.q != null && prof.q > 0 && (
-                    <span className="inline-flex items-center gap-0.5 font-semibold text-amber-600 dark:text-amber-400">
+                    <span className={`inline-flex items-center gap-0.5 font-semibold ${ratingTone(prof.q)}`}>
                       <Star className="h-3 w-3 fill-current" />
                       {prof.q.toFixed(1)}
                     </span>

@@ -111,6 +111,21 @@ Four things about Class Planner's data that the build has to get right:
   never reuses a section code across the entries — and each section keeps its
   topic in tuple position 19, which the planner shows on the lecture option.
 
+The GE lists (`ge-courses.json`) sometimes name a course by an older code:
+Political Science added a "D" to its lower-division numbers, so a list saying
+"POLI 13R" means POLI 13DR. The build resolves a code that matches no course to
+its "D" form when that course exists, and prints both the renumbered codes and
+any still unknown (GSS 23 and GSS 26 today). The GE page lists unknown codes
+under the results rather than dropping them. A course the current catalog does
+not list carries `ct: 0` in `index.json`; off this term's schedule too, it is
+retired or renumbered and its prerequisites are unknown, so it is never labelled
+"no prereq".
+
+Every course list opens on every course — this term's schedule is a switch in
+plain sight, never a hidden default — and "Best grades" sorts by the average the
+letter is read from, so letters and GPAs descend together. Each letter has one
+colour (A dark green, A− green, B+ amber, B and B− orange, C+ and below red).
+
 ## Campus map
 
 The term workspace has a map drawer on the right (the **Map** button, the

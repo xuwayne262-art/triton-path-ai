@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ChevronLeft, ExternalLink, Star } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import CourseResults, { DEFAULT_FILTERS, type ResultFilters } from "@/components/plat/CourseResults";
-import { loadIndex, loadSubject, type CourseRow, type PlatIndex, type ProfRecord } from "@/lib/plat";
+import { loadIndex, loadSubject, ratingTone, type CourseRow, type PlatIndex, type ProfRecord } from "@/lib/plat";
 import {
   collegeById, collegeForSubject, departmentById, departmentForSubject, schoolById,
 } from "@/data/ucsdStructure";
@@ -167,16 +167,11 @@ export default function DepartmentPage({ params }: { params: Promise<{ sub: stri
             </div>
             <div className="flex flex-wrap gap-1.5">
               {visible.map((p) => {
-                const tone =
-                  p.rq == null || p.rq <= 0 ? "text-gray-400"
-                    : p.rq >= 4 ? "text-emerald-600 dark:text-emerald-400"
-                      : p.rq >= 3 ? "text-amber-600 dark:text-amber-400"
-                        : "text-red-500 dark:text-red-400";
                 const body = (
                   <>
                     <span className="text-xs">{p.name}</span>
                     {p.rq != null && p.rq > 0 ? (
-                      <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${tone}`}>
+                      <span className={`inline-flex items-center gap-0.5 text-xs font-bold ${ratingTone(p.rq)}`}>
                         <Star className="h-3 w-3 fill-current" />{p.rq.toFixed(1)}
                       </span>
                     ) : (
@@ -203,6 +198,7 @@ export default function DepartmentPage({ params }: { params: Promise<{ sub: stri
             rows={rows}
             filters={filters}
             onChange={setFilters}
+            termName={data?.meta.termName}
             emptyHint={data ? `No ${title} courses match these filters.` : "Loading…"}
           />
         </div>

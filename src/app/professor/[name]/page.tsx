@@ -6,7 +6,7 @@ import { ChevronLeft, ExternalLink, Star } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import { GradeBadge, LoadTag } from "@/components/plat/Grade";
 import {
-  courseHref, loadProfessors, professorSlug, typicalGrade,
+  courseHref, loadProfessors, professorSlug, ratingTone, typicalGrade,
   type ProfessorRecord,
 } from "@/lib/plat";
 
@@ -73,7 +73,7 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
 
                 <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
                   {prof.q != null && prof.q > 0 && (
-                    <span className="inline-flex items-center gap-1 font-semibold text-amber-600 dark:text-amber-400">
+                    <span className={`inline-flex items-center gap-1 font-semibold ${ratingTone(prof.q)}`}>
                       <Star className="h-3.5 w-3.5 fill-current" />
                       {prof.q.toFixed(1)} / 5
                       {prof.nr ? <span className="font-normal text-gray-400">({prof.nr} ratings)</span> : null}

@@ -12,9 +12,10 @@ import RateProfessor from "@/components/plat/RateProfessor";
 import { useShortlist } from "@/components/plat/useShortlist";
 import { ratingKey, useTermRatings } from "@/components/plat/useTermRatings";
 import {
-  geLabel, loadIndex, loadSubject, typicalGrade,
+  geLabel, loadIndex, loadSubject, ratingTone, typicalGrade,
   type CourseDetail, type PlatIndex, type ProfRecord, type SubjectFile,
 } from "@/lib/plat";
+import { CODE, isChoosable } from "@/lib/sections";
 
 export default function CourseDetailPage({
   params,
@@ -58,6 +59,13 @@ export default function CourseDetailPage({
 
   const verdict = typicalGrade(detail?.gpa, detail?.terms);
   const saved = has(code);
+  // Sections a student can pick, counted once each. This used to count schedule
+  // rows, which included midterms and counted a section meeting in two weekly
+  // patterns twice.
+  const sectionCount = useMemo(
+    () => new Set((detail?.sec ?? []).filter(isChoosable).map((s) => s[CODE])).size,
+    [detail],
+  );
 
   if (failed || (subject && !detail)) {
     return (
@@ -192,7 +200,7 @@ export default function CourseDetailPage({
           {detail && detail.sec.length > 0 && (
             <Disclosure
               title={`${index?.meta.termName ?? "This term"} sections`}
-              hint={`${detail.sec.filter((s) => s[1] !== "FI").length} meetings`}
+              hint={`${sectionCount} ${sectionCount === 1 ? "section" : "sections"}`}
               defaultOpen
             >
               <SectionPicker sec={detail.sec} tss={detail.tss} />
@@ -324,7 +332,10 @@ function ProfLine({
         </span>
 
         {prof.rq != null && prof.rq > 0 && (
-          <span className="flex shrink-0 items-center gap-0.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
+          <span
+            className={`flex shrink-0 items-center gap-0.5 text-xs font-semibold ${ratingTone(prof.rq)}`}
+            title={prof.rn ? `${prof.rn} RateMyProfessors ratings` : undefined}
+          >
             <Star className="h-3 w-3 fill-current" />
             {prof.rq.toFixed(1)}
           </span>
