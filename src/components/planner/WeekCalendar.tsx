@@ -213,7 +213,8 @@ function WalkAlert({ leg, windowStart }: { leg: Leg; windowStart: number }) {
   const late = leg.status === "late";
   const top = (leg.from.event.endMin - windowStart) * pxPerMin;
   const walk = leg.walk;
-  if (!walk) return null;
+  // Only a walk that misses its break is a walking problem; an overlap has no break.
+  if (!walk || (leg.status !== "late" && leg.status !== "tight")) return null;
   const why = late
     ? `about ${walk.minutes - leg.gap} min late`
     : `only ${leg.gap - walk.minutes} min to spare`;

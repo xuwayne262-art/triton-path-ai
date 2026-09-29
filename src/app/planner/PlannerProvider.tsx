@@ -16,7 +16,7 @@ import {
   MINOR_REQUIREMENTS,
 } from "@/data/requirements";
 import {
-  loadBuildings, loadIndex, loadSubject,
+  HttpError, loadBuildings, loadIndex, loadSubject,
   type Building, type CourseRow as PlatRow, type SectionTuple,
 } from "@/lib/plat";
 import { useShortlist } from "@/components/plat/useShortlist";
@@ -26,8 +26,8 @@ import {
   type CourseRole, type RoleContext,
 } from "@/lib/plannerBridge";
 import {
-  CODE, autoPick, buildEvents, busyFrom, eventsForRow, findFamily, forcedSelection,
-  groupSections, isComplete, meetingsOfRows, missingParts, selectedSections,
+  CODE, autoPick, buildEvents, busyFrom, eventsForRow, findFamily, fitAll, forcedSelection,
+  groupSections, isComplete, missingParts, selectedSections,
   type CalEvent, type EventSource, type SectionSelection,
 } from "@/lib/sections";
 import {
@@ -78,12 +78,28 @@ export interface SectionStatus {
   available: boolean;
   /** Still loading the subject file. */
   loading: boolean;
+  /**
+   * The subject file could not be fetched — a dropped connection, not an
+   * answer. Told apart from "no sections published", which it used to be
+   * reported as.
+   */
+  failed: boolean;
   /** A lecture family has been chosen. */
   started: boolean;
   /** Every required sub-section has a pick. */
   complete: boolean;
   /** "discussion", "lab" — what is still outstanding. */
   missing: string[];
+}
+
+/** What "Fit my sections" did, so the page can say so and offer to undo it. */
+export interface FitReport {
+  /** Courses whose sections changed. */
+  changed: string[];
+  /** Courses nothing could be fitted for; their picks were left alone. */
+  failed: string[];
+  /** The changed courses' selections before, for undo; undefined means none was made. */
+  before: Record<string, SectionSelection | undefined>;
 }
 
 export interface DegreeProgressGroup {
@@ -179,6 +195,8 @@ interface PlannerValue {
   platByCode: Map<string, PlatRow>;
   /** This term, "FA26", as the dataset names it. */
   term: string;
+  /** "Fall 2026", or "" until the dataset has loaded. */
+  termName: string;
   /** Building code -> name and UCSD's coordinates, for the campus map. */
   buildings: Record<string, Building>;
   /**
@@ -189,7 +207,12 @@ interface PlannerValue {
   optionEvents: CalEvent[];
   /** Fill in sections that fit around everything already placed. */
   autoPickFor: (code: string) => boolean;
-  autoPickAll: () => void;
+  /** Fits every course, keeping the picks that already fit; says what it did. */
+  autoPickAll: () => FitReport;
+  /** Undo for autoPickAll: puts the listed courses' selections back as they were. */
+  restoreSelections: (before: Record<string, SectionSelection | undefined>) => void;
+  /** Asks again for section files that failed to load. */
+  retrySections: () => void;
   sectionStatus: (code: string) => SectionStatus;
   /** Every block the calendar draws, conflicts already marked. */
   events: CalEvent[];
@@ -245,10 +268,15 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   const [planError, setPlanError] = useState<string | null>(null);
   const [platRows, setPlatRows] = useState<PlatRow[]>([]);
   const [term, setTerm] = useState("");
+  const [termName, setTermName] = useState("");
   const [buildings, setBuildings] = useState<Record<string, Building>>({});
   const [sectionsByCode, setSectionsByCode] = useState<Record<string, SectionTuple[]>>({});
   const [tssByCode, setTssByCode] = useState<Record<string, string | null>>({});
   const [loadingSubjects, setLoadingSubjects] = useState<Set<string>>(() => new Set());
+  /** Subjects whose file could not be fetched, until "Try again" asks once more. */
+  const [failedSubjects, setFailedSubjects] = useState<Set<string>>(() => new Set());
+  /** Bumped by retrySections, so the fetch below runs again for the subjects it cleared. */
+  const [retryTick, setRetryTick] = useState(0);
   const [selections, setSelections] = useState<Record<string, SectionSelection>>({});
 
   const { codes: savedCodes, toggle: toggleSaved } = useShortlist();
@@ -259,6 +287,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       .then((d) => {
         setPlatRows(d.courses);
         setTerm(d.meta.term);
+        setTermName(d.meta.termName);
       })
       .catch(() => {});
     // Ten kilobytes, and the map is useless without it; a failure only means
@@ -353,12 +382,19 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
               if (detail.sec?.length) rows[code] = detail.sec;
               if (detail.tss) tss[code] = detail.tss;
             }
-            return { rows, tss };
+            return { subject, rows, tss, failed: false };
           })
-          // A missing subject file is a gap in the snapshot, not a broken page:
-          // the course keeps its catalog meeting time and simply cannot be
-          // broken down into sections.
-          .catch(() => ({ rows: {}, tss: {} })),
+          // A subject with no file this term is a gap in the snapshot, not a
+          // broken page: the course keeps its catalog meeting time and simply
+          // cannot be broken down into sections. Anything else — a dropped
+          // connection, an expired session — is not an answer about the course,
+          // and used to be reported as "No sections published this term".
+          .catch((err: unknown) => ({
+            subject,
+            rows: {},
+            tss: {},
+            failed: !(err instanceof HttpError && err.status === 404),
+          })),
       ),
     ).then((results) => {
       if (!mounted.current) return;
@@ -369,13 +405,22 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
         for (const subject of wanted) next.delete(subject);
         return next;
       });
+      const failed = results.filter((r) => r.failed).map((r) => r.subject);
+      if (failed.length) setFailedSubjects((prev) => new Set([...prev, ...failed]));
     });
     // Deliberately no cleanup that cancels this. Adding a second course re-runs
     // the effect, and a per-run cancel flag killed the only fetch in flight —
     // while `loadedSubjects` had already marked the subject as requested, so
     // nothing ever retried and the rail sat on "Loading sections…" forever.
     // Results are merged by course code, so a late arrival is simply correct.
-  }, [selectedCourses]);
+  }, [selectedCourses, retryTick]);
+
+  const retrySections = useCallback(() => {
+    // Forgetting that they were requested is what lets the effect above ask again.
+    for (const subject of failedSubjects) loadedSubjects.current.delete(subject);
+    setFailedSubjects(new Set());
+    setRetryTick((n) => n + 1);
+  }, [failedSubjects]);
 
   // ── Saved courses from the explorer ─────────────────────────────────────────
 
@@ -585,11 +630,14 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   const sectionStatus = useCallback(
     (code: string): SectionStatus => {
       const sec = sectionsByCode[code];
-      const subject = code.split(" ")[0];
+      const course = selectedCourses.find((sc) => sc.course.code === code)?.course;
+      // Keyed the way the loader above keys its requests.
+      const subject = course?.departments?.[0] ?? code.split(" ")[0];
       if (!sec?.length) {
         return {
           available: false,
           loading: loadingSubjects.has(subject),
+          failed: failedSubjects.has(subject),
           started: false,
           complete: false,
           missing: [],
@@ -600,55 +648,71 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       return {
         available: families.length > 0,
         loading: false,
+        failed: false,
         // A stored pick naming a lecture that no longer exists is no pick.
         started: Boolean(findFamily(families, sel?.family)),
         complete: isComplete(families, sel),
         missing: missingParts(families, sel),
       };
     },
-    [sectionsByCode, selections, loadingSubjects],
+    [sectionsByCode, selections, loadingSubjects, failedSubjects, selectedCourses],
   );
 
   /**
    * Fills one course's sections around everything already on the calendar.
    * Blocks belonging to this course are excluded from "busy" so re-running it
-   * does not treat the course's own current pick as an obstacle.
+   * does not treat the course's own current pick as an obstacle — but that
+   * pick is tried first, so a chosen lecture stays if a discussion fits it.
    */
   const autoPickFor = useCallback(
     (code: string) => {
       const sec = sectionsByCode[code];
       if (!sec?.length) return false;
       const busy = busyFrom(events.filter((e) => e.code !== code));
-      const picked = autoPick(sec, busy);
+      const picked = autoPick(sec, busy, selections[code]);
       if (!picked) return false;
       setSelections((prev) => ({ ...prev, [code]: picked }));
       return true;
     },
-    [sectionsByCode, events],
+    [sectionsByCode, events, selections],
   );
 
   /**
-   * The whole term at once. Courses are filled in order, each planning around
-   * the ones already settled, which is why this runs on a local accumulator
-   * rather than calling autoPickFor in a loop against stale state.
+   * The whole term at once (see fitAll): what already fits stays, and the rest
+   * is fitted around it, each course planning around the ones settled before
+   * it. Courses with no section data keep their catalog time as fixed.
    */
-  const autoPickAll = useCallback(() => {
-    const busy = busyFrom(
-      events.filter((e) => !sectionsByCode[e.code]?.length),
+  const autoPickAll = useCallback((): FitReport => {
+    const fixed = busyFrom(events.filter((e) => !sectionsByCode[e.code]?.length));
+    const { picks, failed } = fitAll(
+      selectedCourses
+        .filter(({ course }) => sectionsByCode[course.code]?.length)
+        .map(({ course }) => ({
+          code: course.code,
+          sec: sectionsByCode[course.code],
+          selection: selections[course.code],
+        })),
+      fixed,
     );
-    const next: Record<string, SectionSelection> = {};
+    const changed = Object.keys(picks);
+    if (changed.length) setSelections((prev) => ({ ...prev, ...picks }));
+    return {
+      changed,
+      failed,
+      before: Object.fromEntries(changed.map((code) => [code, selections[code]])),
+    };
+  }, [selectedCourses, sectionsByCode, events, selections]);
 
-    for (const { course } of selectedCourses) {
-      const sec = sectionsByCode[course.code];
-      if (!sec?.length) continue;
-      const picked = autoPick(sec, busy);
-      if (!picked) continue;
-      next[course.code] = picked;
-      busy.push(...meetingsOfRows(selectedSections(groupSections(sec), picked)));
-    }
-
-    if (Object.keys(next).length) setSelections((prev) => ({ ...prev, ...next }));
-  }, [selectedCourses, sectionsByCode, events]);
+  const restoreSelections = useCallback((before: Record<string, SectionSelection | undefined>) => {
+    setSelections((prev) => {
+      const next = { ...prev };
+      for (const [code, sel] of Object.entries(before)) {
+        if (sel) next[code] = sel;
+        else delete next[code];
+      }
+      return next;
+    });
+  }, []);
 
   // ── Schedule actions ────────────────────────────────────────────────────────
 
@@ -910,8 +974,9 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     platRows, savedCourses, toggleSaved,
     selectedCourses, addToSchedule, removeFromSchedule, clearSchedule, restoreSchedule,
     sectionsByCode, tssByCode, selections, setSelection, clearSelection, chooseOption,
-    addCourseByCode, platByCode, term, buildings, optionEvents,
-    autoPickFor, autoPickAll, sectionStatus, events, conflictCodes, totalUnits,
+    addCourseByCode, platByCode, term, termName, buildings, optionEvents,
+    autoPickFor, autoPickAll, restoreSelections, retrySections,
+    sectionStatus, events, conflictCodes, totalUnits,
     plannedCourses, addAICourseToPlan, removePlannedCourse, addToPlanner, movePlannedCourse,
     plannerYear, setPlannerYear, plannerQuarter, setPlannerQuarter,
     isGeneratingPlan, planError, generateFourYearPlan,

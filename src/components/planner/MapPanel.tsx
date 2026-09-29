@@ -13,7 +13,7 @@ import {
   WEEKDAYS, directionsUrl, formatDistance, pinsFor, previewWalks, troubleLegs, weeklyWalking,
   type DayPlan, type Leg, type LegStatus,
 } from "@/lib/campus";
-import { compactRange, minutesToLabel, type CalEvent } from "@/lib/sections";
+import { compactRange, minutesToClock, minutesToLabel, type CalEvent } from "@/lib/sections";
 import type { MapPin as MapPinData } from "./CampusMap";
 import type { RouteSource } from "./useWalkRoutes";
 
@@ -290,7 +290,7 @@ export default function MapPanel({
               const o = preview[i];
               return (
                 <p key={o.key} className="mt-0.5 text-[11px] text-gray-600 dark:text-gray-300">
-                  <span className="font-semibold">{o.day}</span> {compactRange(clock(o.startMin), clock(o.endMin))}
+                  <span className="font-semibold">{o.day}</span> {compactRange(minutesToClock(o.startMin), minutesToClock(o.endMin))}
                   {" · "}{o.where || "Room TBA"}
                   {w.before && (
                     <span className={LEG_TONE[w.before.status]}>
@@ -389,7 +389,7 @@ export default function MapPanel({
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: roleHex(m.event) }} />
                       <span className="font-semibold">{m.event.code}</span>
                       <span className="truncate text-gray-500 dark:text-gray-400">
-                        {m.event.kindLabel} {m.event.sectionCode ?? ""} · {m.days} {compactRange(clock(m.event.startMin), clock(m.event.endMin))}
+                        {m.event.kindLabel} {m.event.sectionCode ?? ""} · {m.days} {compactRange(minutesToClock(m.event.startMin), minutesToClock(m.event.endMin))}
                         {m.event.where && m.event.where !== p.code ? ` · ${m.event.where}` : ""}
                       </span>
                     </li>
@@ -426,13 +426,6 @@ export default function MapPanel({
       </p>
     </aside>
   );
-}
-
-/** 540 → "9:00a", the spelling compactRange reads. */
-function clock(min: number): string {
-  const h = Math.floor(min / 60);
-  const m = String(min % 60).padStart(2, "0");
-  return `${h % 12 === 0 ? 12 : h % 12}:${m}${h >= 12 ? "p" : "a"}`;
 }
 
 /** Folds a section's MWF blocks into one line: "MWF 9:00–9:50a". */

@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowRight, ArrowUpRight, GraduationCap, House, Instagram, Layers, Search, Sparkles, Star, TrendingUp,
+  ArrowRight, GraduationCap, House, Layers, Search, Sparkles, Star, TrendingUp,
 } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import CourseRow from "@/components/plat/CourseRow";
@@ -63,7 +63,17 @@ export default function HomePage() {
   const [data, setData] = useState<PlatIndex | null>(null);
   const [q, setQ] = useState("");
   const [active, setActive] = useState(0);
-
+  // The results close on a click elsewhere or Escape, as the bar's search does;
+  // they used to stay open over the page until the query was erased.
+  const [open, setOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
 
   const [profs, setProfs] = useState<ProfessorRecord[]>([]);
   useEffect(() => { loadIndex().then(setData).catch(() => {}); }, []);
@@ -145,9 +155,9 @@ export default function HomePage() {
               </span>
 
               <h1 className="mt-5 text-4xl font-black leading-[1.05] tracking-tight sm:text-5xl lg:text-[3.4rem]">
-                Know the curve
+                Stay ahead
                 <br />
-                <span className="text-[#1B2C4F] dark:text-[#FFC72C]">before you enroll.</span>
+                <span className="text-[#1B2C4F] dark:text-[#FFC72C]">every step of the way.</span>
               </h1>
 
               <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-gray-600 dark:text-gray-300">
@@ -156,22 +166,25 @@ export default function HomePage() {
                   : "Loading UCSD grade distributions…"}
               </p>
 
-              <div className="relative mt-8 max-w-xl">
+              <div ref={searchRef} className="relative mt-8 max-w-xl">
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                 <input
                   value={q}
-                  onChange={(e) => setQ(e.target.value)}
+                  onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+                  onFocus={() => setOpen(true)}
                   onKeyDown={(e) => {
-                    if (e.key === "ArrowDown") { e.preventDefault(); setActive((i) => Math.min(i + 1, flat.length - 1)); }
+                    if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); setActive((i) => Math.min(i + 1, flat.length - 1)); }
                     else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
                     else if (e.key === "Enter") { e.preventDefault(); go(flat[active]); }
+                    else if (e.key === "Escape") setOpen(false);
                   }}
+                  aria-label="Search courses and professors"
                   placeholder="CSE 11, organic chemistry, Joe Politz…"
                   className="w-full rounded-2xl border border-gray-200 bg-white py-4 pl-12 pr-4 text-sm shadow-sm outline-none transition
                              placeholder:text-gray-400 focus:border-[#1B2C4F] focus:shadow-lg focus:ring-4 focus:ring-[#1B2C4F]/5
                              dark:border-white/10 dark:bg-white/5 dark:text-gray-100 dark:focus:border-[#FFC72C] dark:focus:ring-[#FFC72C]/10"
                 />
-                {q.trim().length >= 2 && (
+                {open && q.trim().length >= 2 && (
                   <div className="absolute left-0 right-0 top-full z-40 mt-2 max-h-[26rem] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-1 shadow-2xl dark:border-white/10 dark:bg-[#101a2b]">
                     <SearchResults
                       results={results}
@@ -199,33 +212,6 @@ export default function HomePage() {
                   all {DEPARTMENTS.length} departments →
                 </Link>
               </div>
-
-              {/* Who made this and how to reach him: a signature under the way
-                  in, on the first screen of every device, where it is seen
-                  without competing with the headline or the search. */}
-              <a
-                href="https://www.instagram.com/hereswaynex/"
-                target="_blank"
-                rel="noreferrer noopener"
-                className="group mt-7 inline-flex max-w-xl items-center gap-3 rounded-2xl border border-gray-200 bg-white py-2 pl-2 pr-4 shadow-sm transition hover:border-[#1B2C4F]/40 hover:shadow-md dark:border-white/10 dark:bg-white/5 dark:hover:border-[#FFC72C]/40"
-              >
-                <span
-                  aria-hidden
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#feda75] via-[#d62976] to-[#4f5bd5] text-white"
-                >
-                  <Instagram className="h-[18px] w-[18px]" />
-                </span>
-                <span className="min-w-0 leading-tight">
-                  <span className="block text-[13px] text-gray-600 dark:text-gray-300">
-                    Made by <span className="font-semibold text-gray-900 dark:text-white">@hereswaynex</span>
-                  </span>
-                  <span className="mt-0.5 flex items-center gap-1 text-xs font-semibold text-[#1B2C4F] dark:text-[#FFC72C]">
-                    Connect with me on Instagram
-                    <ArrowUpRight className="h-3.5 w-3.5 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-                  </span>
-                </span>
-                <span className="sr-only"> (opens Instagram in a new tab)</span>
-              </a>
             </div>
 
             {/* Right: the term itself — numbers and the enrollment clock */}

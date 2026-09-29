@@ -179,6 +179,15 @@ export const troubleLegs = (plan: DayPlan) =>
   plan.legs.filter((l) => l.status === "late" || l.status === "tight" || l.status === "clash");
 
 /**
+ * The walks that do not fit their break: late or tight, never a clash. Two
+ * overlapping classes have no break to walk in — they are already counted as
+ * clashing — and counting them here too called an overlap a "tight walk" and
+ * drew a badge claiming "-25 min to spare" between them.
+ */
+export const walkTroubles = (plan: DayPlan) =>
+  plan.legs.filter((l) => l.status === "late" || l.status === "tight");
+
+/**
  * For an option being hovered: the walk in from the class before it and out to
  * the class after it, on each day it meets. This is what lets a student pick
  * the discussion that is five minutes from their lecture rather than fifteen.

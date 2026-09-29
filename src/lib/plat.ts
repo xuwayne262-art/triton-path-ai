@@ -46,12 +46,26 @@ export interface Subject {
 export interface IndexMeta {
   term: string;
   termName: string;
+  /** When the grade archive was retrieved, "2026-08-23". */
   generated: string;
+  /** When this term's schedule was last taken from Class Planner, "2026-09-25 15:53:24+00". */
+  refreshed?: string | null;
   years: string;
   gradeRecords: number;
   catalogCourses: number;
   offered: number;
   sources: string[];
+}
+
+/** "2026-09-25 15:53:24+00" -> "Sep 25, 2026" in San Diego; null when unreadable. */
+export function refreshedLabel(refreshed: string | null | undefined): string | null {
+  if (!refreshed) return null;
+  const iso = refreshed.trim().replace(" ", "T").replace(/([+-]\d\d)$/, "$1:00");
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("en-US", {
+    month: "short", day: "numeric", year: "numeric", timeZone: "America/Los_Angeles",
+  });
 }
 
 /** One campus building, keyed by its code ("CENTR") in buildings.json. */
@@ -156,15 +170,37 @@ export interface GEFile {
 
 // ── Loaders ──────────────────────────────────────────────────────────────────
 
+/** A dataset file the server answered with an error status — 404 means it does not exist. */
+export class HttpError extends Error {
+  readonly url: string;
+  readonly status: number;
+
+  constructor(url: string, status: number) {
+    super(`${url}: HTTP ${status}`);
+    this.name = "HttpError";
+    this.url = url;
+    this.status = status;
+  }
+}
+
 const cache = new Map<string, Promise<unknown>>();
 
-function loadJSON<T>(url: string): Promise<T> {
+/**
+ * Fetches a dataset file once per page load. A failure is not remembered: it
+ * used to be cached like a success, so one dropped request on a phone left that
+ * subject broken until a full reload, however many times it was asked for again.
+ */
+export function loadJSON<T>(url: string): Promise<T> {
   let hit = cache.get(url);
   if (!hit) {
-    hit = fetch(url).then((r) => {
-      if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
+    const request = fetch(url).then((r) => {
+      if (!r.ok) throw new HttpError(url, r.status);
       return r.json();
     });
+    request.catch(() => {
+      if (cache.get(url) === request) cache.delete(url);
+    });
+    hit = request;
     cache.set(url, hit);
   }
   return hit as Promise<T>;

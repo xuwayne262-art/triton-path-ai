@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import SearchResults, { type Combined } from "./SearchResults";
+import { useMediaQuery } from "@/components/planner/useMediaQuery";
 import {
   loadIndex, loadProfessors, professorHref, searchCourses, searchProfessors,
   type CourseRow, type ProfessorRecord,
@@ -21,6 +22,7 @@ export default function SearchBox({ className = "" }: { className?: string }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const boxRef = useRef<HTMLDivElement>(null);
+  const narrow = useMediaQuery("(max-width: 639.98px)");
 
   useEffect(() => {
     loadIndex().then((d) => setCourses(d.courses)).catch(() => {});
@@ -77,8 +79,11 @@ export default function SearchBox({ className = "" }: { className?: string }) {
           else if (e.key === "Enter") { e.preventDefault(); go(flat[active]); }
           else if (e.key === "Escape") setOpen(false);
         }}
-        placeholder="Search courses and professors"
-        className="w-full rounded-full border border-gray-200 bg-gray-50 py-2 pl-9 pr-4 text-sm outline-none transition
+        // A phone's bar leaves the box about a hundred pixels, which cut the
+        // long prompt off mid-word.
+        placeholder={narrow ? "Search" : "Search courses and professors"}
+        aria-label="Search courses and professors"
+        className="w-full rounded-full border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm outline-none transition sm:pr-4
                    placeholder:text-gray-400 focus:border-[#182B49] focus:bg-white
                    dark:border-white/10 dark:bg-white/5 dark:text-gray-100 dark:focus:border-[#FFCD00] dark:focus:bg-white/10"
       />

@@ -207,16 +207,32 @@ function OptionChip({
   );
 }
 
-function StatusPill({ status, families, selection, summary }: {
+function StatusPill({ status, families, selection, summary, onRetry }: {
   status: SectionStatus;
   families: LectureFamily[];
   selection: SectionSelection | undefined;
   summary: string;
+  onRetry: () => void;
 }) {
   if (status.loading) {
     return (
       <span className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
         <Loader2 className="h-3 w-3 animate-spin motion-reduce:animate-none" /> Loading sections…
+      </span>
+    );
+  }
+  if (status.failed) {
+    return (
+      <span role="status" className="flex flex-wrap items-center gap-x-1.5 text-xs text-amber-800 dark:text-amber-300">
+        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+        Couldn&rsquo;t load its sections.
+        <button
+          type="button"
+          onClick={onRetry}
+          className="font-semibold text-[#182B49] underline underline-offset-2 hover:no-underline dark:text-[#FFCD00]"
+        >
+          Try again
+        </button>
       </span>
     );
   }
@@ -282,7 +298,7 @@ function PartGroup({
 
 function CourseSections({
   entry, row, role, sec, tss, status, selection, conflicted, focused, committed, buildings,
-  onRemove, onSelect, onAutoPick, onPreview, onHover, onToggleFocus,
+  onRemove, onSelect, onAutoPick, onPreview, onHover, onToggleFocus, onRetry,
 }: {
   entry: ScheduleCourse;
   row: CourseRow | undefined;
@@ -301,6 +317,7 @@ function CourseSections({
   onPreview: (p: Preview | null) => void;
   onHover: (on: boolean) => void;
   onToggleFocus: () => void;
+  onRetry: () => void;
 }) {
   const course = entry.course;
   const style = ROLE_STYLES[role];
@@ -428,7 +445,7 @@ function CourseSections({
             </p>
           )}
           <div className="mt-1 flex items-center gap-2">
-            <StatusPill status={status} families={families} selection={selection} summary={summary} />
+            <StatusPill status={status} families={families} selection={selection} summary={summary} onRetry={onRetry} />
           </div>
           {conflicted && (
             <p className="mt-1 flex items-center gap-1 text-xs font-medium text-red-700 dark:text-red-400">
@@ -722,7 +739,7 @@ function QuickAdd({
 export default function SectionBoard({
   selectedCourses, platRows, platByCode, sectionsByCode, tssByCode, selections, committed,
   buildings, conflictCodes, focusCode, roleOf, sectionStatus,
-  onRemove, onSelect, onAutoPick, onClear, onAdd, onPreview, onHover, onFocus,
+  onRemove, onSelect, onAutoPick, onClear, onAdd, onPreview, onHover, onFocus, onRetry,
 }: {
   selectedCourses: ScheduleCourse[];
   platRows: CourseRow[];
@@ -747,6 +764,8 @@ export default function SectionBoard({
   onHover: (code: string | null) => void;
   /** Pin one course's every option onto the calendar, to choose there. */
   onFocus: (code: string | null) => void;
+  /** Asks again for section files that did not load. */
+  onRetry: () => void;
 }) {
   const scheduled = useMemo(() => new Set(selectedCourses.map((s) => s.course.code)), [selectedCourses]);
   const pending = selectedCourses.filter(({ course }) => {
@@ -801,6 +820,7 @@ export default function SectionBoard({
                     onPreview={onPreview}
                     onHover={(on) => onHover(on ? code : null)}
                     onToggleFocus={() => onFocus(focusCode === code ? null : code)}
+                    onRetry={onRetry}
                   />
                 );
               })}

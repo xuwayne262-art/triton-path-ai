@@ -2,7 +2,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import {
   directionsUrl, estimateWalk, firstBusyDay, formatDistance, haversineMeters, legKey, legStatus,
-  pinsFor, planDay, previewWalks, troubleLegs, weeklyWalking, type RoutedLeg,
+  pinsFor, planDay, previewWalks, troubleLegs, walkTroubles, weeklyWalking, type RoutedLeg,
 } from "./campus";
 import type { Building } from "./plat";
 import type { CalEvent } from "./sections";
@@ -101,6 +101,18 @@ describe("planDay", () => {
   test("staying in the same building is free", () => {
     assert.equal(plan.legs[1].status, "same");
     assert.deepEqual(plan.legs[1].walk, { meters: 0, minutes: 0 });
+  });
+
+  test("two overlapping classes are a clash to fix, not a walk that is tight", () => {
+    const overlap = planDay([
+      ev({ code: "MATH 20A", day: "Mon", startMin: 540, endMin: 590, buildingCode: "LEDDN" }),
+      ev({ code: "CSE 11", day: "Mon", startMin: 560, endMin: 610, buildingCode: "CENTR" }),
+      ev({ code: "CSE 12", day: "Mon", startMin: 600, endMin: 650, buildingCode: "CENTR" }),
+    ], "Mon", B);
+    assert.deepEqual(overlap.legs.map((l) => l.status), ["clash", "clash"]);
+    assert.equal(troubleLegs(overlap).length, 2);
+    assert.deepEqual(walkTroubles(overlap), []);
+    assert.deepEqual(walkTroubles(plan), [plan.legs[0]]);
   });
 
   test("a stop with no location has an unknown walk, not a made-up one", () => {

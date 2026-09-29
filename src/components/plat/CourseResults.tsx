@@ -69,8 +69,11 @@ export default function CourseResults({
     onChange({ ...filters, [k]: v });
 
   // Only non-default filters are worth showing back to the user. Which term is
-  // shown has its own switch in the header, so it needs no chip.
+  // shown has its own switch in the header, so it needs no chip. The text
+  // filter gets one too: typed into the panel and the panel closed, it went on
+  // hiding courses with nothing on screen to say so.
   const chips: { label: string; clear: () => void }[] = [];
+  if (filters.q.trim()) chips.push({ label: `Matching “${filters.q.trim()}”`, clear: () => set("q", "") });
   if (filters.openOnly) chips.push({ label: "Open seats only", clear: () => set("openOnly", false) });
   if (filters.noPre) chips.push({ label: "No prerequisite", clear: () => set("noPre", false) });
   if (filters.hasGrades) chips.push({ label: "Has grade history", clear: () => set("hasGrades", false) });

@@ -12,7 +12,7 @@ import RateProfessor from "@/components/plat/RateProfessor";
 import { useShortlist } from "@/components/plat/useShortlist";
 import { ratingKey, useTermRatings } from "@/components/plat/useTermRatings";
 import {
-  geLabel, loadIndex, loadSubject, ratingTone, typicalGrade,
+  HttpError, geLabel, loadIndex, loadSubject, ratingTone, typicalGrade,
   type CourseDetail, type PlatIndex, type ProfRecord, type SubjectFile,
 } from "@/lib/plat";
 import { CODE, isChoosable } from "@/lib/sections";
@@ -29,11 +29,21 @@ export default function CourseDetailPage({
 
   const [index, setIndex] = useState<PlatIndex | null>(null);
   const [subject, setSubject] = useState<SubjectFile | null>(null);
-  const [failed, setFailed] = useState(false);
+  /**
+   * "missing" when the subject has no file at all; "error" when the file could
+   * not be fetched. They used to be one state, so a dropped connection told a
+   * student that CSE 12 is not a course.
+   */
+  const [failed, setFailed] = useState<"missing" | "error" | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const { has, toggle } = useShortlist();
 
-  useEffect(() => { loadIndex().then(setIndex).catch(() => {}); }, []);
-  useEffect(() => { loadSubject(sub).then(setSubject).catch(() => setFailed(true)); }, [sub]);
+  useEffect(() => { loadIndex().then(setIndex).catch(() => {}); }, [attempt]);
+  useEffect(() => {
+    loadSubject(sub)
+      .then(setSubject)
+      .catch((err: unknown) => setFailed(err instanceof HttpError && err.status === 404 ? "missing" : "error"));
+  }, [sub, attempt]);
 
   // Navigating to another subject must not show the previous one's data while
   // the new file loads, so drop it during render rather than after a paint.
@@ -41,7 +51,7 @@ export default function CourseDetailPage({
   if (loadedFor !== sub) {
     setLoadedFor(sub);
     setSubject(null);
-    setFailed(false);
+    setFailed(null);
   }
 
   const detail: CourseDetail | undefined = subject?.courses[code];
@@ -67,7 +77,27 @@ export default function CourseDetailPage({
     [detail],
   );
 
-  if (failed || (subject && !detail)) {
+  if (failed === "error") {
+    return (
+      <PlatShell>
+        <div className="mx-auto max-w-2xl px-4 py-24 text-center">
+          <h1 className="text-xl font-bold">Couldn&apos;t load {code}</h1>
+          <p className="mt-2 text-sm text-gray-500">
+            The course data did not arrive — check your connection and try again.
+          </p>
+          <button
+            type="button"
+            onClick={() => { setFailed(null); setAttempt((n) => n + 1); }}
+            className="mt-6 rounded-lg bg-[#182B49] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1e3a63] dark:bg-[#FFCD00] dark:text-[#182B49]"
+          >
+            Try again
+          </button>
+        </div>
+      </PlatShell>
+    );
+  }
+
+  if (failed === "missing" || (subject && !detail)) {
     return (
       <PlatShell>
         <div className="mx-auto max-w-2xl px-4 py-24 text-center">

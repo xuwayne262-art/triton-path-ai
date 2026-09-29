@@ -55,6 +55,12 @@ describe("isPublicPath", () => {
       assert.equal(isPublicPath(path), false, path);
     }
   });
+
+  test("is not fooled by a page whose path merely starts like the login page", () => {
+    for (const path of ["/logins", "/login-history", "/loginx/planner"]) {
+      assert.equal(isPublicPath(path), false, path);
+    }
+  });
 });
 
 describe("expectsJson", () => {

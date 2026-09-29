@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CheckCircle2, ChevronRight, Plus, Search, Sparkles, X } from "lucide-react";
+import { CheckCircle2, ChevronRight, Loader2, Plus, Search, Sparkles, X } from "lucide-react";
 import {
   Collapsible,
   CollapsibleContent,
@@ -252,11 +252,15 @@ export default function CourseCatalog({
           // ── Matches ──
           <section aria-label="Search results">
             <p className={`${sectionHead} mb-1`} role="status">
-              {hits.length ? `${hits.length === 60 ? "Top 60" : hits.length} ${hits.length === 1 ? "match" : "matches"}` : "No matches"}
+              {!platRows.length
+                ? "Loading courses…"
+                : hits.length
+                  ? `${hits.length === 60 ? "Top 60" : hits.length} ${hits.length === 1 ? "match" : "matches"}`
+                  : "No matches"}
             </p>
             {hits.length ? (
               <ul className="m-0 list-none space-y-0.5 p-0">{hits.map((row) => renderRow(row))}</ul>
-            ) : (
+            ) : !platRows.length ? null : (
               <p className="px-1.5 py-6 text-center text-xs text-gray-500 dark:text-gray-400">
                 Nothing matches “{query}”. Try a course code like “CSE 12” or part of a title.
               </p>
@@ -330,6 +334,13 @@ export default function CourseCatalog({
                   </div>
                 )}
               </section>
+            ) : !platRows.length ? (
+              // The course list is still on its way. With no courses yet this
+              // used to say the schedule already covered everything on offer.
+              <p className="mb-3 flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-2 text-[11px] leading-snug text-gray-600 dark:bg-white/5 dark:text-gray-300">
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-[#182B49] motion-reduce:animate-none dark:text-[#FFCD00]" />
+                Loading this term&rsquo;s courses…
+              </p>
             ) : (
               <p className="mb-3 rounded-lg bg-slate-50 px-2.5 py-2 text-[11px] leading-snug text-gray-600 dark:bg-white/5 dark:text-gray-300">
                 <Sparkles className="mr-1 inline h-3.5 w-3.5 text-[#182B49] dark:text-[#FFCD00]" />

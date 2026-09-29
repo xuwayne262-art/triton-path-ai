@@ -7,9 +7,14 @@
  * protected, because the dataset is the product, not just the pages showing it.
  */
 
-/** Prefixes reachable without a session. */
+/**
+ * Prefixes reachable without a session. Each ends in a slash: "/login" as a
+ * bare prefix also let through any future page whose path merely began with
+ * it — "/logins", "/login-history" — unauthenticated. The page itself is the
+ * exact match below.
+ */
 const PUBLIC_PREFIXES = [
-  "/login",
+  "/login/",
   "/api/auth/",
   "/_next/",
   "/brand/", // the UCSDPlans logo shown on the login page

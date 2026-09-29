@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowLeft, Calendar, LayoutGrid, Moon, Sun } from "lucide-react";
+import ContactMenu from "@/components/plat/ContactMenu";
 import TridentMark from "@/components/plat/TridentMark";
 import ProgramPicker from "@/components/planner/ProgramPicker";
 import SyncBadge from "@/components/planner/SyncBadge";
@@ -88,6 +89,8 @@ function PlannerChrome({ children }: { children: React.ReactNode }) {
             onCollege={setSelectedCollege}
           />
           <SyncBadge status={syncStatus} />
+          {/* A phone's planner bar has no room left; the site's own bar carries it there. */}
+          <ContactMenu iconOnly className="max-md:hidden" />
           <button
             type="button"
             onClick={toggleDarkMode}

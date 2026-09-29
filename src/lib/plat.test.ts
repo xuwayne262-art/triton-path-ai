@@ -2,8 +2,8 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  gpaTier, LETTER_SCALE, prereqKnown, ratingTone, sortCourses, typicalGrade,
-  type CourseRow, type PlatIndex,
+  HttpError, gpaTier, LETTER_SCALE, loadJSON, prereqKnown, ratingTone, refreshedLabel, sortCourses,
+  typicalGrade, type CourseRow, type PlatIndex,
 } from "./plat";
 
 /** The dataset the site serves, so these checks cover every real course. */
@@ -127,5 +127,51 @@ describe("rating colours", () => {
     assert.match(ratingTone(3), /amber/);
     assert.match(ratingTone(2.9), /red/);
     assert.equal(ratingTone(null), "text-gray-400");
+  });
+});
+
+describe("loading the dataset", () => {
+  test("a failed request is not remembered, so asking again tries again", async () => {
+    const real = globalThis.fetch;
+    let calls = 0;
+    globalThis.fetch = (async () => {
+      calls += 1;
+      if (calls === 1) throw new TypeError("network down");
+      return new Response(JSON.stringify({ ok: true }), { status: 200 });
+    }) as typeof fetch;
+    try {
+      await assert.rejects(loadJSON("/data/plat/test-retry.json"), TypeError);
+      assert.deepEqual(await loadJSON("/data/plat/test-retry.json"), { ok: true });
+      // A success is still fetched once and then served from memory.
+      await loadJSON("/data/plat/test-retry.json");
+      assert.equal(calls, 2);
+    } finally {
+      globalThis.fetch = real;
+    }
+  });
+
+  test("an error status says which one, so a missing file is told from a dropped one", async () => {
+    const real = globalThis.fetch;
+    globalThis.fetch = (async () => new Response("", { status: 404 })) as typeof fetch;
+    try {
+      await assert.rejects(loadJSON("/data/plat/subject/NOPE.json"), (err: unknown) =>
+        err instanceof HttpError && err.status === 404);
+    } finally {
+      globalThis.fetch = real;
+    }
+  });
+});
+
+describe("the schedule's refresh date", () => {
+  test("reads the timestamp the build writes, in San Diego time", () => {
+    assert.equal(refreshedLabel("2026-09-25 15:53:24+00"), "Sep 25, 2026");
+    // Just after midnight UTC is still the day before in San Diego.
+    assert.equal(refreshedLabel("2026-09-26 02:00:00+00"), "Sep 25, 2026");
+    assert.equal(refreshedLabel(index.meta.refreshed), "Sep 25, 2026");
+  });
+
+  test("says nothing rather than something wrong", () => {
+    assert.equal(refreshedLabel(null), null);
+    assert.equal(refreshedLabel("soon"), null);
   });
 });

@@ -101,7 +101,7 @@ export default function DepartmentPage({ params }: { params: Promise<{ sub: stri
 
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
           <span className="text-sm text-gray-500 dark:text-gray-400">
-            {offered} of {rows.length} courses on the {data?.meta.termName} schedule
+            {data ? `${offered} of ${rows.length} courses on the ${data.meta.termName} schedule` : "Loading courses…"}
           </span>
           {profs.length > 0 && (
             <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -138,7 +138,7 @@ export default function DepartmentPage({ params }: { params: Promise<{ sub: stri
             <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
             <span className="min-w-0">
               <span className="block text-xs font-semibold text-amber-900 dark:text-amber-200">
-                {data?.meta.termName} offerings published by {listing.department}
+                {data?.meta.termName ?? "This term’s"} offerings published by {listing.department}
               </span>
               <span className="mt-0.5 block text-[11px] leading-relaxed text-amber-800/80 dark:text-amber-200/70">
                 {listing.note

@@ -1,9 +1,9 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import {
-  autoPick, buildEvents, clashingCourses, compactRange, forcedSelection, groupSections,
-  isChoosable, isWaitlistOnly, oneOffsFor, sectionBuildingCode, sectionTopic, sectionWhere,
-  selectedSections, shortWhen,
+  autoPick, buildEvents, clashingCourses, compactRange, fitAll, forcedSelection, groupSections,
+  isChoosable, isWaitlistOnly, oneOffsFor, sameSelection, sectionBuildingCode, sectionTopic,
+  sectionWhere, selectedSections, shortWhen,
 } from "./sections";
 import type { SectionTuple } from "./plat";
 
@@ -122,6 +122,91 @@ describe("auto-pick and seats", () => {
       row("B00", "LE", "TuTh", "9:30a", "10:50a", { avail: 12 }),
     ];
     assert.equal(autoPick(sec, [])?.family, "B");
+  });
+
+  test("filling in a discussion keeps the lecture the student chose", () => {
+    // B has more open seats, so a fresh pick would take it; A is the chosen professor.
+    const sec = [
+      row("A00", "LE", "MWF", "9:00a", "9:50a", { avail: 2 }),
+      row("A01", "DI", "Tu", "1:00p", "1:50p"),
+      row("B00", "LE", "TuTh", "9:30a", "10:50a", { avail: 80 }),
+      row("B01", "DI", "W", "3:00p", "3:50p"),
+    ];
+    assert.deepEqual(autoPick(sec, [], { family: "A", parts: {} }), { family: "A", parts: { DI: "A01" } });
+  });
+
+  test("a chosen discussion is kept when it still fits", () => {
+    const sec = [
+      row("A00", "LE", "MWF", "9:00a", "9:50a"),
+      row("A01", "DI", "Tu", "1:00p", "1:50p"),
+      row("A02", "DI", "Th", "1:00p", "1:50p"),
+    ];
+    assert.deepEqual(autoPick(sec, [], { family: "A", parts: { DI: "A02" } }), { family: "A", parts: { DI: "A02" } });
+  });
+
+  test("a chosen lecture that cannot fit gives way rather than failing", () => {
+    const sec = [
+      row("A00", "LE", "MWF", "9:00a", "9:50a"),
+      row("B00", "LE", "TuTh", "9:30a", "10:50a"),
+    ];
+    const busy = [{ day: "Mon" as const, startMin: 9 * 60, endMin: 10 * 60 }];
+    assert.equal(autoPick(sec, busy, { family: "A", parts: {} })?.family, "B");
+  });
+});
+
+describe("fitAll — Fit my sections", () => {
+  const math = [
+    row("A00", "LE", "MWF", "9:00a", "9:50a", { avail: 1 }),
+    row("A01", "DI", "Tu", "1:00p", "1:50p"),
+    row("B00", "LE", "MWF", "11:00a", "11:50a", { avail: 90 }),
+    row("B01", "DI", "Th", "1:00p", "1:50p"),
+  ];
+  const cse = [
+    row("A00", "LE", "MWF", "9:00a", "9:50a"),
+    row("B00", "LE", "MWF", "2:00p", "2:50p"),
+  ];
+
+  test("leaves a finished pick alone, even when a fresh pick would differ", () => {
+    const out = fitAll([{ code: "MATH 20A", sec: math, selection: { family: "A", parts: { DI: "A01" } } }], []);
+    assert.deepEqual(out, { picks: {}, failed: [] });
+  });
+
+  test("fits the rest around the picks already made", () => {
+    const out = fitAll([
+      { code: "MATH 20A", sec: math, selection: { family: "A", parts: { DI: "A01" } } },
+      { code: "CSE 11", sec: cse, selection: undefined },
+    ], []);
+    // CSE 11's A00 would clash with MATH 20A's chosen 9am lecture.
+    assert.deepEqual(out, { picks: { "CSE 11": { family: "B", parts: {} } }, failed: [] });
+  });
+
+  test("moves the later of two clashing picks, not the earlier", () => {
+    const out = fitAll([
+      { code: "MATH 20A", sec: math, selection: { family: "A", parts: { DI: "A01" } } },
+      { code: "CSE 11", sec: cse, selection: { family: "A", parts: {} } },
+    ], []);
+    assert.deepEqual(out.picks, { "CSE 11": { family: "B", parts: {} } });
+  });
+
+  test("says which course cannot fit, and leaves its pick as it was", () => {
+    const only9 = [row("A00", "LE", "MWF", "9:00a", "9:50a")];
+    const out = fitAll([
+      { code: "MATH 20A", sec: math, selection: { family: "A", parts: { DI: "A01" } } },
+      { code: "CHEM 6A", sec: only9, selection: { family: "A", parts: {} } },
+    ], []);
+    assert.deepEqual(out, { picks: {}, failed: ["CHEM 6A"] });
+  });
+
+  test("plans around courses with no section data", () => {
+    const fixed = [{ day: "Mon" as const, startMin: 9 * 60, endMin: 10 * 60 }];
+    const out = fitAll([{ code: "MATH 20A", sec: math, selection: undefined }], fixed);
+    assert.deepEqual(out.picks, { "MATH 20A": { family: "B", parts: { DI: "B01" } } });
+  });
+
+  test("an unchanged pick is not reported as a change", () => {
+    assert.equal(sameSelection({ family: "A", parts: { DI: "A01" } }, { family: "A", parts: { DI: "A01" } }), true);
+    assert.equal(sameSelection({ family: "A", parts: { DI: "A01" } }, { family: "A", parts: {} }), false);
+    assert.equal(sameSelection(undefined, { family: "A", parts: {} }), false);
   });
 });
 

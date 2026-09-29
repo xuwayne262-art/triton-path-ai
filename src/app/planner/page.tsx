@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
-  AlertTriangle, CalendarClock, CalendarDays, Footprints, ListChecks, Map as MapIcon, PanelLeftClose,
-  PanelLeftOpen, Search, Wand2, X,
+  AlertTriangle, CalendarClock, CalendarDays, Footprints, ImageDown, ListChecks, Map as MapIcon,
+  PanelLeftClose, PanelLeftOpen, Search, Wand2, X,
 } from "lucide-react";
 import CourseCatalog from "@/components/triton/CourseCatalog";
 import SavedCourses, { ColorLegend } from "@/components/triton/SavedCourses";
@@ -12,6 +12,9 @@ import WeekCalendar, { type Highlight } from "@/components/planner/WeekCalendar"
 import MapPanel, { type MapDay } from "@/components/planner/MapPanel";
 import ExamList, { type ExamItem } from "@/components/planner/ExamList";
 import EventSheet from "@/components/planner/EventSheet";
+import ScheduleImageDialog from "@/components/planner/ScheduleImageDialog";
+import { scheduleImageInput, type ScheduleImageInput } from "@/lib/scheduleImage";
+import { todayInSanDiego } from "@/lib/housing/terms";
 import { CAN_HOVER, PHONE, useMediaQuery } from "@/components/planner/useMediaQuery";
 import { useWalkRoutes } from "@/components/planner/useWalkRoutes";
 import { usePref } from "@/components/planner/usePref";
@@ -19,7 +22,7 @@ import type { Course, DayOfWeek } from "@/components/triton/types";
 import {
   noopSubscribe, passDate, timelineServerSnapshot, timelineSnapshot,
 } from "@/lib/plat";
-import { WEEKDAYS, planDay, troubleLegs } from "@/lib/campus";
+import { WEEKDAYS, planDay, walkTroubles } from "@/lib/campus";
 import {
   CODE, eventsForRow, findFamily, groupSections, oneOffsFor, rowsFor, selectedSections,
   type CalEvent,
@@ -119,12 +122,13 @@ export default function TermWorkspacePage() {
     searchQuery, setSearchQuery,
     selectedCourses, addToSchedule, removeFromSchedule, clearSchedule, restoreSchedule,
     sectionsByCode, tssByCode, selections, setSelection, chooseOption, autoPickFor, autoPickAll,
+    restoreSelections, retrySections,
     sectionStatus, events, optionEvents, conflictCodes, totalUnits,
     plannedCourses, addAICourseToPlan, removePlannedCourse,
     platRows, platByCode, savedCourses, toggleSaved, addCourseByCode,
     selectedMajor, selectedMinor, selectedCollege,
     roleOf, getColorForCourse, activeRequirements,
-    term, buildings,
+    term, termName, buildings,
   } = usePlanner();
 
   // ── View state ──────────────────────────────────────────────────────────────
@@ -152,6 +156,8 @@ export default function TermWorkspacePage() {
   const [focusCode, setFocusCode] = useState<string | null>(null);
   const [hl, setHl] = useState<Highlight | null>(null);
   const [toast, setToast] = useState<Toast | null>(null);
+  /** The week, frozen at the moment "Save image" was pressed, while its dialog is open. */
+  const [picture, setPicture] = useState<ScheduleImageInput | null>(null);
 
   // With courses on the schedule, the rail opens on choosing their sections.
   const tab: RailTab = chosenTab || (selectedCourses.length ? "sections" : "browse");
@@ -162,9 +168,10 @@ export default function TermWorkspacePage() {
   );
 
   // "M" toggles the map; Escape lets go of whatever is focused or previewed.
+  // Neither reaches past the picture dialog to the page behind it.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (isTyping(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (picture || isTyping(e.target) || e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.key === "m" || e.key === "M") toggleMap();
       if (e.key === "Escape") {
         setFocusCode(null);
@@ -173,7 +180,7 @@ export default function TermWorkspacePage() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [toggleMap]);
+  }, [toggleMap, picture]);
 
   useEffect(() => {
     if (!toast) return;
@@ -264,7 +271,7 @@ export default function TermWorkspacePage() {
   // ── Walking ─────────────────────────────────────────────────────────────────
 
   const rough = useMemo(() => WEEKDAYS.map((d) => planDay(events, d, buildings)), [events, buildings]);
-  const worried = rough.some((p) => troubleLegs(p).length > 0);
+  const worried = rough.some((p) => walkTroubles(p).length > 0);
   // UCSD is asked only when something will show the answer: the open map, or a
   // warning an estimate raised that a real route might settle.
   const { routes, source: routeSource } = useWalkRoutes(events, term, mapShown || worried);
@@ -272,7 +279,8 @@ export default function TermWorkspacePage() {
     () => WEEKDAYS.map((d) => planDay(events, d, buildings, routes)),
     [events, buildings, routes],
   );
-  const troubles = useMemo(() => plans.flatMap(troubleLegs), [plans]);
+  // Walks that do not fit their break. Overlaps are reported as clashes instead.
+  const troubles = useMemo(() => plans.flatMap(walkTroubles), [plans]);
 
   // ── Exams ───────────────────────────────────────────────────────────────────
 
@@ -371,6 +379,45 @@ export default function TermWorkspacePage() {
     setPreview(null);
     setToast({ text: `${gone.course.code} removed`, action: { label: "Undo", run: () => restoreSchedule(snapshot) } });
   }, [selectedCourses, removeFromSchedule, restoreSchedule]);
+
+  // "Fit my sections" says what it changed and can be undone — it rewrites
+  // choices across the whole term, and used to do it without a word.
+  const fitWithReport = useCallback(() => {
+    const { changed, failed, before } = autoPickAll();
+    const undo = changed.length ? { label: "Undo", run: () => restoreSelections(before) } : undefined;
+    const list = (codes: string[]) =>
+      codes.length <= 2 ? codes.join(" and ") : `${codes.slice(0, 2).join(", ")} and ${codes.length - 2} more`;
+    const kept = selectedCourses.filter(({ course }) => sectionsByCode[course.code]?.length).length
+      - changed.length - failed.length;
+    if (failed.length) {
+      setToast({ text: `${list(failed)} can’t fit around the rest — choose by hand`, action: undo });
+    } else if (changed.length) {
+      setToast({
+        text: `Fitted ${changed.length} ${changed.length === 1 ? "course" : "courses"}${kept > 0 ? ", kept your other picks" : ""}`,
+        action: undo,
+      });
+    } else {
+      setToast({ text: "Everything already fits — nothing changed" });
+    }
+  }, [autoPickAll, restoreSelections, selectedCourses, sectionsByCode]);
+
+  const openPicture = useCallback(() => {
+    setPicture(scheduleImageInput({
+      termName,
+      events,
+      exams,
+      today: todayInSanDiego(),
+      courses: selectedCourses.map(({ course }) => ({
+        code: course.code,
+        title: course.title,
+        units: course.units,
+        role: roleOf(course),
+        instructor: platByCode.get(course.code)?.p ?? null,
+        sec: sectionsByCode[course.code],
+        selection: selections[course.code],
+      })),
+    }));
+  }, [termName, events, exams, selectedCourses, roleOf, platByCode, sectionsByCode, selections]);
 
   const clearWithUndo = useCallback(() => {
     const snapshot = selectedCourses;
@@ -519,6 +566,7 @@ export default function TermWorkspacePage() {
                 // "Compare" draws a course's options on the week, so show the week.
                 if (isPhone && code) pickView("week");
               }}
+              onRetry={retrySections}
             />
           ) : (
             <CourseCatalog
@@ -558,7 +606,7 @@ export default function TermWorkspacePage() {
               darkMode ? "border-white/10" : "border-gray-200"
             }`}
           >
-            <h1 className="text-sm font-bold">Fall 2026</h1>
+            <h1 className="text-sm font-bold">{termName || "This term"}</h1>
             <span className="text-xs tabular-nums text-gray-500 dark:text-gray-400">
               {selectedCourses.length} {selectedCourses.length === 1 ? "course" : "courses"} ·{" "}
               {totalUnits} units
@@ -591,12 +639,23 @@ export default function TermWorkspacePage() {
               <PassStrip />
               <button
                 type="button"
-                onClick={autoPickAll}
+                onClick={fitWithReport}
                 disabled={!selectedCourses.length}
+                title="Pick sections for every course that fit together — sections you already chose stay if they fit"
                 className="flex items-center gap-1.5 rounded-lg bg-[#182B49] px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#1e3a63] disabled:cursor-not-allowed disabled:opacity-40 dark:bg-[#FFCD00] dark:text-[#182B49] dark:hover:bg-[#FFD740]"
               >
                 <Wand2 className="h-3.5 w-3.5" />
                 Fit my sections
+              </button>
+              <button
+                type="button"
+                onClick={openPicture}
+                disabled={!events.length}
+                title={events.length ? "Save your whole week as a picture" : "Pick sections first — then save your week as a picture"}
+                className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/15 dark:text-gray-200 dark:hover:bg-white/5"
+              >
+                <ImageDown className="h-3.5 w-3.5" />
+                Save image
               </button>
               <button
                 type="button"
@@ -757,7 +816,7 @@ export default function TermWorkspacePage() {
         <div role="status" className="pointer-events-none absolute bottom-3 left-3 z-40 w-[316px] max-w-[calc(100%-1.5rem)]">
           {toast && (
             <div className="pointer-events-auto flex items-center gap-2 rounded-xl bg-[#182B49] px-3 py-2 text-[13px] text-white shadow-xl dark:bg-[#FFCD00] dark:text-[#182B49]">
-              <span className="min-w-0 flex-1 truncate font-semibold">{toast.text}</span>
+              <span className="line-clamp-2 min-w-0 flex-1 font-semibold leading-snug">{toast.text}</span>
               {toast.action && (
                 <button
                   type="button"
@@ -778,6 +837,8 @@ export default function TermWorkspacePage() {
             </div>
           )}
         </div>
+
+        {picture && <ScheduleImageDialog input={picture} onClose={() => setPicture(null)} />}
 
         {sheet && isPhone && (
           <EventSheet

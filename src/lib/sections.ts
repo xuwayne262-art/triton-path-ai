@@ -374,12 +374,24 @@ function rank(s: SectionTuple): number {
  * you in one, so an emptier discussion is no better a pick than a fuller one.
  * Returns null when nothing fits, which is a real answer: the course cannot be
  * added this term without moving something else.
+ *
+ * `prefer` is what the student has already chosen, and it is tried first: its
+ * lecture before any other, and within that lecture the sub-sections already
+ * picked. Asked to fill in a discussion, this used to re-rank every lecture by
+ * open seats and could swap out the professor the student had chosen.
  */
-export function autoPick(sec: SectionTuple[], busy: Meeting[]): SectionSelection | null {
+export function autoPick(
+  sec: SectionTuple[],
+  busy: Meeting[],
+  prefer?: SectionSelection,
+): SectionSelection | null {
   const families = groupSections(sec);
+  const preferred = (f: LectureFamily) => (f.key === prefer?.family ? 1 : 0);
 
   const ordered = [...families].sort(
-    (a, b) => (b.lecture ? rank(b.lecture) : 0) - (a.lecture ? rank(a.lecture) : 0),
+    (a, b) =>
+      preferred(b) - preferred(a) ||
+      (b.lecture ? rank(b.lecture) : 0) - (a.lecture ? rank(a.lecture) : 0),
   );
 
   for (const family of ordered) {
@@ -392,12 +404,16 @@ export function autoPick(sec: SectionTuple[], busy: Meeting[]): SectionSelection
     let ok = true;
 
     for (const part of family.parts) {
-      const candidate = part.sections
-        .find((s) => {
-          const m = meetingsOfRows(rowsFor(part, s[CODE]));
-          // A section with no published time cannot clash with anything.
-          return !clashesWith(m, busy) && !clashesWith(m, taken);
-        });
+      const kept = preferred(family) ? prefer?.parts[part.type] : undefined;
+      // Sorting is stable, so everything but the kept option stays in UCSD's order.
+      const options = kept
+        ? [...part.sections].sort((x, y) => (y[CODE] === kept ? 1 : 0) - (x[CODE] === kept ? 1 : 0))
+        : part.sections;
+      const candidate = options.find((s) => {
+        const m = meetingsOfRows(rowsFor(part, s[CODE]));
+        // A section with no published time cannot clash with anything.
+        return !clashesWith(m, busy) && !clashesWith(m, taken);
+      });
       if (!candidate) { ok = false; break; }
       parts[part.type] = candidate[CODE];
       taken.push(...meetingsOfRows(rowsFor(part, candidate[CODE])));
@@ -407,6 +423,69 @@ export function autoPick(sec: SectionTuple[], busy: Meeting[]): SectionSelection
   }
 
   return null;
+}
+
+/** Two selections name the same lecture and the same sub-sections. */
+export function sameSelection(a: SectionSelection | undefined, b: SectionSelection | undefined): boolean {
+  if (!a || !b) return a === b;
+  if (a.family !== b.family) return false;
+  const ka = Object.keys(a.parts).filter((k) => a.parts[k]);
+  const kb = Object.keys(b.parts).filter((k) => b.parts[k]);
+  return ka.length === kb.length && ka.every((k) => a.parts[k] === b.parts[k]);
+}
+
+export interface FitCourse {
+  code: string;
+  sec: SectionTuple[];
+  selection: SectionSelection | undefined;
+}
+
+export interface FitOutcome {
+  /** New selections, only for the courses whose sections changed. */
+  picks: Record<string, SectionSelection>;
+  /** Courses that could not be fitted around the rest; their picks are left alone. */
+  failed: string[];
+}
+
+/**
+ * Fits every course's sections into one week — "Fit my sections".
+ *
+ * A pick the student finished, and that clashes with nothing already settled,
+ * is a decision rather than a gap: it stays exactly as it is and the rest is
+ * fitted around it. Everything else is filled in order, each course planning
+ * around those before it, keeping a chosen lecture wherever a discussion can
+ * be found to go with it. This used to re-pick every course from scratch, so
+ * pressing it after choosing one professor's lecture by hand could quietly
+ * swap that lecture for whichever had the most open seats.
+ *
+ * `fixed` is what cannot move: meetings of courses with no section data.
+ */
+export function fitAll(courses: FitCourse[], fixed: Meeting[]): FitOutcome {
+  const busy = [...fixed];
+  const settled = new Set<string>();
+
+  for (const c of courses) {
+    const families = groupSections(c.sec);
+    if (!families.length || !isComplete(families, c.selection)) continue;
+    const meetings = meetingsOfRows(selectedSections(families, c.selection));
+    if (clashesWith(meetings, busy)) continue;
+    busy.push(...meetings);
+    settled.add(c.code);
+  }
+
+  const picks: Record<string, SectionSelection> = {};
+  const failed: string[] = [];
+  for (const c of courses) {
+    if (settled.has(c.code) || !groupSections(c.sec).length) continue;
+    const picked = autoPick(c.sec, busy, c.selection);
+    if (!picked) {
+      failed.push(c.code);
+      continue;
+    }
+    busy.push(...meetingsOfRows(selectedSections(groupSections(c.sec), picked)));
+    if (!sameSelection(picked, c.selection)) picks[c.code] = picked;
+  }
+  return { picks, failed };
 }
 
 // ── Calendar events ──────────────────────────────────────────────────────────
@@ -640,6 +719,13 @@ export function dayWindow(events: CalEvent[]): { startMin: number; endMin: numbe
     startMin: Math.max(0, Math.floor(lo / 60) * 60),
     endMin: Math.min(24 * 60, Math.ceil(hi / 60) * 60),
   };
+}
+
+/** 540 -> "9:00a", the spelling the schedule data uses and compactRange reads. */
+export function minutesToClock(min: number): string {
+  const h = Math.floor(min / 60);
+  const m = String(min % 60).padStart(2, "0");
+  return `${h % 12 === 0 ? 12 : h % 12}:${m}${h >= 12 ? "p" : "a"}`;
 }
 
 /** 570 -> "9:30 AM" */
