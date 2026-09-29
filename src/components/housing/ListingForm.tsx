@@ -452,14 +452,22 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
                     aria-label="Street address"
                     className={input}
                   />
-                  <button
-                    type="button"
-                    onClick={find}
-                    disabled={finding || query.trim().length < 5}
-                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#182B49] px-3 py-2 text-sm font-semibold text-white disabled:opacity-40 dark:bg-[#FFCD00] dark:text-[#182B49]"
+                  {/* The reason sits on a wrapper: a disabled button shows no tooltip in every browser. */}
+                  <span
+                    className="inline-flex shrink-0"
+                    title={query.trim().length < 5
+                      ? "Type the street address first — at least 5 characters, e.g. 3990 Nobel Dr"
+                      : "Find this address on the map"}
                   >
-                    {finding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Find
-                  </button>
+                    <button
+                      type="button"
+                      onClick={find}
+                      disabled={finding || query.trim().length < 5}
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#182B49] px-3 py-2 text-sm font-semibold text-white disabled:opacity-40 dark:bg-[#FFCD00] dark:text-[#182B49]"
+                    >
+                      {finding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Find
+                    </button>
+                  </span>
                 </div>
                 {choices && (
                   <div className="space-y-1">

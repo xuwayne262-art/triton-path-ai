@@ -194,6 +194,13 @@ student's dashboard. A line the parser cannot read is surfaced to the student
 rather than dropped, because a silently short transcript reads as a complete
 one.
 
+**Degree progress counts it.** The 4-year plan's progress panel adds every
+course the saved history shows completed — a passing grade or a P, each course
+once, at the units earned (`completedCourses` in `src/lib/plannerBridge.ts`) —
+to the plan and this term's schedule. Transfer and AP credit is not counted: a
+row can grant several UCSD courses at once, and splitting its units would be a
+guess. With every bar at zero and nothing saved, the panel links to `/import`.
+
 ### Storing them
 
 Records are keyed by `sha256(AUTH_SECRET ‖ email)`, so the database holds no
@@ -210,6 +217,14 @@ with no policy**, which is the part that matters — Supabase publishes the anon
 key to every browser, and PostgREST will serve any table in the `public` schema,
 so without RLS that key could read every student's transcript. The app connects
 with the service role key, which bypasses RLS, from server code only.
+
+**All three migrations (001, 002, 003) must run in the Supabase project that the
+deployment's `SUPABASE_URL` points at** — for ucsdplans.com that is the project
+whose URL starts `acvensugaqcdpbccouhm`. They are idempotent, so running one
+again is harmless. A table created in any other project leaves the matching page
+failing on every load: `/import` says it could not load the saved Academic
+History, `/housing` that it could not load the listings, and the server log
+shows `PGRST205` ("Could not find the table") for the file that was missed.
 
 The driver talks to PostgREST with plain `fetch`, so neither store adds a
 dependency.

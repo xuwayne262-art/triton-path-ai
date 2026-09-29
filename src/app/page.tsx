@@ -267,7 +267,11 @@ export default function HomePage() {
                         <span className="w-12 shrink-0 font-mono text-xs font-bold text-[#1B2C4F] dark:text-[#FFC72C]">
                           {s.code}
                         </span>
-                        <span className="min-w-0 flex-1 truncate text-xs text-gray-600 group-hover:underline dark:text-gray-300">
+                        {/* A narrow rail cuts "Computer Science & Engineering" short; the tooltip has it whole. */}
+                        <span
+                          title={`${s.name} — ${s.offered} ${s.offered === 1 ? "course" : "courses"} this term`}
+                          className="min-w-0 flex-1 truncate text-xs text-gray-600 group-hover:underline dark:text-gray-300"
+                        >
                           {s.name}
                         </span>
                         <span className="shrink-0 font-mono text-[11px] tabular-nums text-gray-400">
@@ -332,7 +336,7 @@ export default function HomePage() {
                 <Sparkles className="h-5 w-5 text-[#FFC72C]" />
                 <p className="mt-3 text-sm font-bold">Plan the whole degree</p>
                 <p className="mt-1.5 text-xs leading-relaxed text-white/70">
-                  Drop saved courses into the four-year planner and check them against your major.
+                  Drop saved courses into your 4-year plan and check them against your major.
                 </p>
                 <span className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-[#FFC72C]">
                   Open the planner

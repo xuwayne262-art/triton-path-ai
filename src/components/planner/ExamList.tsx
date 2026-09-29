@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, GraduationCap } from "lucide-react";
-import { timeToMinutes, type SectionTuple } from "@/lib/plat";
+import { dayLabel, timeToMinutes, type SectionTuple } from "@/lib/plat";
 import { ROLE_STYLES, type CourseRole } from "@/lib/plannerBridge";
 // A one-off row keeps its date in the column weekly rows use for days.
 import { DAYS as DATE, END, START, compactRange, oneOffLabel, sectionWhere } from "@/lib/sections";
@@ -18,9 +18,6 @@ export interface ExamItem {
   role: CourseRole;
   row: SectionTuple;
 }
-
-const dateLabel = (iso: string) =>
-  new Date(`${iso}T12:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
 function overlaps(a: ExamItem, b: ExamItem): boolean {
   if (a.row[DATE] !== b.row[DATE] || a.code === b.code) return false;
@@ -59,7 +56,7 @@ export default function ExamList({ items }: { items: ExamItem[] }) {
             className={`flex flex-wrap items-baseline gap-x-2 text-[11px] sm:flex-nowrap ${clashing.has(it) ? "font-semibold text-red-600 dark:text-red-400" : ""}`}
           >
             <span className="h-2 w-2 shrink-0 translate-y-[1px] rounded-full" style={{ background: ROLE_STYLES[it.role].hex }} />
-            <span className="w-[5.5rem] shrink-0 tabular-nums">{dateLabel(it.row[DATE])}</span>
+            <span className="w-[5.5rem] shrink-0 tabular-nums">{dayLabel(it.row[DATE])}</span>
             <span className="w-[5.5rem] shrink-0 tabular-nums text-gray-500 dark:text-gray-400">
               {compactRange(it.row[START], it.row[END])}
             </span>

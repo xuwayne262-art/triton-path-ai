@@ -10,6 +10,7 @@
 
 import type { Course, CourseCategory, CourseTime, DayOfWeek } from "@/components/triton/types";
 import { splitDays, type CourseRow } from "@/lib/plat";
+import { earnsUnits, type ParsedHistory } from "@/lib/history/parse";
 
 /** "CSE 11" -> "cse11", matching the id shape the planner already generates. */
 export const codeToId = (code: string) => code.toLowerCase().replace(/\s+/g, "");
@@ -65,6 +66,36 @@ export function platRowToCourse(row: CourseRow, majorSubs?: Set<string>): Course
     categories,
     time: rowToTimes(row),
   };
+}
+
+/**
+ * The courses an Academic History shows completed, for degree progress: a
+ * passing grade or a P — the same courses it counts as units earned — each
+ * once, with the units actually earned. A course the catalog knows takes its
+ * requirement categories from the catalog row, like any planned course; one it
+ * does not still counts toward the totals.
+ *
+ * Transfer and exam credit is left out: a row can grant several UCSD courses at
+ * once, and splitting its units between them would be a guess.
+ */
+export function completedCourses(
+  history: Pick<ParsedHistory, "terms"> | null,
+  rowFor: (code: string) => CourseRow | undefined,
+  majorSubs?: Set<string>,
+): Course[] {
+  const byCode = new Map<string, Course>();
+  for (const term of history?.terms ?? []) {
+    for (const c of term.courses) {
+      if (!earnsUnits(c.status)) continue;
+      const row = rowFor(c.code);
+      const base: Course = row
+        ? platRowToCourse(row, majorSubs)
+        : { id: codeToId(c.code), code: c.code, title: c.title, units: c.units, departments: [c.subject] };
+      // A repeated course counts once, as UCSD counts it.
+      byCode.set(c.code, { ...base, units: c.units });
+    }
+  }
+  return [...byCode.values()];
 }
 
 // ── Colour meaning ───────────────────────────────────────────────────────────

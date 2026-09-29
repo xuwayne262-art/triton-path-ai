@@ -20,9 +20,11 @@ import { PlannerProvider, usePlanner } from "./PlannerProvider";
  * on settings made once a year, above the calendar that is the point.
  */
 
+// One name each, on every screen: the first was "Term workspace" here, "This
+// term" on a phone, and "AI Planner" in the site's own bar.
 const TABS = [
-  { href: "/planner", label: "Term workspace", short: "This term", icon: Calendar },
-  { href: "/planner/four-year", label: "4-year plan", short: "4 years", icon: LayoutGrid },
+  { href: "/planner", label: "This term", icon: Calendar },
+  { href: "/planner/four-year", label: "4-year plan", icon: LayoutGrid },
 ] as const;
 
 function PlannerChrome({ children }: { children: React.ReactNode }) {
@@ -48,16 +50,17 @@ function PlannerChrome({ children }: { children: React.ReactNode }) {
         </Link>
 
         <nav aria-label="Planner" className="flex min-w-0 items-center gap-1">
+          {/* On a phone the logo beside it is the way back, and the tabs need the room. */}
           <Link
             href="/"
-            className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white max-sm:hidden"
           >
             <ArrowLeft className="h-4 w-4" />
             <span className="hidden sm:inline">Courses</span>
           </Link>
           <span aria-hidden className="mx-1 hidden h-5 w-px shrink-0 bg-gray-200 dark:bg-white/10 sm:block" />
           <div className="flex items-center gap-0.5 rounded-lg bg-gray-100 p-0.5 dark:bg-white/5">
-            {TABS.map(({ href, label, short, icon: Icon }) => {
+            {TABS.map(({ href, label, icon: Icon }) => {
               const active = pathname === href;
               return (
                 <Link
@@ -71,8 +74,7 @@ function PlannerChrome({ children }: { children: React.ReactNode }) {
                   }`}
                 >
                   <Icon className="hidden h-4 w-4 min-[400px]:block" />
-                  <span className="sm:hidden">{short}</span>
-                  <span className="hidden sm:inline">{label}</span>
+                  {label}
                 </Link>
               );
             })}

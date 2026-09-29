@@ -68,6 +68,25 @@ export function refreshedLabel(refreshed: string | null | undefined): string | n
   });
 }
 
+/**
+ * "2026-12-11" -> "Fri, Dec 11": the one way the site writes a calendar date.
+ * Finals printed as "2026-12-11" on a course page and "Sat, Dec 5" in the
+ * planner. `year` adds ", 2026"; `weekday: false` drops "Fri, ". The date is
+ * read as a date, not an instant, so no time zone can move it a day. Anything
+ * that is not YYYY-MM-DD comes back unchanged.
+ */
+export function dayLabel(iso: string, { weekday = true, year = false } = {}): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso ?? "").trim());
+  if (!m) return iso;
+  return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12)).toLocaleDateString("en-US", {
+    ...(weekday ? { weekday: "short" as const } : {}),
+    month: "short",
+    day: "numeric",
+    ...(year ? { year: "numeric" as const } : {}),
+    timeZone: "UTC",
+  });
+}
+
 /** One campus building, keyed by its code ("CENTR") in buildings.json. */
 export interface Building {
   /** What the schedule calls it: "Ledden Auditorium". */
@@ -189,13 +208,16 @@ const cache = new Map<string, Promise<unknown>>();
  * Fetches a dataset file once per page load. A failure is not remembered: it
  * used to be cached like a success, so one dropped request on a phone left that
  * subject broken until a full reload, however many times it was asked for again.
+ *
+ * `prepare` runs once on the parsed file, before anything sees it.
  */
-export function loadJSON<T>(url: string): Promise<T> {
+export function loadJSON<T>(url: string, prepare?: (file: T) => T): Promise<T> {
   let hit = cache.get(url);
   if (!hit) {
-    const request = fetch(url).then((r) => {
+    const request = fetch(url).then(async (r) => {
       if (!r.ok) throw new HttpError(url, r.status);
-      return r.json();
+      const file = (await r.json()) as T;
+      return prepare ? prepare(file) : file;
     });
     request.catch(() => {
       if (cache.get(url) === request) cache.delete(url);
@@ -206,11 +228,26 @@ export function loadJSON<T>(url: string): Promise<T> {
   return hit as Promise<T>;
 }
 
-export const loadIndex = () => loadJSON<PlatIndex>("/data/plat/index.json");
+/**
+ * "Introductory Ecology—Organisms and Habitat" -> "Introductory Ecology — Organisms and Habitat".
+ * The catalog closes up its em dashes (108 titles); the site spaces them, as it
+ * does its own. En dashes are ranges — "K–12", "P–12" — and stay closed.
+ */
+export const tidyTitle = (title: string): string =>
+  typeof title === "string" ? title.replace(/\s*—\s*/g, " — ") : title;
+
+export const loadIndex = () =>
+  loadJSON<PlatIndex>("/data/plat/index.json", (file) => {
+    for (const c of file.courses) c.t = tidyTitle(c.t);
+    return file;
+  });
 export const loadGE = () => loadJSON<GEFile>("/data/plat/ge.json");
 export const loadBuildings = () => loadJSON<BuildingsFile>("/data/plat/buildings.json");
 export const loadSubject = (sub: string) =>
-  loadJSON<SubjectFile>(`/data/plat/subject/${encodeURIComponent(sub)}.json`);
+  loadJSON<SubjectFile>(`/data/plat/subject/${encodeURIComponent(sub)}.json`, (file) => {
+    for (const c of Object.values(file.courses)) c.t = tidyTitle(c.t);
+    return file;
+  });
 
 // ── Enrollment calendar ──────────────────────────────────────────────────────
 
@@ -484,15 +521,25 @@ export function seatState(avail: number | null, limit: number | null) {
 // ── Search ───────────────────────────────────────────────────────────────────
 
 const COLLEGE_NAMES: Record<string, string> = {
-  revelle: "Revelle", muir: "Muir", marshall: "Marshall", warren: "Warren",
-  erc: "ERC", sixth: "Sixth", seventh: "Seventh", eighth: "Eighth",
+  revelle: "Revelle College", muir: "Muir College", marshall: "Marshall College", warren: "Warren College",
+  erc: "Eleanor Roosevelt College", sixth: "Sixth College", seventh: "Seventh College", eighth: "Eighth College",
 };
 
-export const collegeName = (slug: string) => COLLEGE_NAMES[slug] ?? slug;
+/**
+ * A college's one name on the site: "seventh" (a GE key) and "Seventh" (the
+ * planner's choice) are both "Seventh College", and "ERC" is written out. It
+ * was "Warren" in one place, "Warren College" in another and "Warren GEs" in
+ * a third.
+ */
+export const collegeName = (college: string) => COLLEGE_NAMES[college.toLowerCase()] ?? college;
 
+/** "Warren College GE requirements" — the heading for a college's GE set, wherever it appears. */
+export const collegeGEs = (college: string) => `${collegeName(college)} GE requirements`;
+
+/** "seventh:Alternatives · Humanities" -> "Seventh College GE · Alternatives · Humanities" */
 export function geLabel(key: string): string {
   const [college, ...rest] = key.split(":");
-  return `${collegeName(college)} · ${rest.join(":")}`;
+  return `${collegeName(college)} GE · ${rest.join(":")}`;
 }
 
 /** Normalizes "cse11", "CSE 11", "cse-11" to a comparable form. */

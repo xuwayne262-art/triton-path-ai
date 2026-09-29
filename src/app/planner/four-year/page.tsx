@@ -5,6 +5,8 @@ import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 import { Button } from "@/components/ui/button";
 import { COLLEGE_REQUIREMENTS } from "@/data/requirements";
 import RightSidebar from "@/components/triton/RightSidebar";
+import { collegeGEs } from "@/lib/plat";
+import { scheduleYear } from "@/lib/planSlot";
 import { usePlanner, type Quarter, type Year } from "../PlannerProvider";
 
 const YEARS: Year[] = [1, 2, 3, 4];
@@ -36,6 +38,7 @@ export default function FourYearPlanPage() {
     plannerYear, setPlannerYear, plannerQuarter, setPlannerQuarter,
     isGeneratingPlan, planError, generateFourYearPlan,
     selectedCourses, selectedCollege, degreeProgress, progressCourses, getColorForCourse,
+    termName, historyStatus, completedCount, retryHistory,
   } = usePlanner();
 
   // What the add button will actually move: this term's courses not already
@@ -43,6 +46,18 @@ export default function FourYearPlanPage() {
   // then add none when they were all planned already.
   const planned = new Set(plannedCourses.map((p) => p.course.code));
   const toAdd = selectedCourses.filter((sc) => !planned.has(sc.course.code)).length;
+  const allPlanned = selectedCourses.length > 0 && toAdd === 0;
+  // "Fall 2026 (Year 3)": which term, and where the plan already has it.
+  const plannedYear = allPlanned ? scheduleYear(plannedCourses, selectedCourses.map((sc) => sc.course.code)) : null;
+  const schedule = termName ? `your ${termName} schedule` : "this term’s schedule";
+  const addLabel = allPlanned
+    ? `${termName || "This term"}${plannedYear ? ` (Year ${plannedYear})` : ""} is already planned`
+    : `Add ${toAdd} from ${termName || "this term"}`;
+  const addTitle = allPlanned
+    ? `Every course on ${schedule} is already in the plan${plannedYear ? `, in Year ${plannedYear}` : ""}`
+    : selectedCourses.length === 0
+      ? `Nothing is on ${schedule} yet — add courses on the This term tab first`
+      : `Puts the ${toAdd} ${toAdd === 1 ? "course" : "courses"} on ${schedule} that ${toAdd === 1 ? "isn’t" : "aren’t"} planned yet into Year ${plannerYear}, ${plannerQuarter}`;
 
   const selectCls = `px-3 py-1.5 text-sm rounded-lg border ${
     darkMode ? "bg-gray-700 border-gray-600 text-white" : "bg-white border-gray-200"
@@ -100,22 +115,19 @@ export default function FourYearPlanPage() {
                 </select>
               </div>
 
-              {/* Names the courses it will move, since they live on the other page. */}
-              <Button
-                onClick={addToPlanner}
-                disabled={toAdd === 0}
-                title={
-                  selectedCourses.length > 0 && toAdd === 0
-                    ? "Every course on this term's schedule is already in the plan"
-                    : undefined
-                }
-                className="bg-[#182B49] text-white hover:bg-[#1e3a63] dark:bg-[#FFCD00] dark:text-[#182B49] dark:hover:bg-[#FFD740]"
-              >
-                <Plus className="w-4 h-4 mr-1" />
-                {selectedCourses.length > 0 && toAdd === 0
-                  ? "This term is already planned"
-                  : `Add ${toAdd} from this term`}
-              </Button>
+              {/* Names the term and the courses it will move, since they live on
+                  the other page. A disabled button shows no tooltip in every
+                  browser, so the reason sits on a wrapper. */}
+              <span title={addTitle} className="inline-flex">
+                <Button
+                  onClick={addToPlanner}
+                  disabled={toAdd === 0}
+                  className="bg-[#182B49] text-white hover:bg-[#1e3a63] dark:bg-[#FFCD00] dark:text-[#182B49] dark:hover:bg-[#FFD740]"
+                >
+                  <Plus className="w-4 h-4 mr-1" />
+                  {addLabel}
+                </Button>
+              </span>
 
               {AI_AUTOFILL_ENABLED && <div className="ml-auto flex items-center gap-2">
                 {planError && (
@@ -146,7 +158,7 @@ export default function FourYearPlanPage() {
           {selectedCollege && (
             <div className={`mb-4 p-4 ${panelCls}`}>
               <h3 className={`text-sm font-semibold mb-3 ${darkMode ? "text-white" : "text-gray-900"}`}>
-                {selectedCollege} College GE Requirements
+                {collegeGEs(selectedCollege)}
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 {COLLEGE_REQUIREMENTS[selectedCollege].requirements.map((req) => (
@@ -279,6 +291,10 @@ export default function FourYearPlanPage() {
         degreeProgress={degreeProgress}
         courses={progressCourses}
         selectedCollege={selectedCollege}
+        termName={termName}
+        historyStatus={historyStatus}
+        completedCount={completedCount}
+        onRetryHistory={retryHistory}
       />
     </div>
   );

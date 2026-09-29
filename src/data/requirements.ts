@@ -39,19 +39,20 @@ export const COLLEGE_REQUIREMENTS: Record<College, RequirementGroup> = {
 
   Warren: {
     id: "college-warren",
-    groupLabel: "Warren GEs",
+    groupLabel: "Warren College GE requirements",
     color: COLLEGE_COLORS.Warren,
     requirements: [
       { category: "Warren Writing",   label: "Warren Writing",   targetUnits: 8  },
       { category: "Ethics & Society", label: "Ethics & Society", targetUnits: 8  },
-      { category: "PofC 1",           label: "PofC 1",           targetUnits: 24 },
+      // Spelled out on first use, which every list of these rows starts with.
+      { category: "PofC 1",           label: "Programs of Concentration (PofC) 1", targetUnits: 24 },
       { category: "PofC 2",           label: "PofC 2",           targetUnits: 24 },
     ],
   },
 
   Revelle: {
     id: "college-revelle",
-    groupLabel: "Revelle GEs",
+    groupLabel: "Revelle College GE requirements",
     color: COLLEGE_COLORS.Revelle,
     requirements: [
       { category: "Humanities (HUM)", label: "Humanities (HUM)", targetUnits: 24 },
@@ -65,7 +66,7 @@ export const COLLEGE_REQUIREMENTS: Record<College, RequirementGroup> = {
 
   Muir: {
     id: "college-muir",
-    groupLabel: "Muir GEs",
+    groupLabel: "Muir College GE requirements",
     color: COLLEGE_COLORS.Muir,
     requirements: [
       { category: "Muir Writing (MCWP)",       label: "Muir Writing (MCWP)",       targetUnits: 8  },
@@ -77,7 +78,7 @@ export const COLLEGE_REQUIREMENTS: Record<College, RequirementGroup> = {
 
   Marshall: {
     id: "college-marshall",
-    groupLabel: "Marshall GEs",
+    groupLabel: "Marshall College GE requirements",
     color: COLLEGE_COLORS.Marshall,
     requirements: [
       { category: "DOC Sequence",        label: "DOC Sequence",        targetUnits: 12 },
@@ -91,7 +92,7 @@ export const COLLEGE_REQUIREMENTS: Record<College, RequirementGroup> = {
 
   ERC: {
     id: "college-erc",
-    groupLabel: "ERC GEs",
+    groupLabel: "Eleanor Roosevelt College GE requirements",
     color: COLLEGE_COLORS.ERC,
     requirements: [
       { category: "MMW Sequence",    label: "MMW Sequence",    targetUnits: 20 },
@@ -105,7 +106,7 @@ export const COLLEGE_REQUIREMENTS: Record<College, RequirementGroup> = {
 
   Sixth: {
     id: "college-sixth",
-    groupLabel: "Sixth College GEs",
+    groupLabel: "Sixth College GE requirements",
     color: COLLEGE_COLORS.Sixth,
     requirements: [
       { category: "CAT Sequence",  label: "CAT Sequence",  targetUnits: 12 },
@@ -120,7 +121,7 @@ export const COLLEGE_REQUIREMENTS: Record<College, RequirementGroup> = {
 
   Seventh: {
     id: "college-seventh",
-    groupLabel: "Seventh College GEs",
+    groupLabel: "Seventh College GE requirements",
     color: COLLEGE_COLORS.Seventh,
     requirements: [
       { category: "Synthesis (SYN)", label: "Synthesis (SYN)", targetUnits: 12 },
@@ -134,7 +135,7 @@ export const COLLEGE_REQUIREMENTS: Record<College, RequirementGroup> = {
 
   Eighth: {
     id: "college-eighth",
-    groupLabel: "Eighth College GEs",
+    groupLabel: "Eighth College GE requirements",
     color: COLLEGE_COLORS.Eighth,
     requirements: [
       { category: "Eighth Core",     label: "Eighth Core",     targetUnits: 16 },

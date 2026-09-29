@@ -1,6 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { isArrangedCourse, recommend, requirementCategories } from "./plannerBridge";
+import { completedCourses, isArrangedCourse, recommend, requirementCategories } from "./plannerBridge";
+import type { GradeStatus, HistoryCourse } from "./history/parse";
 import type { CourseRow } from "./plat";
 
 function course(k: string, over: Partial<CourseRow> = {}): CourseRow {
@@ -80,5 +81,52 @@ describe("recommend", () => {
     assert.equal(groups.length, 1);
     assert.equal(groups[0].category, null);
     assert.deepEqual(groups[0].items.map((i) => i.row.k), ["ECON 1"]);
+  });
+});
+
+describe("completedCourses — what an Academic History adds to degree progress", () => {
+  const taken = (code: string, grade: string | null, status: GradeStatus, units = 4): HistoryCourse => {
+    const [subject, number] = code.split(" ");
+    return { code, subject, number, title: code, units, grade, points: null, status };
+  };
+  const history = (...courses: HistoryCourse[]) => ({ terms: [{ code: "FA24", label: "Fall Quarter 2024", courses }] });
+  const catalog = new Map([["CSE 12", course("CSE 12")], ["CSE 30", course("CSE 30")], ["CSE 100", course("CSE 100")]]);
+  const rowFor = (code: string) => catalog.get(code);
+
+  test("counts a passing grade and a P — not an F, a W, or a course still in progress", () => {
+    const done = completedCourses(
+      history(taken("CSE 12", "B+", "graded"), taken("CSE 30", "P", "pass"),
+        taken("CSE 100", "F", "fail"), taken("CSE 101", "W", "withdrawn"), taken("CSE 105", null, "progress")),
+      rowFor, CS,
+    );
+    assert.deepEqual(done.map((c) => c.code), ["CSE 12", "CSE 30"]);
+  });
+
+  test("uses the units actually earned, and the catalog's requirement categories", () => {
+    const [cse12] = completedCourses(history(taken("CSE 12", "A", "graded", 2)), rowFor, CS);
+    assert.equal(cse12.units, 2);
+    assert.deepEqual(cse12.categories, ["Lower Division"]);
+  });
+
+  test("counts a repeated course once", () => {
+    const done = completedCourses(
+      { terms: [
+        { code: "FA24", label: "Fall Quarter 2024", courses: [taken("CSE 12", "D", "graded")] },
+        { code: "WI25", label: "Winter Quarter 2025", courses: [taken("CSE 12", "A", "graded")] },
+      ] },
+      rowFor, CS,
+    );
+    assert.equal(done.length, 1);
+  });
+
+  test("keeps a course the catalog does not know, so the totals still count it", () => {
+    const [odd] = completedCourses(history(taken("PHYS 1AL", "A", "graded", 2)), rowFor, CS);
+    assert.equal(odd.code, "PHYS 1AL");
+    assert.equal(odd.units, 2);
+    assert.equal(odd.categories, undefined);
+  });
+
+  test("adds nothing without a saved history", () => {
+    assert.deepEqual(completedCourses(null, rowFor, CS), []);
   });
 });

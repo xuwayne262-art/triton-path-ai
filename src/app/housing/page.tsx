@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, CalendarCheck, List, Loader2, Map as MapIcon, Plus, Search, X } from "lucide-react";
+import { ArrowRight, CalendarCheck, List, Loader2, Map as MapIcon, Plus, RotateCw, Search, X } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import { useTheme } from "@/components/plat/theme";
 import { usePref } from "@/components/planner/usePref";
@@ -61,7 +61,12 @@ export default function HousingPage() {
 
   // Coming back from a listing shows the list this tab already has, then refreshes it.
   const [listings, setListings] = useState<PublicListing[] | null>(keptListings);
+  /** Why the list did not load: the API's code, or OFFLINE when nothing answered. */
   const [loadError, setLoadError] = useState<string | null>(null);
+  /** A request for the list is in flight — so "Retry" can show that it is trying. */
+  const [fetching, setFetching] = useState(false);
+  /** Retries pressed since the list last loaded; only the student's own presses count. */
+  const [retries, setRetries] = useState(0);
   const [focus, setFocus] = useState<string | null>(null);
   const [phoneView, setPhoneView] = useState<"list" | "map">("list");
 
@@ -72,20 +77,35 @@ export default function HousingPage() {
   const { quarter, space, rentCap, sort } = filters;
 
   const load = useCallback(async () => {
+    setFetching(true);
     try {
       const res = await fetch("/api/housing", { cache: "no-store" });
-      const body = (await res.json().catch(() => ({}))) as { listings?: PublicListing[]; error?: string };
-      if (!res.ok) throw new Error(body.error ?? "Could not load listings.");
+      const body = (await res.json().catch(() => ({}))) as { listings?: PublicListing[]; code?: string };
+      if (!res.ok) {
+        setLoadError(body.code ?? "FAILED");
+        return;
+      }
       keepListings(body.listings ?? []);
       setListings(body.listings ?? []);
       setLoadError(null);
-    } catch (err) {
-      setLoadError(err instanceof Error ? err.message : "Could not load listings.");
-      setListings((prev) => prev ?? []);
+      setRetries(0);
+    } catch {
+      // No answer at all: offline, or the request never reached the server.
+      setLoadError("OFFLINE");
+    } finally {
+      // A failed load leaves `listings` as it was — null when nothing ever
+      // loaded. It used to become [], which put "0 places" above the error, as
+      // if the board had been checked and found empty.
+      setFetching(false);
     }
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  const retry = () => {
+    setRetries((n) => n + 1);
+    load();
+  };
 
   // ── What every place is measured against ──────────────────────────────────
   const placed = useMemo(
@@ -173,6 +193,16 @@ export default function HousingPage() {
   const filtering = quarter !== "any" || rentCap !== null || space !== "any";
   const clearFilters = () => setFilters({ ...NO_FILTERS, sort });
 
+  /**
+   * What the list shows. A failure and an empty board never appear together:
+   * the board is only called empty once it has answered, and a refresh that
+   * failed with nothing on screen is a failure, not "0 places".
+   */
+  const board: "loading" | "error" | "ready" =
+    listings === null ? (loadError ? "error" : "loading")
+    : loadError && shown.length === 0 ? "error"
+    : "ready";
+
   return (
     <PlatShell>
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
@@ -242,8 +272,10 @@ export default function HousingPage() {
               {/* The count and the order share a line: both describe the list, neither is a filter. */}
               <div className="mt-0.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {listings ? `${shown.length} ${shown.length === 1 ? "place" : "places"}` : "Loading…"}
-                  {filtering && (
+                  {board === "ready"
+                    ? `${shown.length} ${shown.length === 1 ? "place" : "places"}`
+                    : board === "loading" ? "Loading…" : "Listings unavailable"}
+                  {filtering && board === "ready" && (
                     <>
                       {" · "}
                       <button
@@ -256,14 +288,19 @@ export default function HousingPage() {
                     </>
                   )}
                 </p>
-                <label className="flex shrink-0 items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                <label
+                  className="flex shrink-0 items-center gap-1 text-xs text-gray-500 dark:text-gray-400"
+                  title={placed.length
+                    ? "Shortest commute: least time a week getting to and from your classes"
+                    : "Closest to campus: shortest trip to Library Walk"}
+                >
                   Sort:
                   <select
                     value={sort}
                     onChange={(e) => setFilters({ ...filters, sort: e.target.value as Sort })}
                     className="cursor-pointer rounded-md bg-transparent py-0.5 font-semibold text-gray-800 outline-none transition hover:text-[#182B49] focus-visible:ring-2 focus-visible:ring-[#FFCD00] dark:text-gray-100 dark:hover:text-[#FFCD00] max-md:text-base max-md:font-medium"
                   >
-                    <option value="commute">{placed.length ? "Shortest week" : "Closest to campus"}</option>
+                    <option value="commute">{placed.length ? "Shortest commute" : "Closest to campus"}</option>
                     <option value="rent">Lowest rent</option>
                     <option value="newest">Newest</option>
                   </select>
@@ -283,30 +320,28 @@ export default function HousingPage() {
               </div>
 
               <div className="mt-4 space-y-3">
-                {loadError && (
-                  <div role="alert" className="flex items-start justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-                    <p>{loadError}</p>
-                    <button type="button" onClick={load} className="shrink-0 font-semibold underline underline-offset-2 hover:no-underline">
-                      Try again
-                    </button>
-                  </div>
-                )}
-                {!listings ? (
+                {board === "loading" ? (
                   <div className="h-44 animate-pulse rounded-2xl bg-gray-100 dark:bg-white/5" />
-                ) : shown.length ? (
-                  shown.map(({ l, m }) => (
-                    <ListingCard key={l.id} listing={l} measure={m} mode={mode} focused={focus === l.id} onFocus={setFocus} />
-                  ))
-                ) : filtering && listed.length ? (
-                  <div className="rounded-2xl border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500 dark:border-white/10 dark:text-gray-400">
-                    Nothing matches those filters yet.
-                    <button type="button" onClick={clearFilters} className="mt-2 block w-full text-xs font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]">
-                      Clear filters
-                    </button>
-                  </div>
-                ) : loadError ? null : (
-                  // A board that could not load says so above; inviting a post it could not save would mislead.
-                  <FirstPost />
+                ) : board === "error" && loadError ? (
+                  // Instead of the list, never beside an empty one: inviting a post
+                  // the board could not show would mislead.
+                  <LoadFailed code={loadError} retries={retries} retrying={fetching} onRetry={retry} />
+                ) : (
+                  <>
+                    {loadError && (
+                      <div role="status" className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                        <p>Couldn&rsquo;t refresh the listings, so these are the ones loaded earlier.</p>
+                        <RetryButton retrying={fetching} onRetry={retry} quiet />
+                      </div>
+                    )}
+                    {shown.length ? (
+                      shown.map(({ l, m }) => (
+                        <ListingCard key={l.id} listing={l} measure={m} mode={mode} focused={focus === l.id} onFocus={setFocus} />
+                      ))
+                    ) : (
+                      <EmptyBoard filtered={listed.length > 0} onClear={clearFilters} />
+                    )}
+                  </>
                 )}
               </div>
             </section>
@@ -458,14 +493,22 @@ function CheckAddress({
             className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#182B49] dark:border-white/10 dark:bg-[#0d1420] dark:focus:border-[#FFCD00] max-md:text-base"
           />
         </label>
-        <button
-          type="submit"
-          disabled={busy || q.trim().length < 5}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#182B49] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#1e3a63] disabled:opacity-40 dark:bg-[#FFCD00] dark:text-[#182B49]"
+        {/* The reason sits on a wrapper: a disabled button shows no tooltip in every browser. */}
+        <span
+          className="inline-flex shrink-0"
+          title={q.trim().length < 5
+            ? "Type a street address first — at least 5 characters, e.g. 3990 Nobel Dr"
+            : "See the trip to your classes from this address"}
         >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-          Check
-        </button>
+          <button
+            type="submit"
+            disabled={busy || q.trim().length < 5}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-[#182B49] px-3 py-2 text-sm font-semibold text-white transition hover:bg-[#1e3a63] disabled:opacity-40 dark:bg-[#FFCD00] dark:text-[#182B49]"
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            Check
+          </button>
+        </span>
       </form>
       {error && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
       {choices && (
@@ -613,21 +656,91 @@ function MyListings({ rows, onChanged }: { rows: PublicListing[]; onChanged: () 
   );
 }
 
-/** An empty board, said plainly, with the reason to be first. */
-function FirstPost() {
+const PRIMARY =
+  "inline-flex items-center gap-1.5 rounded-lg bg-[#182B49] px-3 py-2 text-xs font-semibold text-white transition " +
+  "hover:bg-[#1e3a63] disabled:opacity-60 dark:bg-[#FFCD00] dark:text-[#182B49] dark:hover:bg-[#FFD740]";
+const SECONDARY =
+  "inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold " +
+  "text-gray-700 transition hover:border-gray-300 dark:border-white/10 dark:bg-white/5 dark:text-gray-200";
+
+/** Says it is trying while it tries, so a second failure does not look like a dead button. */
+function RetryButton({ retrying, onRetry, quiet = false }: { retrying: boolean; onRetry: () => void; quiet?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onRetry}
+      disabled={retrying}
+      className={quiet ? "inline-flex shrink-0 items-center gap-1 font-semibold underline underline-offset-2 hover:no-underline disabled:opacity-60" : PRIMARY}
+    >
+      {retrying ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCw className="h-3.5 w-3.5" />}
+      {retrying ? "Retrying…" : "Retry"}
+    </button>
+  );
+}
+
+/**
+ * The board could not answer: said in place of the list, with the one thing to
+ * do about it. `code` is the API's (AUTH_REQUIRED, HOUSING_STORE_…), OFFLINE
+ * when nothing answered at all.
+ */
+function LoadFailed({
+  code, retries, retrying, onRetry,
+}: { code: string; retries: number; retrying: boolean; onRetry: () => void }) {
+  const signedOut = code === "AUTH_REQUIRED";
+  const title = signedOut
+    ? "You’re signed out"
+    : code === "HOUSING_STORE_UNCONFIGURED" ? "Housing isn’t available right now" : "Couldn’t load the listings";
+  const body = signedOut
+    ? "Your sign-in expired, so the listings can’t be shown. Sign in again to see them."
+    : code === "OFFLINE"
+      ? "Your device didn’t reach UCSDPlans. Check your connection, then retry."
+      : "Something went wrong on our side, not yours. Your filters and checked addresses are kept.";
+
+  return (
+    <div role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-7 text-center dark:border-amber-500/30 dark:bg-amber-500/10">
+      <p className="text-sm font-bold text-amber-900 dark:text-amber-100">{title}</p>
+      <p className="mx-auto mt-1.5 max-w-sm text-xs leading-relaxed text-amber-800 dark:text-amber-200">{body}</p>
+      {/* A retry that fails again looks like a dead button unless something says it tried. */}
+      {!signedOut && retries > 0 && !retrying && (
+        <p className="mx-auto mt-1.5 max-w-sm text-xs leading-relaxed text-amber-800 dark:text-amber-200">
+          Still not loading after {retries === 1 ? "a retry" : `${retries} retries`}. If it keeps happening, tell us
+          through Contact in the top bar.
+        </p>
+      )}
+      <div className="mt-4">
+        {signedOut ? (
+          <a href="/login?next=%2Fhousing" className={PRIMARY}>Sign in again</a>
+        ) : (
+          <RetryButton retrying={retrying} onRetry={onRetry} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The board answered and nothing is shown: said plainly, with what to do next.
+ * `filtered` means places exist but the filters hide every one of them.
+ */
+function EmptyBoard({ filtered, onClear }: { filtered: boolean; onClear: () => void }) {
   return (
     <div className="rounded-2xl border border-dashed border-gray-300 px-5 py-8 text-center dark:border-white/15">
-      <p className="text-sm font-bold">No places posted yet</p>
+      <p className="text-sm font-bold">{filtered ? "No places match your filters" : "No places posted yet"}</p>
       <p className="mx-auto mt-1.5 max-w-sm text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-        Studying abroad next quarter, or leaving a lease early? Post it here, and every student looking sees
-        exactly how far it is from their own classes.
+        {filtered
+          ? "Try another quarter, a higher max rent or any kind of space — or clear the filters to see every place posted."
+          : "Studying abroad next quarter, or leaving a lease early? Post it here, and every student looking sees exactly how far it is from their own classes."}
       </p>
-      <Link
-        href="/housing/new"
-        className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-[#182B49] px-3 py-2 text-xs font-semibold text-white hover:bg-[#1e3a63] dark:bg-[#FFCD00] dark:text-[#182B49]"
-      >
-        List your place <ArrowRight className="h-3.5 w-3.5" />
-      </Link>
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+        {filtered && (
+          <button type="button" onClick={onClear} className={PRIMARY}>
+            Clear filters
+          </button>
+        )}
+        <Link href="/housing/new" className={filtered ? SECONDARY : PRIMARY}>
+          List your place <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
+      </div>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { Popover } from "radix-ui";
 import { Check, ChevronDown, GraduationCap, Search } from "lucide-react";
 import { COLLEGES, type College } from "@/components/triton/types";
 import { UCSD_MAJORS, UCSD_MINORS } from "@/data/ucsdMajorsMinors";
+import { collegeName } from "@/lib/plat";
 
 /**
  * Major, minor and college, behind one button.
@@ -26,7 +27,7 @@ export default function ProgramPicker({
   onCollege: (c: College | null) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const summary = [major || "Choose a major", minor !== "None" ? `${minor} minor` : "", college ?? ""]
+  const summary = [major || "Choose a major", minor !== "None" ? `${minor} minor` : "", college ? collegeName(college) : ""]
     .filter(Boolean)
     .join(" · ");
 
@@ -75,7 +76,8 @@ export default function ProgramPicker({
             />
             <fieldset>
               <legend className="mb-1.5 text-xs font-semibold text-gray-600 dark:text-gray-300">College</legend>
-              <div className="grid grid-cols-3 gap-1.5">
+              {/* Two columns, so each college fits under its full name. */}
+              <div className="grid grid-cols-2 gap-1.5">
                 {[null, ...COLLEGES].map((c) => {
                   const on = college === c;
                   return (
@@ -90,7 +92,7 @@ export default function ProgramPicker({
                           : "border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:text-gray-200 dark:hover:bg-white/5"
                       }`}
                     >
-                      {c ?? "None yet"}
+                      {c ? collegeName(c) : "None yet"}
                     </button>
                   );
                 })}

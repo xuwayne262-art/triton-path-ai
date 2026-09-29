@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Check, Loader2, Trash2 } from "lucide-react";
+import { AlertTriangle, Check, FileText, Loader2, RotateCw, Trash2 } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import { isEmpty, parseAcademicHistory, type ParsedHistory } from "@/lib/history/parse";
 
@@ -23,39 +23,64 @@ import { isEmpty, parseAcademicHistory, type ParsedHistory } from "@/lib/history
 
 type Phase = "idle" | "parsed" | "saving" | "saved" | "error";
 
+/**
+ * The saved copy, as the page last heard of it. "none" is a first visit, not a
+ * failure; "failed" means one may well exist and did not arrive. They used to
+ * share the paste box's error state, so typing cleared a failed load and a
+ * failed load read like a broken paste.
+ */
+type SavedState = "loading" | "none" | "saved" | "signedOut" | "failed";
+
 export default function ImportPage() {
   const [text, setText] = useState("");
   const [parsed, setParsed] = useState<ParsedHistory | null>(null);
   const [saved, setSaved] = useState<ParsedHistory | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [savedState, setSavedState] = useState<SavedState>("loading");
+  /** Retries pressed since it last loaded, and whether one is in flight. */
+  const [retries, setRetries] = useState(0);
+  const [retrying, setRetrying] = useState(false);
 
-  // What they imported last time, so the page opens on their record rather
-  // than on an empty box that looks like nothing was ever saved.
+  // What they imported last time, so the page opens on their Academic History
+  // rather than on an empty box that looks like nothing was ever saved.
   useEffect(() => {
     let live = true;
     fetch("/api/history", { cache: "no-store" })
       .then(async (res) => {
         if (!live) return;
         // Nothing saved yet: the common case, and not an error.
-        if (res.status === 204) return;
+        if (res.status === 204) {
+          setSavedState("none");
+          return;
+        }
+        if (res.status === 401) {
+          setSavedState("signedOut");
+          return;
+        }
         if (!res.ok) throw new Error(String(res.status));
-        setSaved((await res.json()) as ParsedHistory);
+        const record = (await res.json()) as ParsedHistory;
+        if (!live) return;
+        setSaved(record);
+        setSavedState("saved");
       })
       .catch(() => {
-        // A record that could not be fetched is not a record that does not
-        // exist. Saying nothing here showed an empty page — exactly what a
-        // student sees when their record "is not there" on another device.
-        if (!live) return;
-        setPhase("error");
-        setMessage("Could not load your saved record, so it is not shown here. Reload the page to try again.");
+        // One that could not be fetched is not one that does not exist.
+        // Saying nothing here showed an empty page — exactly what a student
+        // sees when their record "is not there" on another device.
+        if (live) setSavedState("failed");
       })
-      .finally(() => live && setLoading(false));
+      .finally(() => live && setRetrying(false));
     return () => {
       live = false;
     };
-  }, []);
+  }, [retries]);
+
+  // Each press asks again; the count says so if it fails once more.
+  const retry = () => {
+    setRetrying(true);
+    setRetries((n) => n + 1);
+  };
 
   const review = parsed ?? saved;
   const isPreview = parsed != null;
@@ -96,6 +121,7 @@ export default function ImportPage() {
         throw new Error(body.error || "That did not save.");
       }
       setSaved((await res.json()) as ParsedHistory);
+      setSavedState("saved");
       setParsed(null);
       // The transcript text has done its job; keeping it in memory serves
       // nothing and it is the most sensitive thing on this page.
@@ -114,6 +140,7 @@ export default function ImportPage() {
       const res = await fetch("/api/history", { method: "DELETE" });
       if (!res.ok && res.status !== 204) throw new Error("That did not delete.");
       setSaved(null);
+      setSavedState("none");
       setParsed(null);
       setText("");
       setPhase("idle");
@@ -126,14 +153,79 @@ export default function ImportPage() {
   return (
     <PlatShell>
       <div className="mx-auto max-w-3xl px-4 py-8">
-        <h1 className="text-2xl font-black">Import your Academic History</h1>
+        <h1 className="text-2xl font-black">Your Academic History</h1>
         <p className="mt-2 max-w-prose text-sm leading-relaxed text-gray-600 dark:text-gray-300">
           Paste it straight from TritonLink — no download, no file to find. Your
           transcript is read in this browser and never uploaded; only the course
           list is saved to your account, and it carries no name or PID.
         </p>
 
-        <ol className="mt-5 list-decimal space-y-1 rounded-xl bg-gray-50 py-4 pl-9 pr-4 text-sm text-gray-700 dark:bg-white/5 dark:text-gray-300">
+        {savedState === "loading" && (
+          <p className="mt-6 flex items-center gap-2 text-sm text-gray-500">
+            <Loader2 className="h-4 w-4 animate-spin" /> Checking for a saved Academic History…
+          </p>
+        )}
+
+        {savedState === "none" && !parsed && (
+          // A first visit. Nothing went wrong, so nothing here is red.
+          <section className="mt-6 rounded-2xl border border-[#182B49]/15 bg-slate-50 p-5 dark:border-white/10 dark:bg-white/[0.03]">
+            <h2 className="flex items-center gap-2 text-base font-bold">
+              <FileText className="h-4 w-4 text-[#182B49] dark:text-[#FFCD00]" />
+              No Academic History saved yet
+            </h2>
+            <p className="mt-1.5 max-w-prose text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+              Saving it keeps the course list from your TritonLink Academic History — every course,
+              grade and unit, term by term, plus transfer credit — with your UCSDPlans account, on
+              any device you sign in on. The UCSD courses you&rsquo;ve completed then count toward the
+              degree progress beside your{" "}
+              <Link href="/planner/four-year" className="font-medium underline underline-offset-2">4-year plan</Link>.
+              It never includes your name or PID, and you can delete it at any time. It takes three steps:
+            </p>
+          </section>
+        )}
+
+        {savedState === "signedOut" && (
+          <div role="alert" className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-500/30 dark:bg-amber-500/10">
+            <p className="text-sm font-bold text-amber-900 dark:text-amber-100">You&rsquo;re signed out</p>
+            <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">
+              Your sign-in expired, so your saved Academic History can&rsquo;t be shown. Sign in again to see it.
+            </p>
+            <a
+              href="/login?next=%2Fimport"
+              className="mt-3 inline-flex items-center rounded-lg bg-[#182B49] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1e3a63] dark:bg-[#FFCD00] dark:text-[#182B49]"
+            >
+              Sign in again
+            </a>
+          </div>
+        )}
+
+        {savedState === "failed" && (
+          <div role="alert" className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-5 dark:border-red-500/30 dark:bg-red-500/10">
+            <p className="flex items-center gap-2 text-sm font-bold text-red-900 dark:text-red-200">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              Couldn&rsquo;t load your saved Academic History
+            </p>
+            <p className="mt-1 text-sm text-red-800 dark:text-red-300">
+              If you saved one, it is still there — this was a problem loading it, on our side, not yours.
+              {retries > 0 && !retrying
+                && ` Still not loading after ${retries === 1 ? "a retry" : `${retries} retries`}. If it keeps happening, tell us through Contact in the top bar.`}
+            </p>
+            <button
+              type="button"
+              onClick={retry}
+              disabled={retrying}
+              className="mt-3 inline-flex items-center gap-2 rounded-lg bg-[#182B49] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1e3a63] disabled:opacity-60 dark:bg-[#FFCD00] dark:text-[#182B49]"
+            >
+              {retrying ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCw className="h-4 w-4" />}
+              {retrying ? "Retrying…" : "Retry"}
+            </button>
+          </div>
+        )}
+
+        <h2 className="mt-8 text-sm font-bold uppercase tracking-wide text-gray-500">
+          {savedState === "saved" ? "Replace it with a newer copy" : "Import it from TritonLink"}
+        </h2>
+        <ol className="mt-2 list-decimal space-y-1 rounded-xl bg-gray-50 py-4 pl-9 pr-4 text-sm text-gray-700 dark:bg-white/5 dark:text-gray-300">
           <li>
             Open{" "}
             <a
@@ -159,16 +251,11 @@ export default function ImportPage() {
           className="mt-5 h-40 w-full resize-y rounded-xl border border-gray-300 bg-white p-3 font-mono text-xs leading-relaxed outline-none focus:border-[#182B49] focus:ring-2 focus:ring-[#182B49]/20 dark:border-white/15 dark:bg-white/5 dark:focus:border-[#FFCD00] dark:focus:ring-[#FFCD00]/20"
         />
 
+        {/* Only a paste that could not be read, or a save or delete that failed — never a first visit. */}
         {phase === "error" && (
           <p className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-800 dark:bg-red-500/10 dark:text-red-300">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             {message}
-          </p>
-        )}
-
-        {loading && (
-          <p className="mt-6 flex items-center gap-2 text-sm text-gray-500">
-            <Loader2 className="h-4 w-4 animate-spin" /> Checking for a saved record…
           </p>
         )}
 
@@ -207,7 +294,7 @@ function Review({
     <section className="mt-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500">
-          {preview ? "What came through" : "Your saved record"}
+          {preview ? "What came through" : "Your saved Academic History"}
         </h2>
         {!preview && phase === "saved" && (
           <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
@@ -316,7 +403,7 @@ function Review({
             disabled={busy}
             className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-white/15 dark:text-red-400 dark:hover:bg-red-500/10"
           >
-            <Trash2 className="h-4 w-4" /> Delete my record
+            <Trash2 className="h-4 w-4" /> Delete my saved Academic History
           </button>
         )}
       </div>

@@ -18,6 +18,12 @@ export const DAY_SHORT: Record<DayOfWeek, string> = { Mon: "M", Tue: "Tu", Wed: 
 export const ModeIcon = ({ mode, className }: { mode: Mode; className?: string }) =>
   mode === "bike" ? <Bike className={className} /> : <Footprints className={className} />;
 
+/** What each choice does, since the unchosen one is easy to read as switched off. */
+const MODE_HINT: Record<Mode, string> = {
+  walk: "Time every trip on foot",
+  bike: "Time every trip by bike, at an easy 15 km/h",
+};
+
 export function ModeToggle({ mode, onMode }: { mode: Mode; onMode: (m: Mode) => void }) {
   return (
     <div role="radiogroup" aria-label="How you get to class" className="inline-flex rounded-lg bg-gray-100 p-0.5 dark:bg-white/10">
@@ -28,10 +34,11 @@ export function ModeToggle({ mode, onMode }: { mode: Mode; onMode: (m: Mode) => 
           role="radio"
           aria-checked={mode === m}
           onClick={() => onMode(m)}
+          title={mode === m ? `${MODE_HINT[m]} (chosen)` : `${MODE_HINT[m]} — click to switch`}
           className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition ${
             mode === m
               ? "bg-white text-[#182B49] shadow-sm dark:bg-white/20 dark:text-white"
-              : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+              : "text-gray-700 hover:bg-white/60 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
           }`}
         >
           <ModeIcon mode={m} className="h-3.5 w-3.5" />

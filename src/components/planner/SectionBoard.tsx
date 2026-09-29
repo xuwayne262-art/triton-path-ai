@@ -11,7 +11,7 @@ import { courseHref, searchCourses, type Building, type CourseRow, type SectionT
 import { ROLE_STYLES, type CourseRole } from "@/lib/plannerBridge";
 import { formatDistance, previewWalks, type LegStatus } from "@/lib/campus";
 import {
-  CODE, INSTRUCTOR, TYPE,
+  CODE, INSTRUCTOR, TSS_HINT, TYPE,
   clashingCourses, eventsForRow, findFamily, groupSections, isWaitlistOnly, rowsFor,
   sectionSeats, sectionTopic, sectionTssUrl, sectionWaitlist, sectionWhere, shortWhen, typeLabel,
   type CalEvent, type LectureFamily, type SectionPart, type SectionSelection,
@@ -420,7 +420,9 @@ function CourseSections({
                 type="button"
                 onClick={onToggleFocus}
                 aria-pressed={focused}
-                title={focused ? "Stop showing every option on the calendar" : "Show every option on the calendar, to choose there"}
+                title={focused
+                  ? `Stop showing ${course.code}’s other sections on the calendar`
+                  : `Compare ${course.code}’s sections: draws every one on the calendar beside your other classes, to pick there`}
                 className={`ml-auto flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold transition ${
                   focused
                     ? "bg-[#182B49] text-white dark:bg-[#FFCD00] dark:text-[#182B49]"
@@ -578,7 +580,7 @@ function CourseSections({
                     setAutoFailed(!ok);
                     if (ok) setJustPicked(true);
                   }}
-                  title="Pick the sections that fit around the rest of your week"
+                  title={`Picks ${course.code}’s sections that fit around the rest of your week`}
                   className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
                 >
                   <Wand2 className="h-3.5 w-3.5" />
@@ -602,7 +604,7 @@ function CourseSections({
                     href={bookUrl}
                     target="_blank"
                     rel="noreferrer noopener"
-                    title="Opens this course on TSS, UC San Diego's enrolment site. It does not enrol you."
+                    title={TSS_HINT}
                     className="flex items-center gap-1 text-xs font-semibold text-[#182B49] underline-offset-2 hover:underline dark:text-[#FFCD00]"
                   >
                     Open in TSS <ExternalLink className="h-3.5 w-3.5" />

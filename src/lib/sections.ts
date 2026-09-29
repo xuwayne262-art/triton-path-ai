@@ -47,6 +47,10 @@ export const sectionTopic = (s: SectionTuple): string => (typeof s[TOPIC] === "s
 export const sectionWaitlist = (s: SectionTuple): number | null =>
   typeof s[WAITLIST] === "number" ? s[WAITLIST] : null;
 
+/** The tooltip on every link to TSS, where the acronym is otherwise never spelled out. */
+export const TSS_HINT =
+  "Opens on TSS (Triton Student System), UC San Diego’s official enrolment site. It does not enrol you.";
+
 /**
  * The URL that opens this exact section on TSS, built from the course's module
  * and this section's enrolment package. Returns "" when either is missing —

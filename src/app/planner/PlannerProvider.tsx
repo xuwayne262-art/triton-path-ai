@@ -16,13 +16,13 @@ import {
   MINOR_REQUIREMENTS,
 } from "@/data/requirements";
 import {
-  HttpError, loadBuildings, loadIndex, loadSubject,
+  HttpError, loadBuildings, loadIndex, loadSubject, tidyTitle,
   type Building, type CourseRow as PlatRow, type SectionTuple,
 } from "@/lib/plat";
 import { useShortlist } from "@/components/plat/useShortlist";
 import { useTheme } from "@/components/plat/theme";
 import {
-  courseRole, majorSubjects, platRowToCourse, rowToTimes, ROLE_STYLES,
+  completedCourses, courseRole, majorSubjects, platRowToCourse, rowToTimes, ROLE_STYLES,
   type CourseRole, type RoleContext,
 } from "@/lib/plannerBridge";
 import {
@@ -37,6 +37,8 @@ import {
 import {
   noteLocalChange, PLANNER_EVENT, PLANNER_KEY, useAccountSync, type SyncStatus,
 } from "@/lib/plan/sync";
+import { currentPlanSlot } from "@/lib/planSlot";
+import type { ParsedHistory } from "@/lib/history/parse";
 
 /**
  * The planner's own `CourseTime` uses 24-hour "09:30"; the schedule snapshot
@@ -101,6 +103,12 @@ export interface FitReport {
   /** The changed courses' selections before, for undo; undefined means none was made. */
   before: Record<string, SectionSelection | undefined>;
 }
+
+/**
+ * The saved Academic History, as degree progress sees it: still loading, none
+ * saved yet, saved (its completed courses count), or it could not be loaded.
+ */
+export type HistoryStatus = "loading" | "none" | "saved" | "failed";
 
 export interface DegreeProgressGroup {
   id: string;
@@ -237,8 +245,16 @@ interface PlannerValue {
   getColorForCourse: (course: Course) => CourseColor;
   activeRequirements: Record<string, number>;
   degreeProgress: DegreeProgressGroup[];
-  /** What degree progress counts: the four-year plan plus this term, once each. */
+  /**
+   * What degree progress counts, each course once: the courses the saved
+   * Academic History shows completed, the four-year plan, and this term.
+   */
   progressCourses: Course[];
+  historyStatus: HistoryStatus;
+  /** Completed courses the saved Academic History added to progress. */
+  completedCount: number;
+  /** Asks again for an Academic History that failed to load. */
+  retryHistory: () => void;
 }
 
 const PlannerCtx = createContext<PlannerValue | null>(null);
@@ -262,8 +278,10 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCourses, setSelectedCourses] = useState<ScheduleCourse[]>([]);
   const [plannedCourses, setPlannedCourses] = useState<PlannedCourse[]>([]);
-  const [plannerYear, setPlannerYear] = useState<Year>(1);
-  const [plannerQuarter, setPlannerQuarter] = useState<Quarter>("Fall");
+  // What the student picked for "Add from this term"; until they pick, the
+  // pickers follow where this term is in their plan (see `plannerYear`).
+  const [chosenYear, setPlannerYear] = useState<Year | null>(null);
+  const [chosenQuarter, setPlannerQuarter] = useState<Quarter | null>(null);
   const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
   const [platRows, setPlatRows] = useState<PlatRow[]>([]);
@@ -293,6 +311,40 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     // Ten kilobytes, and the map is useless without it; a failure only means
     // every meeting is listed as "not on the map" rather than pinned.
     loadBuildings().then((f) => setBuildings(f.buildings)).catch(() => {});
+  }, []);
+
+  // ── The saved Academic History ──────────────────────────────────────────────
+  // Its completed courses count toward degree progress, which otherwise showed
+  // zeros to a student three years in, however much they had imported on
+  // /import. Read once per visit to the planner; saved and changed on /import.
+  const [history, setHistory] = useState<ParsedHistory | null>(null);
+  const [historyStatus, setHistoryStatus] = useState<HistoryStatus>("loading");
+  const [historyTick, setHistoryTick] = useState(0);
+  useEffect(() => {
+    let live = true;
+    fetch("/api/history", { cache: "no-store" })
+      .then(async (res) => {
+        if (!live) return;
+        // Nothing saved yet: the common case, and not a failure.
+        if (res.status === 204) {
+          setHistory(null);
+          setHistoryStatus("none");
+          return;
+        }
+        if (!res.ok) throw new Error(String(res.status));
+        const record = (await res.json()) as ParsedHistory;
+        if (!live) return;
+        setHistory(record);
+        setHistoryStatus("saved");
+      })
+      // One that could not be read is not one that does not exist: progress
+      // says it is missing rather than inviting a second import.
+      .catch(() => { if (live) setHistoryStatus("failed"); });
+    return () => { live = false; };
+  }, [historyTick]);
+  const retryHistory = useCallback(() => {
+    setHistoryStatus("loading");
+    setHistoryTick((n) => n + 1);
   }, []);
 
   // ── Rehydrate ───────────────────────────────────────────────────────────────
@@ -489,7 +541,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       const row = platByCode.get(course.code);
       return {
         code: course.code,
-        title: course.title,
+        title: tidyTitle(course.title),
         role: roleOf(course),
         sections: chosen,
         fallback: sec.length || !row?.o
@@ -514,7 +566,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       if (!sec?.length) continue;
       const families = groupSections(sec);
       if (findFamily(families, selections[course.code]?.family)) continue;
-      const src = { code: course.code, title: course.title, role: roleOf(course) };
+      const src = { code: course.code, title: tidyTitle(course.title), role: roleOf(course) };
       for (const f of families) {
         if (f.lectureRows.length) {
           for (const r of f.lectureRows) {
@@ -580,6 +632,30 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     () => selectedCourses.reduce((sum, sc) => sum + sc.course.units, 0),
     [selectedCourses],
   );
+
+  /**
+   * The schedule as the pages show it. A title saved before the catalog's em
+   * dashes were spaced (see tidyTitle) shows spaced too, without rewriting the
+   * saved plan.
+   */
+  const shownSchedule = useMemo(
+    () => selectedCourses.map((sc) => {
+      const title = tidyTitle(sc.course.title);
+      return title === sc.course.title ? sc : { ...sc, course: { ...sc.course, title } };
+    }),
+    [selectedCourses],
+  );
+
+  // ── Where this term is in the four-year plan ────────────────────────────────
+  // The Year and Quarter pickers opened on Year 1, Fall for everyone, so a
+  // junior had to move both before adding this term. They now open on this
+  // term's quarter and the year the plan puts it in, until the student picks.
+  const currentSlot = useMemo(
+    () => (hydrated ? currentPlanSlot(term, plannedCourses, selectedCourses.map((sc) => sc.course.code)) : null),
+    [hydrated, term, plannedCourses, selectedCourses],
+  );
+  const plannerYear: Year = chosenYear ?? currentSlot?.year ?? 1;
+  const plannerQuarter: Quarter = chosenQuarter ?? currentSlot?.quarter ?? "Fall";
 
   // ── Section actions ─────────────────────────────────────────────────────────
 
@@ -911,18 +987,26 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     return { ...majorReqs, ...minorReqs, ...collegeReqs };
   }, [selectedMajor, selectedMinor, selectedCollege]);
 
+  /** What the saved Academic History shows completed (see completedCourses). */
+  const doneCourses = useMemo(
+    () => completedCourses(history, (code) => platByCode.get(code), majorSubjectSet),
+    [history, platByCode, majorSubjectSet],
+  );
+
   /**
-   * The courses degree progress counts: everything in the four-year plan, plus
-   * this term's schedule where it has not been added to the plan yet — each
-   * course once. Progress used to count this term's schedule alone, so a full
-   * four-year plan beside it showed almost nothing done.
+   * The courses degree progress counts, each once: what the saved Academic
+   * History shows completed, everything in the four-year plan, and this term's
+   * schedule. Completed courses go first, so one both taken and planned counts
+   * with the units it earned. Progress used to count this term's schedule
+   * alone, so a full four-year plan beside it showed almost nothing done.
    */
   const progressCourses = useMemo((): Course[] => {
     const byCode = new Map<string, Course>();
+    for (const course of doneCourses) byCode.set(course.code, course);
     for (const { course } of plannedCourses) if (!byCode.has(course.code)) byCode.set(course.code, course);
     for (const { course } of selectedCourses) if (!byCode.has(course.code)) byCode.set(course.code, course);
     return [...byCode.values()];
-  }, [plannedCourses, selectedCourses]);
+  }, [doneCourses, plannedCourses, selectedCourses]);
 
   const degreeProgress = useMemo((): DegreeProgressGroup[] => {
     const tally: Record<string, number> = {};
@@ -972,7 +1056,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     selectedCollege, setSelectedCollege,
     searchQuery, setSearchQuery,
     platRows, savedCourses, toggleSaved,
-    selectedCourses, addToSchedule, removeFromSchedule, clearSchedule, restoreSchedule,
+    selectedCourses: shownSchedule, addToSchedule, removeFromSchedule, clearSchedule, restoreSchedule,
     sectionsByCode, tssByCode, selections, setSelection, clearSelection, chooseOption,
     addCourseByCode, platByCode, term, termName, buildings, optionEvents,
     autoPickFor, autoPickAll, restoreSelections, retrySections,
@@ -981,6 +1065,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     plannerYear, setPlannerYear, plannerQuarter, setPlannerQuarter,
     isGeneratingPlan, planError, generateFourYearPlan,
     roleOf, getColorForCourse, activeRequirements, degreeProgress, progressCourses,
+    historyStatus, completedCount: doneCourses.length, retryHistory,
   };
 
   return <PlannerCtx.Provider value={value}>{children}</PlannerCtx.Provider>;

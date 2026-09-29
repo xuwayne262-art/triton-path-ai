@@ -138,8 +138,8 @@ export function gradeStatus(grade: string | null): GradeStatus {
   return "other";
 }
 
-/** Units a course actually contributes to a degree. */
-const earnsUnits = (s: GradeStatus) => s === "graded" || s === "pass";
+/** Units a course actually contributes to a degree. Degree progress counts the same courses. */
+export const earnsUnits = (s: GradeStatus) => s === "graded" || s === "pass";
 
 // ── Line shapes ──────────────────────────────────────────────────────────────
 

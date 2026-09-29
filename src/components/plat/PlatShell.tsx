@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { House, Moon, Sparkles, Sun } from "lucide-react";
+import { CalendarDays, House, Moon, Sun } from "lucide-react";
 import ContactMenu from "./ContactMenu";
 import SearchBox from "./SearchBox";
 import TridentMark from "./TridentMark";
 import { useTheme } from "./theme";
-import { loadIndex, refreshedLabel, type IndexMeta } from "@/lib/plat";
+import { dayLabel, loadIndex, refreshedLabel, type IndexMeta } from "@/lib/plat";
 
 /**
  * Minimal chrome. The old nav carried Courses / Easy GEs / Planner plus a
@@ -84,23 +84,25 @@ export default function PlatShell({
                   : "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/10"
               }`}
             >
-              My record
+              Academic History
             </Link>
 
             {/* The planner is the other half of the product, so it gets a filled
-                button rather than a text link that reads as chrome. */}
+                button rather than a text link that reads as chrome — icon-only on
+                a phone, like Housing, so the search keeps its room. One name
+                everywhere: it was "AI Planner" here and "Term workspace" inside. */}
             <Link
               href="/planner"
               aria-current={pathname.startsWith("/planner") ? "page" : undefined}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold shadow-sm transition ${
+              aria-label="Planner"
+              className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-semibold shadow-sm transition sm:px-3 ${
                 pathname.startsWith("/planner")
                   ? "bg-[#FFCD00] text-[#182B49] ring-2 ring-[#182B49]/20 dark:ring-white/25"
                   : "bg-[#182B49] text-white hover:bg-[#1e3a63] dark:bg-[#FFCD00] dark:text-[#182B49] dark:hover:bg-[#FFD740]"
               }`}
             >
-              <Sparkles className="h-4 w-4 shrink-0" />
-              <span className="hidden sm:inline">AI Planner</span>
-              <span className="sm:hidden">Plan</span>
+              <CalendarDays className="h-4 w-4 shrink-0" />
+              <span className="hidden sm:inline">Planner</span>
             </Link>
           </div>
         </div>
@@ -122,7 +124,7 @@ export default function PlatShell({
               >
                 UCSD Associated Students Instructor Grade Archive
               </a>{" "}
-              (retrieved {meta.generated}), matched to{" "}
+              (retrieved {dayLabel(meta.generated, { weekday: false, year: true })}), matched to{" "}
               <a
                 href="https://www.ratemyprofessors.com"
                 target="_blank"

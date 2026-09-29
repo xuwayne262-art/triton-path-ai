@@ -15,7 +15,7 @@ import {
   HttpError, geLabel, loadIndex, loadSubject, ratingTone, typicalGrade,
   type CourseDetail, type PlatIndex, type ProfRecord, type SubjectFile,
 } from "@/lib/plat";
-import { CODE, isChoosable } from "@/lib/sections";
+import { CODE, TSS_HINT, isChoosable } from "@/lib/sections";
 
 export default function CourseDetailPage({
   params,
@@ -162,10 +162,11 @@ export default function CourseDetailPage({
               href={detail.tss}
               target="_blank"
               rel="noreferrer noopener"
-              title="Opens this course on TSS, UC San Diego's official enrolment site. It does not enrol you."
+              title={TSS_HINT}
               className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:border-white/15 dark:hover:bg-white/10"
             >
-              Book on TSS <ExternalLink className="h-3.5 w-3.5" />
+              Book on <abbr title="Triton Student System" className="no-underline">TSS</abbr>
+              <ExternalLink className="h-3.5 w-3.5" />
             </a>
           )}
         </div>
@@ -203,11 +204,11 @@ export default function CourseDetailPage({
         {teaching.length > 0 && (
           <section className="mt-10">
             <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-gray-500">
-              Teaching this term
+              {teaching.length} {teaching.length === 1 ? "instructor" : "instructors"} teaching this term
             </h2>
-            <p className="mb-3 text-xs text-gray-400">
-              {teaching.length === 1 ? "One option." : `${teaching.length} options — the grade histories differ.`}
-            </p>
+            {teaching.length > 1 && (
+              <p className="mb-3 text-xs text-gray-400">Best grade history first.</p>
+            )}
             <div className="rounded-xl border border-gray-200 dark:border-white/10">
               {teaching.map((p, i) => (
                 <ProfLine

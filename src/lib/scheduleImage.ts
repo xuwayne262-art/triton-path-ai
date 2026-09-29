@@ -19,7 +19,7 @@ import {
   minutesToLabel, missingParts, oneOffLabel, sectionWhere, typeLabel,
   type CalEvent, type SectionSelection,
 } from "./sections";
-import { timeToMinutes, type SectionTuple } from "./plat";
+import { dayLabel, timeToMinutes, type SectionTuple } from "./plat";
 import { ROLE_STYLES, type CourseRole } from "./plannerBridge";
 import type { DayOfWeek } from "@/components/triton/types";
 
@@ -133,9 +133,7 @@ export function scheduleImageInput(args: {
         return ys != null && ye != null && s < ye && ys < e;
       });
       return {
-        date: new Date(`${x.row[DATE]}T12:00:00`).toLocaleDateString("en-US", {
-          weekday: "short", month: "short", day: "numeric",
-        }),
+        date: dayLabel(x.row[DATE]),
         time: compactRange(x.row[START], x.row[END]),
         label: `${x.code} ${oneOffLabel(x.row)}`,
         where: sectionWhere(x.row) || "Room TBA",

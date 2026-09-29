@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { prettyRange, type SectionTuple } from "@/lib/plat";
+import { dayLabel, prettyRange, type SectionTuple } from "@/lib/plat";
 import {
-  CODE, INSTRUCTOR, TYPE, DAYS, START, END,
-  groupSections, isChoosable, sectionSeats, sectionTssUrl, sectionWaitlist,
+  CODE, INSTRUCTOR, TYPE, DAYS, START, END, TSS_HINT,
+  groupSections, isChoosable, isDated, sectionSeats, sectionTssUrl, sectionWaitlist,
   sectionWhen, sectionWhere, selectionRule, typeLabel,
   type LectureFamily, type SectionSelection,
 } from "@/lib/sections";
@@ -258,7 +258,7 @@ function BookSelected({
       href={url}
       target="_blank"
       rel="noreferrer noopener"
-      title="Opens this section on TSS, UC San Diego's official enrolment site. It does not enrol you."
+      title={TSS_HINT}
       className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-[#182B49] underline-offset-2 hover:underline dark:text-[#FFCD00]"
     >
       Book {selection.family}
@@ -276,7 +276,8 @@ function ExamList({ exams }: { exams: SectionTuple[] }) {
           className="flex flex-wrap items-baseline gap-x-2 text-[11px] text-gray-500 dark:text-gray-400"
         >
           <span className="font-semibold">{typeLabel(s[TYPE])}</span>
-          <span>{s[DAYS]}</span>
+          {/* A one-off row keeps its date in the days column: "2026-12-11" reads as "Fri, Dec 11". */}
+          <span>{isDated(s) ? dayLabel(s[DAYS]) : s[DAYS]}</span>
           <span>{prettyRange(s[START], s[END])}</span>
         </li>
       ))}

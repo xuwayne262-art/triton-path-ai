@@ -2,9 +2,11 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
-  HttpError, gpaTier, LETTER_SCALE, loadJSON, prereqKnown, ratingTone, refreshedLabel, sortCourses,
-  typicalGrade, type CourseRow, type PlatIndex,
+  HttpError, collegeGEs, collegeName, dayLabel, geLabel, gpaTier, LETTER_SCALE, loadIndex, loadJSON, loadSubject,
+  prereqKnown, ratingTone, refreshedLabel, sortCourses, tidyTitle, typicalGrade, type CourseRow, type PlatIndex,
 } from "./plat";
+import { COLLEGE_REQUIREMENTS } from "@/data/requirements";
+import { COLLEGES } from "@/components/triton/types";
 
 /** The dataset the site serves, so these checks cover every real course. */
 const index = JSON.parse(readFileSync(new URL("../../public/data/plat/index.json", import.meta.url), "utf8")) as PlatIndex;
@@ -173,5 +175,73 @@ describe("the schedule's refresh date", () => {
   test("says nothing rather than something wrong", () => {
     assert.equal(refreshedLabel(null), null);
     assert.equal(refreshedLabel("soon"), null);
+  });
+});
+
+describe("calendar dates", () => {
+  test("are written one way everywhere: \"Fri, Dec 11\"", () => {
+    assert.equal(dayLabel("2026-12-11"), "Fri, Dec 11");
+    assert.equal(dayLabel("2026-12-05"), "Sat, Dec 5");
+    assert.equal(dayLabel("2026-08-23", { weekday: false, year: true }), "Aug 23, 2026");
+  });
+
+  test("never shift a day, whatever the time zone", () => {
+    // Read as a date, not an instant: the first and last of a year stay put.
+    assert.equal(dayLabel("2027-01-01"), "Fri, Jan 1");
+    assert.equal(dayLabel("2026-12-31"), "Thu, Dec 31");
+  });
+
+  test("leave anything that is not a date alone", () => {
+    assert.equal(dayLabel("TBA"), "TBA");
+    assert.equal(dayLabel("MWF"), "MWF");
+  });
+});
+
+describe("course titles", () => {
+  test("space their em dashes", () => {
+    assert.equal(tidyTitle("Introductory Ecology—Organisms and Habitat"), "Introductory Ecology — Organisms and Habitat");
+    assert.equal(tidyTitle("Already — Spaced"), "Already — Spaced");
+    assert.equal(tidyTitle("One side —closed"), "One side — closed");
+  });
+
+  test("keep en-dash ranges closed", () => {
+    assert.equal(tidyTitle("The Struggle for K–12 Ethnic Studies"), "The Struggle for K–12 Ethnic Studies");
+  });
+
+  test("arrive spaced from the loaders, so every page shows them that way", async () => {
+    const real = globalThis.fetch;
+    globalThis.fetch = (async (url: string) => {
+      const body = String(url).includes("/subject/")
+        ? { code: "BIEB", name: "", term: "", termName: "", courses: { "BIEB 102": { t: "Introductory Ecology—Organisms and Habitat" } } }
+        : { meta: {}, subjects: [], courses: [{ k: "BIEB 102", t: "Introductory Ecology—Organisms and Habitat" }] };
+      return new Response(JSON.stringify(body), { status: 200 });
+    }) as typeof fetch;
+    try {
+      assert.equal((await loadIndex()).courses[0].t, "Introductory Ecology — Organisms and Habitat");
+      assert.equal((await loadSubject("BIEB")).courses["BIEB 102"].t, "Introductory Ecology — Organisms and Habitat");
+    } finally {
+      globalThis.fetch = real;
+    }
+  });
+
+  test("no title in the dataset keeps a closed-up em dash once tidied", () => {
+    const closed = index.courses.filter((c) => /\S—|—\S/.test(tidyTitle(c.t)));
+    assert.deepEqual(closed.map((c) => c.k), []);
+  });
+});
+
+describe("college names", () => {
+  test("are the college's full name, from a GE key or the planner's choice", () => {
+    assert.equal(collegeName("seventh"), "Seventh College");
+    assert.equal(collegeName("Seventh"), "Seventh College");
+    assert.equal(collegeName("ERC"), "Eleanor Roosevelt College");
+  });
+
+  test("a GE chip says whose GE it is", () => {
+    assert.equal(geLabel("seventh:Alternatives · Nat Sci & Eng"), "Seventh College GE · Alternatives · Nat Sci & Eng");
+  });
+
+  test("each college's GE set has one name, in the planner's progress list too", () => {
+    for (const c of COLLEGES) assert.equal(COLLEGE_REQUIREMENTS[c].groupLabel, collegeGEs(c), c);
   });
 });

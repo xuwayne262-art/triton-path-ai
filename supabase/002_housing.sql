@@ -27,6 +27,12 @@ create index if not exists housing_listing_owner_idx on public.housing_listing (
 alter table public.housing_listing enable row level security;
 revoke all on public.housing_listing from anon, authenticated;
 
+-- The service role bypasses RLS but still needs table privileges. Supabase
+-- normally grants them to new tables by default; saying so explicitly keeps
+-- this working in a project where that default has been turned off. The app
+-- reads, upserts (insert + update) and deletes listings.
+grant select, insert, update, delete on public.housing_listing to service_role;
+
 comment on table public.housing_listing is
   'UCSDPlans: sublets and rooms posted by signed-in @ucsd.edu students. Service-role access only.';
 
@@ -38,3 +44,8 @@ comment on table public.housing_listing is
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('housing-photos', 'housing-photos', false, 716800, array['image/jpeg'])
 on conflict (id) do nothing;
+
+-- The app reaches the table through Supabase's REST API, which answers from a
+-- cached copy of the schema. This makes sure the table is usable the moment
+-- this script finishes rather than "not found" until the cache catches up.
+notify pgrst, 'reload schema';

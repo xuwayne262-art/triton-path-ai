@@ -82,7 +82,13 @@ function PassStrip() {
 
   return (
     <div className="hidden items-center gap-2.5 2xl:flex">
-      <span className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400">
+      {/* A first-year student has never heard of a pass, so the strip says what one is. */}
+      <span
+        className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400"
+        title={countdown
+          ? `Enrollment opens in passes: the dates each group of students may start enrolling. ${countdown.pass.label} opens in ${countdown.days} ${countdown.days === 1 ? "day" : "days"}.`
+          : "Enrollment opens in passes: the dates each group of students may start enrolling. Every pass has opened, so you can enroll in any section with a seat now."}
+      >
         <CalendarClock className="h-3.5 w-3.5" />
         {countdown ? (
           <>
@@ -92,7 +98,7 @@ function PassStrip() {
             <span>to {countdown.pass.label}</span>
           </>
         ) : (
-          <span>All passes open</span>
+          <span>All enrollment passes open</span>
         )}
       </span>
       <span aria-hidden className="h-3 w-px bg-gray-200 dark:bg-white/10" />
@@ -641,7 +647,7 @@ export default function TermWorkspacePage() {
                 type="button"
                 onClick={fitWithReport}
                 disabled={!selectedCourses.length}
-                title="Pick sections for every course that fit together — sections you already chose stay if they fit"
+                title="Picks a lecture, and any discussion or lab, for every course so nothing clashes. Sections you already chose stay if they fit; you can undo it."
                 className="flex items-center gap-1.5 rounded-lg bg-[#182B49] px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#1e3a63] disabled:cursor-not-allowed disabled:opacity-40 dark:bg-[#FFCD00] dark:text-[#182B49] dark:hover:bg-[#FFD740]"
               >
                 <Wand2 className="h-3.5 w-3.5" />
@@ -657,12 +663,15 @@ export default function TermWorkspacePage() {
                 <ImageDown className="h-3.5 w-3.5" />
                 Save image
               </button>
+              {/* The one map control on a desktop (a phone has its Map tab). A
+                  pull tab on the calendar's edge used to open it too, under a
+                  second name. */}
               <button
                 type="button"
                 onClick={() => toggleMap()}
                 aria-pressed={mapOpen}
                 aria-keyshortcuts="M"
-                title={mapOpen ? "Close the campus map (M)" : "Open the campus map (M)"}
+                title={mapOpen ? "Close the campus map (M)" : "Open the campus map: where each class meets, and the walks between them (M)"}
                 className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition max-md:hidden ${
                   mapOpen
                     ? "border-[#182B49] bg-[#182B49]/5 text-[#182B49] dark:border-[#FFCD00] dark:bg-[#FFCD00]/10 dark:text-[#FFCD00]"
@@ -670,7 +679,15 @@ export default function TermWorkspacePage() {
                 }`}
               >
                 <MapIcon className="h-3.5 w-3.5" />
-                Map
+                Campus map
+                {!mapOpen && troubles.length > 0 && (
+                  <span
+                    className="rounded-full bg-amber-400 px-1.5 text-[10px] tabular-nums text-amber-950"
+                    aria-label={`${troubles.length} tight ${troubles.length === 1 ? "walk" : "walks"}`}
+                  >
+                    {troubles.length}
+                  </span>
+                )}
               </button>
             </div>
           </div>
@@ -763,24 +780,6 @@ export default function TermWorkspacePage() {
 
             <ExamList items={exams} />
           </div>
-
-          {/* The pull tab: the map is one tug away even when the drawer is shut. */}
-          {!mapOpen && (
-            <button
-              type="button"
-              onClick={() => toggleMap(true)}
-              title="Open the campus map (M)"
-              className="absolute right-0 top-1/2 z-20 flex -translate-y-1/2 items-center gap-1.5 rounded-l-xl bg-[#182B49] px-1.5 py-3 text-[11px] font-semibold text-white shadow-lg transition hover:pr-2.5 dark:bg-[#FFCD00] dark:text-[#182B49] [writing-mode:vertical-rl] max-md:hidden"
-            >
-              <MapIcon className="h-3.5 w-3.5 rotate-90" />
-              Campus map
-              {troubles.length > 0 && (
-                <span className="rounded-full bg-amber-400 px-1 text-[10px] text-amber-950 [writing-mode:horizontal-tb]">
-                  {troubles.length}
-                </span>
-              )}
-            </button>
-          )}
         </main>
 
         {/* ── Campus map ────────────────────────────────────────────────────── */}

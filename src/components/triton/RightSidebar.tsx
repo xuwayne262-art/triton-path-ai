@@ -1,6 +1,8 @@
 "use client";
 
-import { GraduationCap } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, GraduationCap } from "lucide-react";
+import type { HistoryStatus } from "@/app/planner/PlannerProvider";
 
 interface Requirement {
   category: string;
@@ -19,9 +21,19 @@ interface DegreeProgressGroup {
 interface RightSidebarProps {
   darkMode: boolean;
   degreeProgress: DegreeProgressGroup[];
-  /** The courses the progress counts: the four-year plan plus this term's schedule, once each. */
+  /**
+   * The courses the progress counts, once each: those the saved Academic
+   * History shows completed, the four-year plan, and this term's schedule.
+   */
   courses: { units: number }[];
   selectedCollege: string | null;
+  /** "Fall 2026", or "" before the dataset loads. */
+  termName: string;
+  /** Whether a saved Academic History is counted — its completed courses are in `courses`. */
+  historyStatus: HistoryStatus;
+  /** How many completed courses it added. */
+  completedCount: number;
+  onRetryHistory: () => void;
 }
 
 export default function RightSidebar({
@@ -29,8 +41,16 @@ export default function RightSidebar({
   degreeProgress,
   courses,
   selectedCollege,
+  termName,
+  historyStatus,
+  completedCount,
+  onRetryHistory,
 }: RightSidebarProps) {
   const totalUnits = courses.reduce((sum, c) => sum + c.units, 0);
+  // Every bar at zero used to be a dead end: nothing said what would fill them.
+  const nothingCounts =
+    degreeProgress.some((g) => g.requirements.length > 0) &&
+    degreeProgress.every((g) => g.requirements.every((r) => r.current === 0));
 
   return (
     <aside
@@ -68,6 +88,31 @@ export default function RightSidebar({
 
       {/* Progress groups — scrollable */}
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-5 max-md:flex-none max-md:overflow-visible">
+        {nothingCounts && historyStatus === "none" && (
+          <Link
+            href="/import"
+            className="flex items-start gap-1.5 rounded-lg bg-[#182B49]/[0.06] px-3 py-2.5 text-xs font-semibold leading-snug text-[#182B49] transition hover:bg-[#182B49]/10 dark:bg-[#FFCD00]/10 dark:text-[#FFCD00] dark:hover:bg-[#FFCD00]/15"
+          >
+            <span>Import your Academic History to see your progress</span>
+            <ArrowRight className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          </Link>
+        )}
+        {nothingCounts && historyStatus === "saved" && (
+          <p className={`rounded-lg px-3 py-2.5 text-[11px] leading-snug ${darkMode ? "bg-white/5 text-gray-300" : "bg-slate-50 text-gray-600"}`}>
+            None of your completed or planned courses count toward these requirements yet. Check that your
+            major and college (top right) are right.
+          </p>
+        )}
+        {historyStatus === "failed" && (
+          <p role="status" className="rounded-lg bg-amber-50 px-3 py-2.5 text-[11px] leading-snug text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+            Your saved Academic History couldn&rsquo;t be loaded, so the courses you&rsquo;ve completed aren&rsquo;t
+            counted here.{" "}
+            <button type="button" onClick={onRetryHistory} className="font-semibold underline underline-offset-2 hover:no-underline">
+              Retry
+            </button>
+          </p>
+        )}
+
         {degreeProgress.map((group) => (
           <div key={group.id}>
             {/* Group label */}
@@ -75,8 +120,9 @@ export default function RightSidebar({
               <div
                 className={`w-2 h-2 rounded-full flex-shrink-0 ${group.color}`}
               />
+              {/* Wraps rather than truncates: "Eleanor Roosevelt College GE requirements" is the whole name. */}
               <span
-                className={`text-[9px] font-bold uppercase tracking-widest truncate ${
+                className={`min-w-0 text-[9px] font-bold uppercase leading-snug tracking-widest ${
                   darkMode ? "text-gray-500" : "text-gray-400"
                 }`}
               >
@@ -97,9 +143,9 @@ export default function RightSidebar({
                 const complete = req.current >= req.targetUnits;
                 return (
                   <div key={req.category}>
-                    <div className="flex items-center justify-between mb-0.5">
+                    <div className="flex items-start justify-between mb-0.5">
                       <span
-                        className={`text-[10px] font-medium truncate ${
+                        className={`min-w-0 text-[10px] font-medium leading-snug ${
                           darkMode ? "text-gray-300" : "text-gray-600"
                         }`}
                       >
@@ -163,8 +209,11 @@ export default function RightSidebar({
           <span>Units counted</span>
           <span className="font-semibold">{totalUnits}</span>
         </div>
+        {/* Says exactly what the two numbers above count, and what they leave out. */}
         <p className={`mt-1.5 text-[10px] leading-snug ${darkMode ? "text-gray-500" : "text-gray-400"}`}>
-          Your four-year plan, plus this term&rsquo;s courses not yet in it.
+          {historyStatus === "saved"
+            ? `Counted: the ${completedCount} ${completedCount === 1 ? "course" : "courses"} you’ve completed on your saved Academic History, every course in your 4-year plan, and every course on your ${termName ? `${termName} schedule` : "schedule for this term"}. A course in more than one counts once. Transfer and AP credit isn’t counted.`
+            : `Counted: every course in your 4-year plan and every course on your ${termName ? `${termName} schedule` : "schedule for this term"}. A course in both counts once.${historyStatus === "none" ? " Courses you’ve already taken count once you import your Academic History." : ""}`}
         </p>
       </div>
     </aside>
