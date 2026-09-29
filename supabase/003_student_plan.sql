@@ -26,5 +26,16 @@ create table if not exists public.student_plan (
 alter table public.student_plan enable row level security;
 revoke all on public.student_plan from anon, authenticated;
 
+-- The service role bypasses RLS but still needs table privileges. Supabase
+-- normally grants them to new tables by default; saying so explicitly keeps
+-- this working in a project where that default has been turned off.
+grant select, insert, update on public.student_plan to service_role;
+
 comment on table public.student_plan is
   'UCSDPlans: one saved plan per student (planner, starred courses, own ratings), keyed by a salted hash of their email. Service-role access only.';
+
+-- The app reaches this table through Supabase's REST API, which answers from a
+-- cached copy of the schema. Supabase usually refreshes that cache on its own
+-- after a CREATE TABLE; this makes sure, so the table is usable the moment
+-- this script finishes rather than "not found" until the cache catches up.
+notify pgrst, 'reload schema';
