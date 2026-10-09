@@ -4,6 +4,8 @@ import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, ExternalLink, Star } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
+import PageHeader from "@/components/plat/PageHeader";
+import { SECTION_TITLE } from "@/components/plat/typeScale";
 import CourseResults, { DEFAULT_FILTERS, type ResultFilters } from "@/components/plat/CourseResults";
 import { GradeBadge } from "@/components/plat/Grade";
 import { useNoteVisit } from "@/components/plat/useRecent";
@@ -93,24 +95,23 @@ export default function DepartmentPage({ params }: { params: Promise<{ sub: stri
 
   return (
     <PlatShell>
-      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
         <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
           <Link href="/courses" className="hover:underline">Courses</Link>
           <ChevronRight className="h-3 w-3" aria-hidden />
           <span className="text-gray-700 dark:text-gray-200">{title}</span>
         </nav>
 
-        {school && (
-          <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-            {school.name}
-          </p>
-        )}
-        <h1 className="mt-1 text-3xl font-black tracking-tight">{title}</h1>
-
-        <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-          {data ? `${offered} of ${rows.length} courses on the ${data.meta.termName} schedule` : "Loading courses…"}
-          {faculty ? ` · ${teachingNow} ${teachingNow === 1 ? "professor" : "professors"} teaching this term` : ""}
-        </p>
+        {/* The school rides on the figures' line rather than a label above the title. */}
+        <PageHeader
+          className="mt-2"
+          title={title}
+          description={
+            (school ? `${school.name} · ` : "")
+            + (data ? `${offered} of ${rows.length} courses on the ${data.meta.termName} schedule` : "Loading courses…")
+            + (faculty ? ` · ${teachingNow} ${teachingNow === 1 ? "professor" : "professors"} teaching this term` : "")
+          }
+        />
 
         {subjects.length > 1 && (
           <div className="mt-3 flex flex-wrap items-center gap-1">
@@ -133,21 +134,21 @@ export default function DepartmentPage({ params }: { params: Promise<{ sub: stri
             href={listing.url}
             target="_blank"
             rel="noreferrer"
-            className="mt-5 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50/60 p-3 transition hover:border-amber-300 hover:bg-amber-50 dark:border-amber-500/25 dark:bg-amber-500/5 dark:hover:bg-amber-500/10"
+            className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-xs leading-relaxed transition hover:border-amber-300 hover:bg-amber-50 dark:border-amber-500/25 dark:bg-amber-500/5 dark:hover:bg-amber-500/10"
           >
             <ExternalLink className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-700 dark:text-amber-400" />
             <span className="min-w-0">
-              <span className="block text-sm font-semibold text-amber-950 dark:text-amber-100">
-                Course offerings published by {listing.department}
-              </span>
-              <span className="mt-0.5 block text-xs leading-relaxed text-amber-900 dark:text-amber-200/80">
+              <span className="font-semibold text-amber-950 dark:text-amber-100">
+                Course offerings published by {listing.department}.
+              </span>{" "}
+              <span className="text-amber-900 dark:text-amber-200/80">
                 {note ?? "Tentative and subject to change — check here before you plan around a section."}
               </span>
             </span>
           </a>
         )}
 
-        <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-12">
+        <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-10">
           <div className="min-w-0 lg:col-span-8">
             <CourseResults
               rows={rows}
@@ -161,10 +162,10 @@ export default function DepartmentPage({ params }: { params: Promise<{ sub: stri
           {/* ── The people, as their own directory ───────────────────────── */}
           <aside className="min-w-0 lg:col-span-4">
             <div className="flex items-baseline justify-between gap-2">
-              <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">Professors</h2>
+              <h2 className={SECTION_TITLE}>Professors</h2>
               {faculty && <span className="text-xs text-gray-500 dark:text-gray-400">{faculty.length} on record</span>}
             </div>
-            <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+            <p className="mt-0.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
               Teaching this term first, then everyone who has taught here; most-rated first.
             </p>
             <ul className="mt-3 overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10">

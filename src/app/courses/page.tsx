@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { GraduationCap, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
+import PageHeader from "@/components/plat/PageHeader";
+import { LABEL } from "@/components/plat/typeScale";
 import { loadIndex, type PlatIndex } from "@/lib/plat";
 import {
   COLLEGE_UNITS, DEPARTMENTS, SCHOOLS,
@@ -98,23 +100,27 @@ export default function CoursesPage() {
 
   return (
     <PlatShell>
-      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-        <h1 className="text-3xl font-black tracking-tight">Courses</h1>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-          By department: {DEPARTMENTS.length} departments across {SCHOOLS.length} schools and divisions, plus the{" "}
-          {COLLEGE_UNITS.length} colleges and their core sequences.
-          {data ? ` ${data.meta.catalogCourses.toLocaleString()} courses in all, ${data.meta.offered.toLocaleString()} on the ${data.meta.termName} schedule.` : ""}
-        </p>
-
-        <div className="relative mt-5">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Biology, CSE, Literature…"
-            className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-9 pr-4 text-sm outline-none focus:border-[#182B49] dark:border-white/10 dark:bg-white/5 dark:text-gray-100"
-          />
-        </div>
+      <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+        {/* The filter is the page's one control, so it sits on the title's line. */}
+        <PageHeader
+          title="Courses"
+          description={
+            `${DEPARTMENTS.length} departments in ${SCHOOLS.length} schools and divisions, plus the ${COLLEGE_UNITS.length} colleges`
+            + (data ? ` · ${data.meta.catalogCourses.toLocaleString()} courses, ${data.meta.offered.toLocaleString()} on the ${data.meta.termName} schedule` : "")
+          }
+          actions={
+            <label className="relative block w-full sm:w-72">
+              <span className="sr-only">Filter departments</span>
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Biology, CSE, Literature…"
+                className="h-9 w-full rounded-lg border border-gray-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-[#182B49] dark:border-white/10 dark:bg-white/5 dark:text-gray-100 dark:focus:border-[#FFCD00]"
+              />
+            </label>
+          }
+        />
 
         {needle && (
           <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
@@ -125,7 +131,7 @@ export default function CoursesPage() {
         <div className="mt-6 space-y-8">
           {schools.map(({ school, depts }) => (
             <section key={school.id}>
-              <h2 className="text-xs font-bold uppercase tracking-wide text-gray-500">
+              <h2 className={LABEL}>
                 {school.name}
               </h2>
               <div className="mt-2">
@@ -173,10 +179,8 @@ export default function CoursesPage() {
               writing sequence, so one section holds all of them. */}
           {colleges.length > 0 && (
             <section>
-              <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-gray-500">
-                <GraduationCap className="h-3.5 w-3.5" /> The eight colleges
-              </h2>
-              <p className="mt-1.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+              <h2 className={LABEL}>The eight colleges</h2>
+              <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
                 Colleges are a separate thing from departments. Every undergraduate belongs to one,
                 and it sets your general-education and writing requirements — but colleges own no
                 majors and no academic departments. The only courses they run are their own core
