@@ -23,7 +23,7 @@ export default function PassTimeline({ termName }: { termName?: string }) {
   const { marks, progress, countdown } = state;
 
   return (
-    <div className="mx-auto mt-8 max-w-xl">
+    <div className="mx-auto max-w-xl">
       <p className="flex items-center justify-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
         <CalendarClock className="h-3.5 w-3.5" />
         {countdown ? (
