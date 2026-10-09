@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, Check, FileText, Loader2, RotateCw, Trash2 } from "lucide-react";
+import { AlertTriangle, Check, Loader2, RotateCw, Trash2 } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
+import PageHeader from "@/components/plat/PageHeader";
+import { LABEL, SECTION_TITLE } from "@/components/plat/typeScale";
 import { isEmpty, parseAcademicHistory, type ParsedHistory } from "@/lib/history/parse";
 
 /**
@@ -152,40 +154,33 @@ export default function ImportPage() {
 
   return (
     <PlatShell>
-      <div className="mx-auto max-w-3xl px-4 py-8">
-        <h1 className="text-2xl font-black">Your Academic History</h1>
-        <p className="mt-2 max-w-prose text-sm leading-relaxed text-gray-600 dark:text-gray-300">
-          Paste it straight from TritonLink — no download, no file to find. Your
-          transcript is read in this browser and never uploaded; only the course
-          list is saved to your account, and it carries no name or PID.
-        </p>
+      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+        <PageHeader
+          title="Your Academic History"
+          description="Paste it straight from TritonLink. It is read in this browser and never uploaded; only the course list is saved to your account, and it carries no name or PID."
+        />
 
         {savedState === "loading" && (
-          <p className="mt-6 flex items-center gap-2 text-sm text-gray-500">
+          <p className="mt-4 flex items-center gap-2 text-sm text-gray-500">
             <Loader2 className="h-4 w-4 animate-spin" /> Checking for a saved Academic History…
           </p>
         )}
 
         {savedState === "none" && !parsed && (
-          // A first visit. Nothing went wrong, so nothing here is red.
-          <section className="mt-6 rounded-2xl border border-[#182B49]/15 bg-slate-50 p-5 dark:border-white/10 dark:bg-white/[0.03]">
-            <h2 className="flex items-center gap-2 text-base font-bold">
-              <FileText className="h-4 w-4 text-[#182B49] dark:text-[#FFCD00]" />
-              No Academic History saved yet
-            </h2>
-            <p className="mt-1.5 max-w-prose text-sm leading-relaxed text-gray-600 dark:text-gray-300">
-              Saving it keeps the course list from your TritonLink Academic History — every course,
-              grade and unit, term by term, plus transfer credit — with your UCSDPlans account, on
-              any device you sign in on. The UCSD courses you&rsquo;ve completed then count toward the
-              degree progress beside your{" "}
-              <Link href="/planner/four-year" className="font-medium underline underline-offset-2">4-year plan</Link>.
-              It never includes your name or PID, and you can delete it at any time. It takes three steps:
-            </p>
-          </section>
+          // A first visit. Nothing went wrong, so nothing here is red — and
+          // nothing here is a box either: it is context for the steps below.
+          <p className="mt-4 max-w-prose text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+            <span className="font-semibold text-gray-900 dark:text-gray-100">No Academic History saved yet.</span>{" "}
+            Saving one keeps every course, grade and unit — term by term, plus transfer credit — with your
+            UCSDPlans account on any device, and the UCSD courses you&rsquo;ve completed count toward the
+            degree progress beside your{" "}
+            <Link href="/planner/four-year" className="font-medium underline underline-offset-2">4-year plan</Link>.
+            You can delete it at any time.
+          </p>
         )}
 
         {savedState === "signedOut" && (
-          <div role="alert" className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-500/30 dark:bg-amber-500/10">
+          <div role="alert" className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-500/30 dark:bg-amber-500/10">
             <p className="text-sm font-bold text-amber-900 dark:text-amber-100">You&rsquo;re signed out</p>
             <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">
               Your sign-in expired, so your saved Academic History can&rsquo;t be shown. Sign in again to see it.
@@ -200,7 +195,7 @@ export default function ImportPage() {
         )}
 
         {savedState === "failed" && (
-          <div role="alert" className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-5 dark:border-red-500/30 dark:bg-red-500/10">
+          <div role="alert" className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-5 dark:border-red-500/30 dark:bg-red-500/10">
             <p className="flex items-center gap-2 text-sm font-bold text-red-900 dark:text-red-200">
               <AlertTriangle className="h-4 w-4 shrink-0" />
               Couldn&rsquo;t load your saved Academic History
@@ -222,10 +217,10 @@ export default function ImportPage() {
           </div>
         )}
 
-        <h2 className="mt-8 text-sm font-bold uppercase tracking-wide text-gray-500">
+        <h2 className={`mt-6 ${SECTION_TITLE}`}>
           {savedState === "saved" ? "Replace it with a newer copy" : "Import it from TritonLink"}
         </h2>
-        <ol className="mt-2 list-decimal space-y-1 rounded-xl bg-gray-50 py-4 pl-9 pr-4 text-sm text-gray-700 dark:bg-white/5 dark:text-gray-300">
+        <ol className="mt-2 list-decimal space-y-1 rounded-xl bg-gray-50 py-3 pl-9 pr-4 text-sm text-gray-700 dark:bg-white/5 dark:text-gray-300">
           <li>
             Open{" "}
             <a
@@ -248,7 +243,7 @@ export default function ImportPage() {
           spellCheck={false}
           aria-label="Paste your Academic History here"
           placeholder="Paste your Academic History here…"
-          className="mt-5 h-40 w-full resize-y rounded-xl border border-gray-300 bg-white p-3 font-mono text-xs leading-relaxed outline-none focus:border-[#182B49] focus:ring-2 focus:ring-[#182B49]/20 dark:border-white/15 dark:bg-white/5 dark:focus:border-[#FFCD00] dark:focus:ring-[#FFCD00]/20"
+          className="mt-4 h-40 w-full resize-y rounded-xl border border-gray-300 bg-white p-3 font-mono text-xs leading-relaxed outline-none focus:border-[#182B49] focus:ring-2 focus:ring-[#182B49]/20 dark:border-white/15 dark:bg-white/5 dark:focus:border-[#FFCD00] dark:focus:ring-[#FFCD00]/20"
         />
 
         {/* Only a paste that could not be read, or a save or delete that failed — never a first visit. */}
@@ -293,7 +288,7 @@ function Review({
   return (
     <section className="mt-6">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500">
+        <h2 className={SECTION_TITLE}>
           {preview ? "What came through" : "Your saved Academic History"}
         </h2>
         {!preview && phase === "saved" && (
@@ -339,7 +334,7 @@ function Review({
       <div className="mt-4 space-y-4">
         {history.terms.map((term) => (
           <div key={term.code}>
-            <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
+            <p className={LABEL}>
               {term.label}
             </p>
             <ul className="mt-1 list-none space-y-0.5 p-0">
@@ -364,7 +359,7 @@ function Review({
 
         {history.transfer.length > 0 && (
           <div>
-            <p className="text-xs font-bold uppercase tracking-wide text-gray-400">
+            <p className={LABEL}>
               Transfer credit · {t.transferUnits} units
             </p>
             <ul className="mt-1 list-none space-y-0.5 p-0">
