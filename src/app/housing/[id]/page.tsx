@@ -10,7 +10,7 @@ import {
   RotateCcw, Sofa, Trash2, Users, WashingMachine,
 } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
-import { PAGE_TITLE, SECTION_TITLE } from "@/components/plat/typeScale";
+import { PAGE_PAD, PAGE_TITLE, SECTION_TITLE } from "@/components/plat/typeScale";
 import { useTheme } from "@/components/plat/theme";
 import { usePref } from "@/components/planner/usePref";
 import CommuteWeek from "@/components/housing/CommuteWeek";
@@ -109,7 +109,7 @@ export default function ListingPage() {
 
   return (
     <PlatShell>
-      <div className="mx-auto max-w-6xl px-4 pb-10 pt-6 sm:px-6 lg:px-8">
+      <div className={`mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 ${PAGE_PAD}`}>
         <Link href={boardHref} className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
           <ArrowLeft className="h-3.5 w-3.5" /> All housing
         </Link>
@@ -123,14 +123,14 @@ export default function ListingPage() {
             </Link>
           </div>
         ) : !listing || !measure ? (
-          <div className="mt-6 grid gap-6 lg:grid-cols-12">
+          <div className="mt-8 grid gap-8 lg:grid-cols-12">
             <div className="h-80 animate-pulse rounded-2xl bg-gray-100 dark:bg-white/5 lg:col-span-7" />
             <div className="h-80 animate-pulse rounded-2xl bg-gray-100 dark:bg-white/5 lg:col-span-5" />
           </div>
         ) : (
-          <div className="mt-4 grid grid-cols-1 gap-8 lg:grid-cols-12">
+          <div className="mt-6 grid grid-cols-1 gap-10 lg:grid-cols-12 lg:gap-12">
             {/* ── The place ──────────────────────────────────────────────── */}
-            <div className="space-y-6 lg:col-span-7">
+            <div className="space-y-8 lg:col-span-7">
               <Gallery photos={listing.photos} labels={listing.photoLabels} />
 
               <header>
@@ -204,7 +204,7 @@ export default function ListingPage() {
             </div>
 
             {/* ── Your week from it ──────────────────────────────────────── */}
-            <div className="space-y-4 lg:col-span-5">
+            <div className="space-y-6 lg:col-span-5">
               <div className="h-72 overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10">
                 <HousingMap
                   darkMode={theme === "dark"}

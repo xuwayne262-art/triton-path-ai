@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, CalendarCheck, List, Loader2, Map as MapIcon, Plus, RotateCw, Search, X } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import PageHeader from "@/components/plat/PageHeader";
-import { SECTION_TITLE } from "@/components/plat/typeScale";
+import { PAGE_GAP, PAGE_PAD, SECTION_TITLE } from "@/components/plat/typeScale";
 import { useTheme } from "@/components/plat/theme";
 import { usePref } from "@/components/planner/usePref";
 import ListingCard, { street } from "@/components/housing/ListingCard";
@@ -207,7 +207,7 @@ export default function HousingPage() {
 
   return (
     <PlatShell>
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 ${PAGE_PAD}`}>
         {/* The site bar already marks Housing as new; the page says what it holds and gets out of the way. */}
         <PageHeader
           title="Housing"
@@ -230,10 +230,10 @@ export default function HousingPage() {
           }
         />
 
-        <ScheduleBanner schedule={schedule} placedCount={placed.length} mode={mode} onMode={setMode} className="mt-5" />
+        <ScheduleBanner schedule={schedule} placedCount={placed.length} mode={mode} onMode={setMode} className={PAGE_GAP} />
 
         {/* Phones get one pane at a time, like the planner. */}
-        <div className="mt-4 flex rounded-lg bg-gray-100 p-0.5 dark:bg-white/10 lg:hidden" role="tablist" aria-label="View">
+        <div className="mt-6 flex rounded-lg bg-gray-100 p-0.5 dark:bg-white/10 lg:hidden" role="tablist" aria-label="View">
           {(["list", "map"] as const).map((v) => (
             <button
               key={v}
@@ -251,15 +251,15 @@ export default function HousingPage() {
           ))}
         </div>
 
-        <div className="mt-5 grid grid-cols-1 gap-6 lg:grid-cols-12 lg:gap-8">
+        <div className="mt-10 grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-12">
           {/* ── The list ─────────────────────────────────────────────────── */}
-          <div className={`space-y-8 lg:col-span-5 ${phoneView === "map" ? "max-lg:hidden" : ""}`}>
+          <div className={`space-y-12 lg:col-span-5 ${phoneView === "map" ? "max-lg:hidden" : ""}`}>
             {mine.length > 0 && <MyListings rows={mine} onChanged={load} />}
 
             <section aria-labelledby="listings-h">
               <h2 id="listings-h" className={SECTION_TITLE}>Posted by students</h2>
               {/* The count and the order share a line: both describe the list, neither is a filter. */}
-              <div className="mt-0.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+              <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   {board === "ready"
                     ? `${shown.length} ${shown.length === 1 ? "place" : "places"}`
@@ -296,7 +296,7 @@ export default function HousingPage() {
                 </label>
               </div>
 
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-center">
                 <select value={quarter} onChange={(e) => setFilters({ ...filters, quarter: e.target.value })} aria-label="Quarter you need it for" className={`${FIELD} w-full px-2.5 sm:w-auto`}>
                   <option value="any">Any quarter</option>
                   {quarters.map((q) => <option key={q.key} value={q.key}>{q.name}</option>)}
@@ -308,7 +308,7 @@ export default function HousingPage() {
                 <RentSlider value={rentCap} onChange={(v) => setFilters({ ...filters, rentCap: v })} className="col-span-2 mt-1 sm:basis-full" />
               </div>
 
-              <div className="mt-4 space-y-3">
+              <div className="mt-6 space-y-4">
                 {board === "loading" ? (
                   <div className="h-44 animate-pulse rounded-2xl bg-gray-100 dark:bg-white/5" />
                 ) : board === "error" && loadError ? (
@@ -349,8 +349,8 @@ export default function HousingPage() {
 
           {/* ── The map ──────────────────────────────────────────────────── */}
           <div className={`lg:col-span-7 ${phoneView === "list" ? "max-lg:hidden" : ""}`}>
-            {/* Pinned 24px under the 56px site bar, ending 24px above the window's foot. */}
-            <div className="h-[70dvh] overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10 lg:sticky lg:top-20 lg:h-[calc(100dvh-6.5rem)]">
+            {/* Pinned a little below the site bar, ending 32px above the window's foot. */}
+            <div className="h-[70dvh] overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10 lg:sticky lg:top-24 lg:h-[calc(100dvh-8rem)]">
               <HousingMap
                 darkMode={theme === "dark"}
                 homes={homes}
@@ -362,7 +362,7 @@ export default function HousingPage() {
                 onSelect={onSelect}
               />
             </div>
-            <p className="mt-2 text-[10px] leading-snug text-gray-400">
+            <p className="mt-3 text-[10px] leading-snug text-gray-400">
               Gold-ringed dots are the buildings your classes meet in. Hover a place to see the trip to each
               morning&rsquo;s first class. Map data © OpenStreetMap contributors, tiles by OpenFreeMap.
             </p>
@@ -468,12 +468,12 @@ function CheckAddress({
   };
 
   return (
-    <section id="check" aria-labelledby="check-h" className="scroll-mt-28 lg:scroll-mt-20">
+    <section id="check" aria-labelledby="check-h" className="scroll-mt-32 lg:scroll-mt-24">
       <h2 id="check-h" className={SECTION_TITLE}>Found a place somewhere else?</h2>
-      <p className="mt-1 text-[13px] leading-relaxed text-gray-500 dark:text-gray-400">
+      <p className="mt-1.5 text-[13px] leading-relaxed text-gray-500 dark:text-gray-400">
         Paste its address and see your commute from there, next to everything listed here.
       </p>
-      <form onSubmit={submit} className="mt-3 flex gap-2">
+      <form onSubmit={submit} className="mt-4 flex gap-2">
         <label className="min-w-0 flex-1">
           <span className="sr-only">Street address</span>
           <input
@@ -549,7 +549,7 @@ function CheckAddress({
           ))}
         </ul>
       )}
-      <p className="mt-3 text-[11px] leading-snug text-gray-400 dark:text-gray-500">
+      <p className="mt-4 text-[11px] leading-snug text-gray-400 dark:text-gray-500">
         Up to {MAX_CHECKED} addresses, kept in this browser only. Looked up with the U.S. Census Bureau&rsquo;s
         geocoder; nothing else is sent.
       </p>
@@ -602,7 +602,7 @@ function MyListings({ rows, onChanged }: { rows: PublicListing[]; onChanged: () 
   return (
     <section aria-labelledby="mine-h" className="rounded-2xl border border-gray-200 p-4 dark:border-white/10 sm:p-5">
       <h2 id="mine-h" className={SECTION_TITLE}>Your listings</h2>
-      <ul className="mt-1 divide-y divide-gray-100 dark:divide-white/5">
+      <ul className="mt-2 divide-y divide-gray-100 dark:divide-white/5">
         {rows.map((l) => {
           const s = STATE_LABEL[l.state];
           return (

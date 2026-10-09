@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ImagePlus, Loader2, MapPin, Search, X } from "lucide-react";
 import PageHeader from "@/components/plat/PageHeader";
-import { LABEL, SECTION_TITLE } from "@/components/plat/typeScale";
+import { LABEL, PAGE_GAP, PAGE_PAD, SECTION_TITLE } from "@/components/plat/typeScale";
 import { useTheme } from "@/components/plat/theme";
 import { usePref } from "@/components/planner/usePref";
 import ListingCard, { photoUrl } from "./ListingCard";
@@ -355,12 +355,12 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 pb-16 pt-6 sm:px-6 lg:px-8">
+    <div className={`mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 ${PAGE_PAD}`}>
       <Link href={boardHref} className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
         <ArrowLeft className="h-3.5 w-3.5" /> All housing
       </Link>
       <PageHeader
-        className="mt-2"
+        className="mt-3"
         title={editId ? "Edit your listing" : "List your place"}
         description="Only signed-in @ucsd.edu students can see it. Each of them sees how far it is from their own classes."
       />
@@ -370,8 +370,8 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
         </p>
       )}
 
-      <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-12">
-        <form onSubmit={submit} onChange={touch} className="space-y-8 lg:col-span-7" noValidate>
+      <div className={`${PAGE_GAP} grid grid-cols-1 gap-10 lg:grid-cols-12 lg:gap-12`}>
+        <form onSubmit={submit} onChange={touch} className="space-y-10 lg:col-span-7" noValidate>
           {/* ── What ── */}
           <fieldset id="f-kind" className="space-y-3">
             <legend className={SECTION_TITLE}>What are you offering?</legend>
@@ -675,7 +675,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
 
         {/* ── Preview ── */}
         <aside className="lg:col-span-5">
-          <div className="space-y-3 lg:sticky lg:top-20">
+          <div className="space-y-3 lg:sticky lg:top-24">
             <p className={LABEL}>Preview</p>
             {preview && previewMeasure ? (
               <>

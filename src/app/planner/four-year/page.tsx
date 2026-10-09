@@ -71,10 +71,10 @@ export default function FourYearPlanPage() {
     // plan and the two scroll as one page.
     <div className="flex min-w-0 flex-1 overflow-hidden max-md:flex-col max-md:overflow-y-auto">
       <main className="min-w-0 flex-1 overflow-auto max-md:flex-none max-md:overflow-visible">
-        <div className="p-3 md:p-4">
+        <div className="p-4 md:p-6">
           {/* Controls — a toolbar row rather than a card: they set where the
               add button puts courses, and the plan below is the point. */}
-          <div className="mb-3">
+          <div className="mb-6">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <div className="flex items-center gap-2">
                 <label
@@ -159,7 +159,7 @@ export default function FourYearPlanPage() {
               the Degree Progress rail beside the plan lists the same ones, each
               with its progress, and this tile pushed the plan 220px down. */}
           {selectedCollege && (
-            <div className={`mb-3 p-4 md:hidden ${panelCls}`}>
+            <div className={`mb-6 p-4 md:hidden ${panelCls}`}>
               <h3 className={`text-sm font-semibold mb-3 ${darkMode ? "text-white" : "text-gray-900"}`}>
                 {collegeGEs(selectedCollege)}
               </h3>
@@ -187,9 +187,9 @@ export default function FourYearPlanPage() {
               {/* One column per year with its heading on top. The headings used
                   to be a row of their own, which on a phone stacked all four
                   years' titles above all twelve quarters. */}
-              <div className="grid grid-cols-1 gap-2 p-2 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="grid grid-cols-1 gap-3 p-3 sm:grid-cols-2 lg:grid-cols-4">
                 {YEARS.map((year) => (
-                  <div key={year} className="space-y-2">
+                  <div key={year} className="space-y-3">
                     <div
                       className={`p-2 rounded-lg text-center ${darkMode ? "bg-gray-700" : "bg-gray-50"}`}
                     >
