@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // A CommonJS data script from the first version, run by hand with node;
+    // its require() calls are right for it, not for the app.
+    "update_history.js",
   ]),
 ]);
 
