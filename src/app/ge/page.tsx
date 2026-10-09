@@ -4,6 +4,8 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
+import PageHeader from "@/components/plat/PageHeader";
+import { LABEL, SECTION_TITLE } from "@/components/plat/typeScale";
 import CourseResults, { DEFAULT_FILTERS, type ResultFilters } from "@/components/plat/CourseResults";
 import {
   CAMPUS, UNIVERSITY_REQUIREMENTS, collegeName, loadGE, loadIndex,
@@ -100,29 +102,28 @@ function GESearch() {
 
   return (
     <PlatShell>
-      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-        <h1 className="text-3xl font-black tracking-tight">Easy GEs</h1>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-          Approved general-education courses, ranked by the grades students actually got — and the two
-          university requirements every college shares.
-        </p>
-
-        <div className="mt-6 flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-3 text-sm">
-            <span className="text-gray-600 dark:text-gray-300">College</span>
-            <select
-              value={college}
-              onChange={(e) => { setCollege(e.target.value); if (onReq) setArea(null); }}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium outline-none focus:border-[#182B49] dark:border-white/10 dark:bg-white/5 dark:text-gray-100"
-            >
-              {colleges.map((c) => <option key={c} value={c}>{collegeName(c)}</option>)}
-            </select>
-          </label>
-        </div>
+      <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+        {/* The first of the page's decisions, so it sits on the title's line. */}
+        <PageHeader
+          title="Easy GEs"
+          description="Approved general-education courses, ranked by the grades students actually got."
+          actions={
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-gray-600 dark:text-gray-300">College</span>
+              <select
+                value={college}
+                onChange={(e) => { setCollege(e.target.value); if (onReq) setArea(null); }}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium outline-none focus:border-[#182B49] dark:border-white/10 dark:bg-white/5 dark:text-gray-100"
+              >
+                {colleges.map((c) => <option key={c} value={c}>{collegeName(c)}</option>)}
+              </select>
+            </label>
+          }
+        />
 
         {isWarren && !onReq && (
           <div className="mt-5 rounded-xl border border-gray-200 p-4 dark:border-white/10">
-            <h2 className="text-sm font-bold">Warren states a rule, not a list</h2>
+            <h2 className={SECTION_TITLE}>Warren states a rule, not a list</h2>
             <p className="mt-1.5 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
               Every course outside your major&rsquo;s discipline can count, so there is no short
               approved list to browse. You build two collections instead, each drawn from a
@@ -160,9 +161,10 @@ function GESearch() {
           </div>
         )}
 
-        <div className="mt-5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{collegeName(college)} GE requirements</p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
+        {/* The filters as labelled rows, label on the left from a tablet up:
+            one block to read across instead of three stacked boxes. */}
+        <div className="mt-5 space-y-3">
+          <FilterRow label={`${collegeName(college)} GE requirements`}>
             {!discipline && (
               <AreaChip active={area === null} onClick={() => setArea(null)}>All areas</AreaChip>
             )}
@@ -171,30 +173,23 @@ function GESearch() {
                 {a.area}
               </AreaChip>
             ))}
-          </div>
-        </div>
+          </FilterRow>
 
-        {reqs.length > 0 && (
-          <div className="mt-5">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">University requirements · every college</p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
+          {reqs.length > 0 && (
+            <FilterRow label="University requirements · every college">
               {reqs.map((k) => (
                 <AreaChip key={k} active={area === k} onClick={() => { setArea(k); setDiscipline(null); setAlso((cur) => cur.filter((x) => x !== k)); }}>
                   {reqLabel(k)}
                 </AreaChip>
               ))}
-            </div>
-          </div>
-        )}
+            </FilterRow>
+          )}
 
-        {reqs.length > 0 && !onReq && (
-          <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50/50 p-3 dark:border-emerald-500/20 dark:bg-emerald-500/5">
-            <p className="text-sm font-semibold text-emerald-950 dark:text-emerald-100">Clear two at once</p>
-            <p className="mt-0.5 text-xs text-emerald-900 dark:text-emerald-200/80">
-              Keep only the courses on this list that are also approved for — a course on both can usually
-              count for both, but your college has the final say:
-            </p>
-            <div className="mt-2 flex flex-wrap gap-1.5">
+          {reqs.length > 0 && !onReq && (
+            <FilterRow
+              label="Clear two at once"
+              hint="Keeps only the courses on this list that are also approved for the one you pick. A course on both can usually count for both, but your college has the final say."
+            >
               {reqs.map((k) => (
                 <button
                   key={k}
@@ -207,12 +202,12 @@ function GESearch() {
                       : "border-emerald-300 bg-white text-emerald-900 hover:border-emerald-600 dark:border-emerald-500/30 dark:bg-transparent dark:text-emerald-100"
                   }`}
                 >
-                  {reqLabel(k)}
+                  Also {reqLabel(k)}
                 </button>
               ))}
-            </div>
-          </div>
-        )}
+            </FilterRow>
+          )}
+        </div>
 
         {onReq && area && campus && (
           <p className="mt-4 flex flex-wrap items-center gap-x-1 text-xs leading-relaxed text-gray-600 dark:text-gray-300">
@@ -237,7 +232,7 @@ function GESearch() {
           </p>
         )}
 
-        <div className="mt-6">
+        <div className="mt-5">
           <CourseResults
             rows={rows}
             filters={filters}
@@ -254,12 +249,27 @@ function GESearch() {
         </div>
 
         {ge && (
-          <p className="mt-10 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+          <p className="mt-8 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
             {ge.meta.note}
           </p>
         )}
       </div>
     </PlatShell>
+  );
+}
+
+/** One kind of choice: its name, then its chips — side by side from a tablet up. */
+function FilterRow({
+  label, hint, children,
+}: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="sm:grid sm:grid-cols-[13rem_minmax(0,1fr)] sm:gap-4">
+      <p className={`${LABEL} sm:pt-2`}>{label}</p>
+      <div className="mt-2 sm:mt-0">
+        <div className="flex flex-wrap gap-1.5">{children}</div>
+        {hint && <p className="mt-1.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{hint}</p>}
+      </div>
+    </div>
   );
 }
 
