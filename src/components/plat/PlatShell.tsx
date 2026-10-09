@@ -54,7 +54,8 @@ export default function PlatShell({
   return (
     <div className="min-h-screen bg-white text-gray-900 dark:bg-[#0d1420] dark:text-gray-100">
       <header className="sticky top-0 z-40 border-b border-gray-200 bg-white/90 backdrop-blur dark:border-white/10 dark:bg-[#0d1420]/90">
-        <div className="mx-auto flex h-16 max-w-7xl items-center gap-2 px-4 sm:gap-3 sm:px-6 lg:px-8">
+        {/* 56px, the planner's own bar height: chrome, not a banner. */}
+        <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-4 sm:gap-3 sm:px-6 lg:px-8">
           <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="UCSDPlans home">
             <TridentMark className="h-8 w-8" />
             {/* On a phone the search needs the width more than the name does. */}
@@ -140,7 +141,7 @@ export default function PlatShell({
 
       <main>{children}</main>
 
-      <footer className="mt-20 border-t border-gray-200 py-8 dark:border-white/10">
+      <footer className="mt-12 border-t border-gray-200 py-8 dark:border-white/10">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 text-xs leading-relaxed text-gray-500 dark:text-gray-400 sm:px-6 lg:flex-row lg:items-start lg:justify-between lg:px-8">
           <p className="max-w-3xl">
             {meta
