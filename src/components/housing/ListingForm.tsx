@@ -6,6 +6,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ImagePlus, Loader2, MapPin, Search, X } from "lucide-react";
+import PageHeader from "@/components/plat/PageHeader";
+import { LABEL, SECTION_TITLE } from "@/components/plat/typeScale";
 import { useTheme } from "@/components/plat/theme";
 import { usePref } from "@/components/planner/usePref";
 import ListingCard, { photoUrl } from "./ListingCard";
@@ -357,10 +359,11 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
       <Link href={boardHref} className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
         <ArrowLeft className="h-3.5 w-3.5" /> All housing
       </Link>
-      <h1 className="mt-3 text-3xl font-black tracking-tight">{editId ? "Edit your listing" : "List your place"}</h1>
-      <p className="mt-1 max-w-2xl text-sm text-gray-600 dark:text-gray-300">
-        Only signed-in @ucsd.edu students can see it. Each of them sees how far it is from their own classes.
-      </p>
+      <PageHeader
+        className="mt-2"
+        title={editId ? "Edit your listing" : "List your place"}
+        description="Only signed-in @ucsd.edu students can see it. Each of them sees how far it is from their own classes."
+      />
       {error?.field === "form" && (
         <p className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
           {error.text}
@@ -371,7 +374,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
         <form onSubmit={submit} onChange={touch} className="space-y-8 lg:col-span-7" noValidate>
           {/* ── What ── */}
           <fieldset id="f-kind" className="space-y-3">
-            <legend className="text-sm font-bold">What are you offering?</legend>
+            <legend className={SECTION_TITLE}>What are you offering?</legend>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {(Object.keys(KINDS) as ListingKind[]).map((k) => (
                 <label
@@ -422,7 +425,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
 
           {/* ── Where ── */}
           <fieldset id="f-address" className="space-y-3">
-            <legend className="text-sm font-bold">Where is it?</legend>
+            <legend className={SECTION_TITLE}>Where is it?</legend>
             {place ? (
               <div className="rounded-xl border border-gray-200 dark:border-white/10">
                 <div className="flex items-start gap-2 p-3">
@@ -496,7 +499,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
 
           {/* ── When ── */}
           <fieldset className="space-y-3">
-            <legend className="text-sm font-bold">When is it available?</legend>
+            <legend className={SECTION_TITLE}>When is it available?</legend>
             <div className="grid grid-cols-2 gap-3">
               <label id="f-from">
                 <span className={labelText}>First day</span>
@@ -518,7 +521,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
 
           {/* ── Money ── */}
           <fieldset className="space-y-3">
-            <legend className="text-sm font-bold">What does it cost?</legend>
+            <legend className={SECTION_TITLE}>What does it cost?</legend>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label id="f-rent">
                 <span className={labelText}>Rent a month{room === "shared" ? " (for one bed)" : ""}</span>
@@ -549,7 +552,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
 
           {/* ── Details ── */}
           <fieldset className="space-y-3">
-            <legend className="text-sm font-bold">Details</legend>
+            <legend className={SECTION_TITLE}>Details</legend>
             <div className="flex flex-wrap gap-2">
               {([["Furnished", furnished, setFurnished], ["Parking", parking, setParking], ["Pets allowed", pets, setPets]] as const).map(([label, on, set]) => (
                 <label key={label} className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition ${on ? "border-[#182B49] bg-[#182B49]/[0.04] dark:border-[#FFCD00] dark:bg-[#FFCD00]/[0.06]" : "border-gray-200 dark:border-white/10"}`}>
@@ -581,7 +584,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
 
           {/* ── Photos ── */}
           <fieldset id="f-photos" className="space-y-3">
-            <legend className="text-sm font-bold">Photos <span className="font-normal text-gray-400">(up to {MAX_PHOTOS})</span></legend>
+            <legend className={SECTION_TITLE}>Photos <span className="font-normal text-gray-400">(up to {MAX_PHOTOS})</span></legend>
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
               {photos.map((p, i) => (
                 <div key={p.ref} className="space-y-1">
@@ -631,7 +634,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
 
           {/* ── Contact ── */}
           <fieldset id="f-contact" className="space-y-3">
-            <legend className="text-sm font-bold">How should students reach you?</legend>
+            <legend className={SECTION_TITLE}>How should students reach you?</legend>
             <label className="flex items-start gap-2 text-sm">
               <input type="checkbox" checked={showEmail} onChange={(e) => setShowEmail(e.target.checked)} className="mt-1 accent-[#182B49]" />
               <span>
@@ -672,8 +675,8 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
 
         {/* ── Preview ── */}
         <aside className="lg:col-span-5">
-          <div className="space-y-3 lg:sticky lg:top-24">
-            <p className="text-xs font-bold uppercase tracking-[0.12em] text-gray-400">Preview</p>
+          <div className="space-y-3 lg:sticky lg:top-20">
+            <p className={LABEL}>Preview</p>
             {preview && previewMeasure ? (
               <>
                 {/* A picture of the card, not a way off a half-filled form: it cannot be clicked or tabbed into. */}

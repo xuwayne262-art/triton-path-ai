@@ -10,6 +10,7 @@ import {
   RotateCcw, Sofa, Trash2, Users, WashingMachine,
 } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
+import { PAGE_TITLE, SECTION_TITLE } from "@/components/plat/typeScale";
 import { useTheme } from "@/components/plat/theme";
 import { usePref } from "@/components/planner/usePref";
 import CommuteWeek from "@/components/housing/CommuteWeek";
@@ -148,7 +149,7 @@ export default function ListingPage() {
                     </span>
                   )}
                 </div>
-                <h1 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl">{headline(listing)}</h1>
+                <h1 className={`mt-2 ${PAGE_TITLE}`}>{headline(listing)}</h1>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                   {listing.address} · {listing.area}
                 </p>
@@ -188,7 +189,7 @@ export default function ListingPage() {
 
               {listing.about && (
                 <section>
-                  <h2 className="text-sm font-bold">About the place</h2>
+                  <h2 className={SECTION_TITLE}>About the place</h2>
                   <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-gray-700 dark:text-gray-200">{listing.about}</p>
                 </section>
               )}

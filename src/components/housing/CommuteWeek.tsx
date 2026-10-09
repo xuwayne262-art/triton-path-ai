@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { CalendarPlus, ExternalLink, House, TramFront } from "lucide-react";
+import { SECTION_TITLE } from "@/components/plat/typeScale";
 import { DETOUR, WALK_M_PER_MIN, formatDistance, type LatLng } from "@/lib/campus";
 import {
   LIBRARY_WALK, MODES, clockLabel, formatDuration, formatHours, perQuarter, transitUrl, type Mode,
@@ -36,7 +37,7 @@ export default function CommuteWeek({
   return (
     <section aria-labelledby="commute-h" className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-white/10 dark:bg-white/[0.03]">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="commute-h" className="text-sm font-bold">Your week from here</h2>
+        <h2 id="commute-h" className={SECTION_TITLE}>Your week from here</h2>
         <ModeToggle mode={mode} onMode={onMode} />
       </div>
 
