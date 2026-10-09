@@ -204,9 +204,3 @@ export function splitDuration(ms: number): { days: number; hours: number; minute
 export function positionOf(iso: string, start: number, end: number): number {
   return Math.min(1, Math.max(0, (sanDiegoMidnight(iso) - start) / (end - start)));
 }
-
-/** San Diego's time of day, "3:04:12 PM PDT". */
-export const sanDiegoTime = (now: number) =>
-  new Intl.DateTimeFormat("en-US", {
-    timeZone: SAN_DIEGO, hour: "numeric", minute: "2-digit", second: "2-digit", timeZoneName: "short",
-  }).format(now);
