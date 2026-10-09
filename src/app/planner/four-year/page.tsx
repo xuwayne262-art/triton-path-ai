@@ -72,9 +72,10 @@ export default function FourYearPlanPage() {
     <div className="flex min-w-0 flex-1 overflow-hidden max-md:flex-col max-md:overflow-y-auto">
       <main className="min-w-0 flex-1 overflow-auto max-md:flex-none max-md:overflow-visible">
         <div className="p-3 md:p-4">
-          {/* Controls */}
-          <div className={`mb-4 p-4 ${panelCls}`}>
-            <div className="flex flex-wrap items-center gap-4">
+          {/* Controls — a toolbar row rather than a card: they set where the
+              add button puts courses, and the plan below is the point. */}
+          <div className="mb-3">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <div className="flex items-center gap-2">
                 <label
                   htmlFor="plan-year"
@@ -154,9 +155,11 @@ export default function FourYearPlanPage() {
             </div>
           </div>
 
-          {/* GE requirements tile */}
+          {/* The college's GE requirements, for a phone only: from a tablet up
+              the Degree Progress rail beside the plan lists the same ones, each
+              with its progress, and this tile pushed the plan 220px down. */}
           {selectedCollege && (
-            <div className={`mb-4 p-4 ${panelCls}`}>
+            <div className={`mb-3 p-4 md:hidden ${panelCls}`}>
               <h3 className={`text-sm font-semibold mb-3 ${darkMode ? "text-white" : "text-gray-900"}`}>
                 {collegeGEs(selectedCollege)}
               </h3>
