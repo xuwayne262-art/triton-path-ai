@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import PageHeader from "@/components/plat/PageHeader";
+import QuarterClock from "@/components/plat/QuarterClock";
 import { PAGE_PAD, SECTION_TITLE } from "@/components/plat/typeScale";
 import CourseRow from "@/components/plat/CourseRow";
 import PassTimeline from "@/components/plat/PassTimeline";
@@ -159,7 +160,11 @@ export default function HomePage() {
         {/* ── What this is and the way in, beside the term at a glance ─────── */}
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-12 lg:gap-12">
           <div className="min-w-0 lg:col-span-7">
+            {/* The quarter, live, first thing in the top-left corner. */}
+            <QuarterClock />
+
             <PageHeader
+              className="mt-10"
               title="Grades, professors and seats for every UCSD course"
               description={data
                 ? `${data.meta.gradeRecords.toLocaleString()} published grade distributions from ${data.meta.years}, matched to who is teaching in ${data.meta.termName}.`
@@ -231,7 +236,7 @@ export default function HomePage() {
           </div>
 
           {/* The term itself — numbers and the enrollment clock */}
-          <div className="rounded-2xl border border-gray-200 p-6 lg:col-span-5 dark:border-white/10">
+          <div className="rounded-2xl border border-gray-200 p-6 lg:col-span-5 lg:self-start dark:border-white/10">
             <div className="flex items-baseline justify-between gap-3">
               <h2 className={SECTION_TITLE}>
                 {data?.meta.termName ?? "This term"} at a glance

@@ -55,6 +55,25 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
+/*
+ * The quarter clock's motion: a light sweeping along the progress bar, and
+ * the card's gold glow drifting slowly. Both stop for anyone who asks their
+ * system for reduced motion (motion-reduce:animate-none where they are used).
+ */
+@theme {
+  --animate-clock-sheen: clock-sheen 3.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  --animate-clock-drift: clock-drift 18s ease-in-out infinite alternate;
+
+  @keyframes clock-sheen {
+    0% { transform: translateX(-120%); }
+    55%, 100% { transform: translateX(420%); }
+  }
+  @keyframes clock-drift {
+    from { transform: translate3d(0, 0, 0) scale(1); }
+    to { transform: translate3d(-18%, 14%, 0) scale(1.2); }
+  }
+}
+
 :root {
   --radius: 0.625rem;
   --background: oklch(1 0 0);
