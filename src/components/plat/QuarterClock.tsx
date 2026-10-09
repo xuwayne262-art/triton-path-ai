@@ -154,7 +154,7 @@ function Face({ r, className }: { r: ClockReading; className: string }) {
           <p className="sr-only">
             {r.started
               ? `${(r.fraction * 100).toFixed(1)}% of ${r.quarter.name} has gone by; ${toGo(r.remaining)} to go.`
-              : `${r.quarter.name} begins ${dayLabel(r.quarter.begins)}, in ${daysToStart} days.`}
+              : `${r.quarter.name} begins ${dayLabel(r.quarter.begins)}, in ${daysToStart} ${daysToStart === 1 ? "day" : "days"}.`}
           </p>
         </div>
 
@@ -322,7 +322,7 @@ function toGo(ms: number): string {
   const d = splitDuration(ms);
   if (d.days) return `${d.days} ${d.days === 1 ? "day" : "days"}`;
   if (d.hours) return `${d.hours} ${d.hours === 1 ? "hour" : "hours"}`;
-  return `${d.minutes} min`;
+  return d.minutes ? `${d.minutes} min` : "Under a minute";
 }
 
 /**
