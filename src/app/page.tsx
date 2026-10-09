@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  ArrowRight, BookOpen, CalendarDays, GraduationCap, House, Layers, Search, User, X,
+  ArrowRight, BookOpen, CalendarDays, ChevronRight, GraduationCap, House, Layers, Search, User, X,
 } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import PageHeader from "@/components/plat/PageHeader";
@@ -57,10 +57,10 @@ function varied(rows: Row[], count: number): Row[] {
 
 /**
  * The front door says what the site is before anything else: a headline in
- * plain words, the search, then the four places a student goes — each with
- * how much is behind it — and whatever this browser looked at last. The
- * shelves below exist so a student who knows nothing still lands on real
- * courses.
+ * plain words and the search, with the term and the four places a student
+ * goes beside them — each with how much is behind it — then whatever this
+ * browser looked at last. The shelves below exist so a student who knows
+ * nothing still lands on real courses.
  */
 export default function HomePage() {
   const router = useRouter();
@@ -235,66 +235,73 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* The term itself — numbers and the enrollment clock */}
-          <div className="rounded-2xl border border-gray-200 p-6 lg:col-span-5 lg:self-start dark:border-white/10">
-            <div className="flex items-baseline justify-between gap-3">
-              <h2 className={SECTION_TITLE}>
-                {data?.meta.termName ?? "This term"} at a glance
-              </h2>
-              <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{data?.meta.term}</span>
+          {/* The term at a glance, then the four places a student goes. The
+              column runs as far down as the clock and the search beside it, so
+              the corner under the term card is not left empty. */}
+          <div className="flex flex-col gap-6 lg:col-span-5">
+            <div className="rounded-2xl border border-gray-200 p-6 dark:border-white/10">
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className={SECTION_TITLE}>
+                  {data?.meta.termName ?? "This term"} at a glance
+                </h2>
+                <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{data?.meta.term}</span>
+              </div>
+
+              <dl className="mt-5 grid grid-cols-3 gap-4">
+                <Stat label="on the schedule" value={data?.meta.offered} />
+                <Stat label="courses catalogued" value={data?.meta.catalogCourses} />
+                <Stat label="professors rated" value={rated || undefined} />
+              </dl>
+
+              <div className="mt-6 border-t border-gray-100 pt-5 dark:border-white/5">
+                <PassTimeline termName={data?.meta.termName} />
+              </div>
             </div>
 
-            <dl className="mt-5 grid grid-cols-3 gap-4">
-              <Stat label="on the schedule" value={data?.meta.offered} />
-              <Stat label="courses catalogued" value={data?.meta.catalogCourses} />
-              <Stat label="professors rated" value={rated || undefined} />
-            </dl>
-
-            <div className="mt-6 border-t border-gray-100 pt-5 dark:border-white/5">
-              <PassTimeline termName={data?.meta.termName} />
-            </div>
+            {/* One list rather than four boxes. The Courses row leaves its
+                counts to the card above, which already shows them. */}
+            <nav
+              aria-label="Start here"
+              className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10"
+            >
+              <EntryRow
+                href="/courses"
+                icon={<BookOpen className="h-4 w-4" />}
+                title="Courses"
+                detail="Every course's grades, professors and seats, by department"
+                cta="Browse by department"
+              />
+              <EntryRow
+                href="/ge"
+                icon={<GraduationCap className="h-4 w-4" />}
+                title="Easy GEs"
+                count={geCounts ? `${geCounts.college.toLocaleString()} GE courses` : undefined}
+                detail={geCounts ? `Ranked by grades, by college — plus ${geCounts.dei} for DEI and the AHI list` : "Ranked by the grades students got"}
+                cta="Find a GE"
+              />
+              <EntryRow
+                href="/planner"
+                icon={<CalendarDays className="h-4 w-4" />}
+                title="Planner"
+                detail="Your week of sections on a map, and all four years against your major"
+                cta="Open the planner"
+                filled
+              />
+              <EntryRow
+                href="/housing"
+                icon={<House className="h-4 w-4" />}
+                title="Housing"
+                badge="New"
+                detail="Sublets from verified @ucsd.edu students, by the walk to your classes"
+                cta="Find a place"
+              />
+            </nav>
           </div>
         </div>
 
-        {/* ── The four places a student goes ─────────────────────────────── */}
-        <nav aria-label="Start here" className="mt-12 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-          <EntryCard
-            href="/courses"
-            icon={<BookOpen className="h-4 w-4" />}
-            title="Courses"
-            count={data ? `${data.meta.catalogCourses.toLocaleString()} courses` : undefined}
-            detail={data ? `${data.meta.offered.toLocaleString()} on the ${data.meta.termName} schedule, in ${DEPARTMENTS.length} departments` : "Every department"}
-            cta="Browse by department"
-          />
-          <EntryCard
-            href="/ge"
-            icon={<GraduationCap className="h-4 w-4" />}
-            title="Easy GEs"
-            count={geCounts ? `${geCounts.college.toLocaleString()} GE courses` : undefined}
-            detail={geCounts ? `Ranked by grades, by college — plus ${geCounts.dei} for DEI and the AHI list` : "Ranked by the grades students got"}
-            cta="Find a GE"
-          />
-          <EntryCard
-            href="/planner"
-            icon={<CalendarDays className="h-4 w-4" />}
-            title="Planner"
-            detail="Your week of sections on a map, and all four years against your major"
-            cta="Open the planner"
-            filled
-          />
-          <EntryCard
-            href="/housing"
-            icon={<House className="h-4 w-4" />}
-            title="Housing"
-            badge="New"
-            detail="Sublets from verified @ucsd.edu students, by the walk to your classes"
-            cta="Find a place"
-          />
-        </nav>
-
         {/* ── Pick up where you left off ─────────────────────────────────── */}
         {visits.length > 0 && (
-          <section className="mt-14">
+          <section className="mt-16">
             <div className="flex items-baseline justify-between gap-2">
               <h2 className={SECTION_TITLE}>Recently viewed</h2>
               <button type="button" onClick={clearRecent} className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
@@ -410,10 +417,11 @@ function Stat({ label, value }: { label: string; value?: number }) {
 }
 
 /**
- * A front door: what it is, how much is behind it, and where it goes — in a
- * tile two lines tall, since the bar above already names every one of them.
+ * A front door: what it is, how much is behind it, and where it goes — one row
+ * of a list, since the bar above already names every one of them. The
+ * planner's icon is filled: it is the one part of the site that is yours.
  */
-function EntryCard({
+function EntryRow({
   href, icon, title, count, detail, cta, badge, filled = false,
 }: {
   href: string;
@@ -430,16 +438,13 @@ function EntryCard({
     <Link
       href={href}
       title={cta}
-      className={`group flex items-start gap-4 rounded-xl p-4 transition sm:p-5 ${
-        filled
-          ? "bg-[#1B2C4F] text-white hover:bg-[#24406e]"
-          : "border border-gray-200 bg-white hover:border-[#1B2C4F]/40 hover:bg-gray-50 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-[#FFC72C]/40 dark:hover:bg-white/5"
-      }`}
+      className="group flex flex-1 items-center gap-4 border-b border-gray-100 px-5 py-4 transition last:border-b-0 hover:bg-gray-50 dark:border-white/5 dark:hover:bg-white/5"
     >
-      {/* Two tiles to a row on a phone leave the words no room beside an icon. */}
       <span
-        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg max-sm:hidden ${
-          filled ? "bg-white/10 text-[#FFC72C]" : "bg-[#1B2C4F]/[0.06] text-[#1B2C4F] dark:bg-[#FFC72C]/10 dark:text-[#FFC72C]"
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+          filled
+            ? "bg-[#1B2C4F] text-[#FFC72C] dark:bg-[#FFC72C] dark:text-[#1B2C4F]"
+            : "bg-[#1B2C4F]/[0.06] text-[#1B2C4F] dark:bg-[#FFC72C]/10 dark:text-[#FFC72C]"
         }`}
       >
         {icon}
@@ -452,12 +457,11 @@ function EntryCard({
               {badge}
             </span>
           )}
-          {count && (
-            <span className={`text-xs ${filled ? "text-white/80" : "text-gray-500 dark:text-gray-400"}`}>{count}</span>
-          )}
+          {count && <span className="text-xs text-gray-500 dark:text-gray-400">{count}</span>}
         </span>
-        <span className={`mt-1 block text-xs leading-relaxed ${filled ? "text-white/75" : "text-gray-600 dark:text-gray-300"}`}>{detail}</span>
+        <span className="mt-0.5 block text-xs leading-relaxed text-gray-600 dark:text-gray-300">{detail}</span>
       </span>
+      <ChevronRight className="h-4 w-4 shrink-0 text-gray-300 transition group-hover:translate-x-0.5 group-hover:text-gray-500 dark:text-gray-600 dark:group-hover:text-gray-300" />
     </Link>
   );
 }
