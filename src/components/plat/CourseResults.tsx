@@ -89,7 +89,7 @@ export default function CourseResults({
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 pb-3 dark:border-white/10">
+      <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 pb-4 dark:border-white/10">
         <span className="text-sm text-gray-500 dark:text-gray-400">
           <span className="font-semibold text-gray-900 dark:text-gray-100">{results.length.toLocaleString()}</span>{" "}
           {results.length === 1 ? "course" : "courses"}
@@ -140,7 +140,7 @@ export default function CourseResults({
       </div>
 
       {chips.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 pt-3">
+        <div className="flex flex-wrap gap-2 pt-4">
           {chips.map((c) => (
             <button
               key={c.label}
@@ -155,14 +155,14 @@ export default function CourseResults({
       )}
 
       {showFilters && (
-        <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/[0.03]">
+        <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-5 dark:border-white/10 dark:bg-white/[0.03]">
           <input
             value={filters.q}
             onChange={(e) => set("q", e.target.value)}
             placeholder="Narrow by code, title or professor"
             className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#182B49] dark:border-white/10 dark:bg-white/5 dark:text-gray-100"
           />
-          <div className="mt-3 flex flex-wrap items-center gap-4">
+          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3">
             <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
               Max units
               <select
@@ -195,7 +195,7 @@ export default function CourseResults({
       {results.length === 0 ? (
         <p className="py-20 text-center text-sm text-gray-500 dark:text-gray-400">{emptyHint}</p>
       ) : (
-        <div className="mt-1">
+        <div className="mt-2">
           {results.slice(0, limit).map((c, i) => (
             <div key={c.k}>
               {offeredCount != null && i === 0 && offeredCount > 0 && (
@@ -218,7 +218,7 @@ export default function CourseResults({
         <button
           type="button"
           onClick={() => setLimit((l) => l + PAGE)}
-          className="mt-6 w-full rounded-xl border border-gray-200 py-3 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5"
+          className="mt-8 w-full rounded-xl border border-gray-200 py-3 text-sm font-medium text-gray-600 transition hover:bg-gray-50 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5"
         >
           Show {Math.min(PAGE, results.length - limit)} more
         </button>
@@ -229,7 +229,7 @@ export default function CourseResults({
 
 function GroupHeading({ children }: { children: React.ReactNode }) {
   return (
-    <p className="border-b border-gray-200 bg-gray-50/80 px-3 pb-2 pt-4 text-xs font-bold uppercase tracking-wide text-gray-700 dark:border-white/10 dark:bg-white/[0.02] dark:text-gray-200">
+    <p className="border-b border-gray-200 bg-gray-50/80 px-3 pb-2.5 pt-5 text-xs font-bold uppercase tracking-wide text-gray-700 dark:border-white/10 dark:bg-white/[0.02] dark:text-gray-200">
       {children}
     </p>
   );
