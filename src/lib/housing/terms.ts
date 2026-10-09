@@ -7,9 +7,10 @@
  * is described by the quarters it covers, and a partial one says so.
  *
  * Dates are the Registrar's, from blink.ucsd.edu's Academic and Administrative
- * Calendars for 2026–2027 and 2027–2028. Summer is kept as one stretch, Summer
- * Session I's first day to Summer Session II's last final, because a summer
- * sublet is almost always taken for the whole of it.
+ * Calendars for 2026–2027 and 2027–2028 (checked against the pages' own HTML on
+ * Oct 10, 2026; the 2026–27 page was last updated Oct 7, 2026). Summer is kept
+ * as one stretch, Summer Session I's first day to Summer Session II's last
+ * final, because a summer sublet is almost always taken for the whole of it.
  */
 
 export interface Quarter {
@@ -17,6 +18,12 @@ export interface Quarter {
   key: string;
   /** "Winter 2027" */
   name: string;
+  /**
+   * The quarter's own first day — the calendar's "Fall Quarter begins" — which
+   * in fall and spring comes a few days before instruction does. Summer has
+   * no such line, so it starts with its first class.
+   */
+  begins: string;
   /** First day of instruction, YYYY-MM-DD — when a student needs to be here. */
   classes: string;
   /** Last day of the quarter, finals included, YYYY-MM-DD. */
@@ -25,28 +32,66 @@ export interface Quarter {
   lastClass?: string;
   /** Campus holidays during instruction: no classes meet. */
   holidays?: string[];
+  /**
+   * Every campus holiday inside the quarter's dates, named as the calendar
+   * names it — including one before instruction begins, which `holidays`
+   * leaves out because no class could meet on it anyway.
+   */
+  holidayNames?: Record<string, string>;
 }
 
 export const QUARTERS: Quarter[] = [
   {
-    key: "FA26", name: "Fall 2026", classes: "2026-09-24", end: "2026-12-12",
-    // Veterans Day; Thanksgiving Thursday and Friday.
+    key: "FA26", name: "Fall 2026", begins: "2026-09-21", classes: "2026-09-24", end: "2026-12-12",
     lastClass: "2026-12-04", holidays: ["2026-11-11", "2026-11-26", "2026-11-27"],
+    holidayNames: {
+      "2026-11-11": "Veterans Day Holiday",
+      "2026-11-26": "Thanksgiving Holiday",
+      "2026-11-27": "Thanksgiving Holiday",
+    },
   },
   {
-    key: "WI27", name: "Winter 2027", classes: "2027-01-04", end: "2027-03-20",
-    // Martin Luther King, Jr. Day; Presidents' Day.
+    key: "WI27", name: "Winter 2027", begins: "2027-01-04", classes: "2027-01-04", end: "2027-03-20",
     lastClass: "2027-03-12", holidays: ["2027-01-18", "2027-02-15"],
+    holidayNames: {
+      "2027-01-18": "Martin Luther King, Jr. Holiday",
+      "2027-02-15": "Presidents' Day Holiday",
+    },
   },
   {
-    key: "SP27", name: "Spring 2027", classes: "2027-03-29", end: "2027-06-11",
-    // Memorial Day. (Farmworkers Day, Mar 26, falls before instruction begins.)
+    key: "SP27", name: "Spring 2027", begins: "2027-03-24", classes: "2027-03-29", end: "2027-06-11",
     lastClass: "2027-06-04", holidays: ["2027-05-31"],
+    holidayNames: {
+      "2027-03-26": "Farmworkers Day Holiday",
+      "2027-05-31": "Memorial Day observance",
+    },
   },
-  { key: "SU27", name: "Summer 2027", classes: "2027-06-28", end: "2027-09-04" },
-  { key: "FA27", name: "Fall 2027", classes: "2027-09-23", end: "2027-12-11" },
-  { key: "WI28", name: "Winter 2028", classes: "2028-01-10", end: "2028-03-25" },
-  { key: "SP28", name: "Spring 2028", classes: "2028-04-03", end: "2028-06-16" },
+  { key: "SU27", name: "Summer 2027", begins: "2027-06-28", classes: "2027-06-28", end: "2027-09-04" },
+  {
+    key: "FA27", name: "Fall 2027", begins: "2027-09-20", classes: "2027-09-23", end: "2027-12-11",
+    lastClass: "2027-12-03", holidays: ["2027-11-11", "2027-11-25", "2027-11-26"],
+    holidayNames: {
+      "2027-11-11": "Veterans Day Holiday",
+      "2027-11-25": "Thanksgiving Holiday",
+      "2027-11-26": "Thanksgiving Holiday",
+    },
+  },
+  {
+    key: "WI28", name: "Winter 2028", begins: "2028-01-05", classes: "2028-01-10", end: "2028-03-25",
+    lastClass: "2028-03-17", holidays: ["2028-01-17", "2028-02-21"],
+    holidayNames: {
+      "2028-01-17": "Martin Luther King, Jr. Holiday",
+      "2028-02-21": "Presidents' Day Holiday",
+    },
+  },
+  {
+    key: "SP28", name: "Spring 2028", begins: "2028-03-29", classes: "2028-04-03", end: "2028-06-16",
+    lastClass: "2028-06-09", holidays: ["2028-05-29"],
+    holidayNames: {
+      "2028-03-31": "Farmworkers Day Holiday",
+      "2028-05-29": "Memorial Day observance",
+    },
+  },
 ];
 
 /** Weeks of instruction in a regular quarter, for "hours a quarter" totals. */
