@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { BookMarked, ChevronDown, ChevronRight, ExternalLink, LogIn, MapPin, Star } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
-import { LABEL, PAGE_TITLE, SECTION_TITLE } from "@/components/plat/typeScale";
+import { LABEL, PAGE_GAP, PAGE_PAD, PAGE_TITLE, SECTION_TITLE } from "@/components/plat/typeScale";
 import Disclosure from "@/components/plat/Disclosure";
 import CourseRow from "@/components/plat/CourseRow";
 import PrereqText from "@/components/plat/PrereqText";
@@ -227,7 +227,7 @@ export default function CourseDetailPage({
 
   return (
     <PlatShell>
-      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className={`mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 ${PAGE_PAD}`}>
         <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
           <Link href="/courses" className="hover:underline">Courses</Link>
           <ChevronRight className="h-3 w-3" aria-hidden />
@@ -240,13 +240,13 @@ export default function CourseDetailPage({
         {/* The grade badge stays large — it is the answer — while the title
             is set at page-title size and the two actions sit to its right on
             a laptop, rather than on a row of their own beneath it. */}
-        <header className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
+        <header className="mt-5 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
           <div className="flex min-w-0 items-start gap-4">
             <GradeBadge gpa={detail?.gpa} terms={detail?.terms ?? 0} size="lg" />
             <div className="min-w-0">
               <p className="font-mono text-sm font-bold text-[#182B49] dark:text-[#FFCD00]">{code}</p>
               <h1 className={`mt-0.5 ${PAGE_TITLE}`}>{title ?? "…"}</h1>
-              <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-gray-600 dark:text-gray-300">
                 {detail ? summary(detail, verdict?.letter, teaching) : "Loading grade history…"}
               </p>
             </div>
@@ -296,29 +296,29 @@ export default function CourseDetailPage({
           </div>
         </header>
 
-        <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-10">
+        <div className={`${PAGE_GAP} grid grid-cols-1 gap-12 lg:grid-cols-12 lg:gap-14`}>
           {/* ── Main column ─────────────────────────────────────────────────── */}
-          <div className="min-w-0 space-y-8 lg:col-span-7">
+          <div className="min-w-0 space-y-12 lg:col-span-7">
             {/* On a phone the facts lead; on a laptop they sit in the rail. */}
             <div className="lg:hidden">{facts}</div>
 
             <section>
               <h2 className={SECTION_TITLE}>About this course</h2>
               {detail?.desc ? (
-                <p className="mt-2 text-sm leading-relaxed text-gray-700 dark:text-gray-200">{detail.desc}</p>
+                <p className="mt-3 text-sm leading-relaxed text-gray-700 dark:text-gray-200">{detail.desc}</p>
               ) : (
-                <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
                   {detail ? "The UCSD General Catalog has no description for this course." : "Loading…"}
                 </p>
               )}
               {detail?.pre && (
-                <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2.5 text-sm leading-relaxed text-amber-950 dark:bg-amber-500/10 dark:text-amber-100">
+                <p className="mt-5 rounded-lg bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-950 dark:bg-amber-500/10 dark:text-amber-100">
                   <span className="font-semibold">Prerequisites: </span>
                   <PrereqText text={detail.pre} known={known} />
                 </p>
               )}
               {detail?.res && (
-                <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2.5 text-sm leading-relaxed text-rose-950 dark:bg-rose-500/10 dark:text-rose-100">
+                <p className="mt-3 rounded-lg bg-rose-50 px-4 py-3 text-sm leading-relaxed text-rose-950 dark:bg-rose-500/10 dark:text-rose-100">
                   <span className="font-semibold">Enrolment restrictions: </span>{detail.res}
                 </p>
               )}
@@ -333,9 +333,9 @@ export default function CourseDetailPage({
                   {teaching.length} {teaching.length === 1 ? "instructor" : "instructors"} teaching this term
                 </h2>
                 {teaching.length > 1 && (
-                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Best grade history first.</p>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Best grade history first.</p>
                 )}
-                <div className="mt-3 rounded-xl border border-gray-200 dark:border-white/10">
+                <div className="mt-4 rounded-xl border border-gray-200 dark:border-white/10">
                   {teaching.map((p, i) => (
                     <ProfLine
                       key={p.i}
@@ -385,10 +385,10 @@ export default function CourseDetailPage({
                 <h2 className={SECTION_TITLE}>
                   More {["lower-division", "upper-division", "graduate"][levelBand(row)]} {dept?.name ?? sub} courses this term
                 </h2>
-                <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   On the {termLabel} schedule, best grades first.
                 </p>
-                <div className="mt-3 overflow-hidden rounded-xl border border-gray-200 dark:border-white/10">
+                <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 dark:border-white/10">
                   {related.map((c) => <CourseRow key={c.k} row={c} />)}
                 </div>
               </section>
@@ -396,16 +396,16 @@ export default function CourseDetailPage({
           </div>
 
           {/* ── Rail: the term at a glance, then the pictures ──────────────── */}
-          <aside className="min-w-0 space-y-5 lg:col-span-5">
+          <aside className="min-w-0 space-y-6 lg:col-span-5">
             <div className="hidden lg:block">{facts}</div>
 
             {pins.length > 0 && (
-              <section className="rounded-2xl border border-gray-200 p-4 dark:border-white/10">
+              <section className="rounded-2xl border border-gray-200 p-5 dark:border-white/10">
                 <h2 className={SECTION_TITLE}>Where it meets</h2>
                 <div className="mt-3">
                   <CourseMap pins={pins} dark={theme === "dark"} />
                 </div>
-                <ul className="mt-3 space-y-1.5">
+                <ul className="mt-4 space-y-2">
                   {pins.map((p) => (
                     <li key={p.code} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
                       <MapPin className="h-3.5 w-3.5 shrink-0 text-[#182B49] dark:text-[#FFCD00]" aria-hidden />
@@ -425,9 +425,9 @@ export default function CourseDetailPage({
             )}
 
             {detail?.offered === 1 && seatPoints.length > 0 && (
-              <section className="rounded-2xl border border-gray-200 p-4 dark:border-white/10">
+              <section className="rounded-2xl border border-gray-200 p-5 dark:border-white/10">
                 <h2 className={SECTION_TITLE}>Seats over time</h2>
-                <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   {termLabel}, all lectures together, against the enrollment passes.
                 </p>
                 <div className="mt-3">
@@ -439,7 +439,7 @@ export default function CourseDetailPage({
                   />
                 </div>
                 {seatPoints.length < 3 && (
-                  <p className="mt-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                  <p className="mt-3 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
                     Each dot is a day the seats were counted from UCSD&rsquo;s Class Planner, the first on{" "}
                     {dayLabel(seatPoints[0].day, { weekday: false })}. A new one is added every day, so Winter 2027&rsquo;s
                     passes will be the first measured from start to finish.
@@ -449,9 +449,9 @@ export default function CourseDetailPage({
             )}
 
             {termPoints.length > 1 && (
-              <section className="rounded-2xl border border-gray-200 p-4 dark:border-white/10">
+              <section className="rounded-2xl border border-gray-200 p-5 dark:border-white/10">
                 <h2 className={SECTION_TITLE}>Grades by term</h2>
-                <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   Each dot is one instructor&rsquo;s class average for one term. Every value is listed under
                   &ldquo;Every term&rsquo;s grades&rdquo;.
                 </p>
@@ -486,9 +486,9 @@ function FactsCard({
   const reqs = (detail?.ge ?? []).filter((g) => universityRequirement(g));
   const [allGe, setAllGe] = useState(false);
   return (
-    <section className="rounded-2xl border border-gray-200 p-4 dark:border-white/10">
+    <section className="rounded-2xl border border-gray-200 p-5 dark:border-white/10">
       <h2 className={SECTION_TITLE}>{termLabel} at a glance</h2>
-      <dl className="mt-3 grid grid-cols-2 gap-3">
+      <dl className="mt-4 grid grid-cols-2 gap-3">
         <Fact label="Units" value={detail?.u ? String(parseFloat(detail.u)) : "—"} />
         <Fact
           label="Seats taken"
@@ -506,7 +506,7 @@ function FactsCard({
       </dl>
 
       {(ges.length > 0 || reqs.length > 0) && (
-        <div className="mt-4 border-t border-gray-100 pt-3 dark:border-white/5">
+        <div className="mt-5 border-t border-gray-100 pt-4 dark:border-white/5">
           <p className={LABEL}>Satisfies</p>
           <ul className="mt-2 flex flex-wrap gap-1.5">
             {reqs.map((g) => (
@@ -548,10 +548,10 @@ function LeadsTo({ code, leads }: { code: string; leads: string[] }) {
   return (
     <section>
       <h2 className={SECTION_TITLE}>Leads to</h2>
-      <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
         {leads.length} {leads.length === 1 ? "course lists" : "courses list"} {code} among their prerequisites — alone, or as one of several options.
       </p>
-      <ul className="mt-3 flex flex-wrap gap-1.5">
+      <ul className="mt-4 flex flex-wrap gap-2">
         {shown.map((c) => (
           <li key={c}>
             <Link

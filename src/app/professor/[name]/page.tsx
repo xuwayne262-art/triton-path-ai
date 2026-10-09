@@ -4,7 +4,7 @@ import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronRight, ExternalLink, Star } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
-import { PAGE_TITLE, SECTION_TITLE } from "@/components/plat/typeScale";
+import { PAGE_GAP, PAGE_PAD, PAGE_TITLE, SECTION_TITLE } from "@/components/plat/typeScale";
 import TermGradesChart, { type TermPoint } from "@/components/plat/TermGradesChart";
 import { GradeBadge, LoadTag } from "@/components/plat/Grade";
 import { professorDepartment } from "@/components/plat/ProfessorShelf";
@@ -113,7 +113,7 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
 
   return (
     <PlatShell>
-      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className={`mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 ${PAGE_PAD}`}>
         <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
           <Link href="/courses" className="hover:underline">Courses</Link>
           {dept && (
@@ -130,7 +130,7 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
           <p className="py-24 text-center text-sm text-gray-500">Loading…</p>
         ) : (
           <>
-            <header className="mt-3 flex items-start gap-4">
+            <header className="mt-5 flex items-start gap-5">
               <GradeBadge gpa={prof.gpa} terms={prof.terms} size="lg" />
               <div className="min-w-0 flex-1">
                 <h1 className={PAGE_TITLE}>{prof.n}</h1>
@@ -139,14 +139,14 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
                     also listed as {prof.a.join(", ")}
                   </p>
                 ) : null}
-                <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+                <p className="mt-2 max-w-3xl text-sm leading-relaxed text-gray-600 dark:text-gray-300">
                   {verdict
                     ? `Students typically earn a ${verdict.letter} in their classes, across ${prof.terms} graded ${prof.terms === 1 ? "term" : "terms"} and ${prof.c.length} ${prof.c.length === 1 ? "course" : "courses"}.`
                     : "No published grade distribution for this instructor yet."}
                   {prof.cur === 1 && " They are teaching this term."}
                 </p>
 
-                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600 dark:text-gray-300">
+                <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-gray-600 dark:text-gray-300">
                   {prof.q != null && prof.q > 0 && (
                     <span className={`inline-flex items-center gap-1 font-semibold ${ratingTone(prof.q)}`}>
                       <Star className="h-3.5 w-3.5 fill-current" />
@@ -170,8 +170,8 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
               </div>
             </header>
 
-            <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-10">
-              <div className="min-w-0 space-y-8 lg:col-span-7">
+            <div className={`${PAGE_GAP} grid grid-cols-1 gap-12 lg:grid-cols-12 lg:gap-14`}>
+              <div className="min-w-0 space-y-12 lg:col-span-7">
                 {teachingNow.length > 0 && (
                   <CourseList title="Teaching this term" rows={teachingNow} titleOf={titleOf} />
                 )}
@@ -184,11 +184,11 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
                 )}
               </div>
 
-              <aside className="min-w-0 space-y-5 lg:col-span-5">
+              <aside className="min-w-0 space-y-6 lg:col-span-5">
                 {points.length > 1 && (
-                  <section className="rounded-2xl border border-gray-200 p-4 dark:border-white/10">
+                  <section className="rounded-2xl border border-gray-200 p-5 dark:border-white/10">
                     <h2 className={SECTION_TITLE}>Grades by term</h2>
-                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                       Each dot is one class&rsquo;s average for one term, coloured by course.
                     </p>
                     <div className="mt-3">
@@ -198,9 +198,9 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
                 )}
 
                 {terms.length > 0 && (
-                  <section className="rounded-2xl border border-gray-200 p-4 dark:border-white/10">
+                  <section className="rounded-2xl border border-gray-200 p-5 dark:border-white/10">
                     <h2 className={SECTION_TITLE}>Every term</h2>
-                    <table className="mt-2 w-full text-sm">
+                    <table className="mt-3 w-full text-sm">
                       <thead>
                         <tr className="text-left text-xs text-gray-500 dark:text-gray-400">
                           <th scope="col" className="pb-2 font-medium">Term</th>
@@ -254,7 +254,7 @@ function CourseList({
 }) {
   return (
     <section>
-      <h2 className={`mb-2 ${SECTION_TITLE}`}>
+      <h2 className={`mb-3 ${SECTION_TITLE}`}>
         {title} <span className="ml-1 font-normal text-gray-500 dark:text-gray-400">{rows.length}</span>
       </h2>
       <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-white/10">
@@ -262,7 +262,7 @@ function CourseList({
           <Link
             key={code}
             href={courseHref(code)}
-            className="group flex items-center gap-3 border-b border-gray-100 px-3 py-2.5 last:border-0 transition hover:bg-gray-50 dark:border-white/5 dark:hover:bg-white/5"
+            className="group flex items-center gap-3 border-b border-gray-100 px-3 py-3 last:border-0 transition hover:bg-gray-50 dark:border-white/5 dark:hover:bg-white/5"
           >
             <GradeBadge gpa={gpa} terms={terms} size="sm" />
             <span className="min-w-0 flex-1">

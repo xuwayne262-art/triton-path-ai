@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Search } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import PageHeader from "@/components/plat/PageHeader";
-import { LABEL } from "@/components/plat/typeScale";
+import { LABEL, PAGE_GAP, PAGE_PAD } from "@/components/plat/typeScale";
 import { loadIndex, type PlatIndex } from "@/lib/plat";
 import {
   COLLEGE_UNITS, DEPARTMENTS, SCHOOLS,
@@ -100,7 +100,7 @@ export default function CoursesPage() {
 
   return (
     <PlatShell>
-      <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+      <div className={`mx-auto max-w-4xl px-4 sm:px-6 ${PAGE_PAD}`}>
         {/* The filter is the page's one control, so it sits on the title's line. */}
         <PageHeader
           title="Courses"
@@ -123,29 +123,29 @@ export default function CoursesPage() {
         />
 
         {needle && (
-          <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+          <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
             {totalDepts} matching {totalDepts === 1 ? "listing" : "listings"}
           </p>
         )}
 
-        <div className="mt-6 space-y-8">
+        <div className={`${PAGE_GAP} space-y-12`}>
           {schools.map(({ school, depts }) => (
             <section key={school.id}>
               <h2 className={LABEL}>
                 {school.name}
               </h2>
-              <div className="mt-2">
+              <div className="mt-3">
                 {depts.map(({ dept, courses, offered }) => (
                   <Link
                     key={dept.id}
                     href={`/courses/${dept.id}`}
-                    className="group flex items-start gap-3 border-b border-gray-100 px-2 py-3 transition hover:bg-gray-50 dark:border-white/5 dark:hover:bg-white/5"
+                    className="group flex items-start gap-3 border-b border-gray-100 px-2 py-4 transition hover:bg-gray-50 dark:border-white/5 dark:hover:bg-white/5"
                   >
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm font-semibold group-hover:underline">
                         {dept.name}
                       </span>
-                      <span className="mt-1 flex flex-wrap gap-1">
+                      <span className="mt-1.5 flex flex-wrap gap-1">
                         {dept.subjects.slice(0, 8).map((code) => (
                           <span
                             key={code}
@@ -180,24 +180,24 @@ export default function CoursesPage() {
           {colleges.length > 0 && (
             <section>
               <h2 className={LABEL}>The eight colleges</h2>
-              <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+              <p className="mt-1.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
                 Colleges are a separate thing from departments. Every undergraduate belongs to one,
                 and it sets your general-education and writing requirements — but colleges own no
                 majors and no academic departments. The only courses they run are their own core
                 sequences, listed together here.
               </p>
-              <div className="mt-2">
+              <div className="mt-3">
                 {colleges.map(({ college, courses, offered }) => (
                   <Link
                     key={college.id}
                     href={`/courses/${college.id}`}
-                    className="group flex items-start gap-3 border-b border-gray-100 px-2 py-3 transition hover:bg-gray-50 dark:border-white/5 dark:hover:bg-white/5"
+                    className="group flex items-start gap-3 border-b border-gray-100 px-2 py-4 transition hover:bg-gray-50 dark:border-white/5 dark:hover:bg-white/5"
                   >
                     <span className="min-w-0 flex-1">
                       <span className="block text-sm font-semibold group-hover:underline">
                         {college.name}
                       </span>
-                      <span className="mt-1 flex flex-wrap gap-1">
+                      <span className="mt-1.5 flex flex-wrap gap-1">
                         {college.subjects.map((code) => (
                           <span
                             key={code}
@@ -221,7 +221,7 @@ export default function CoursesPage() {
               </div>
               <Link
                 href="/ge"
-                className="mt-3 inline-block text-xs font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]"
+                className="mt-4 inline-block text-xs font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]"
               >
                 Find GE courses for your college →
               </Link>

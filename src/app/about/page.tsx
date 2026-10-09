@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Instagram, Mail } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
-import { PAGE_TITLE, SECTION_TITLE } from "@/components/plat/typeScale";
+import { PAGE_PAD, PAGE_TITLE, SECTION_TITLE } from "@/components/plat/typeScale";
 import { CONTACT_EMAIL, INSTAGRAM_HANDLE, INSTAGRAM_URL } from "@/components/plat/ContactMenu";
 import { dayLabel, loadGE, loadIndex, refreshedLabel, type GEFile, type IndexMeta } from "@/lib/plat";
 
@@ -23,9 +23,9 @@ export default function AboutPage() {
 
   return (
     <PlatShell>
-      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+      <div className={`mx-auto max-w-3xl px-4 sm:px-6 ${PAGE_PAD}`}>
         <h1 className={PAGE_TITLE}>About UCSDPlans</h1>
-        <p className="mt-3 text-sm leading-relaxed text-gray-700 dark:text-gray-200">
+        <p className="mt-4 text-sm leading-relaxed text-gray-700 dark:text-gray-200">
           UCSDPlans puts what UC San Diego publishes about its courses in one place: how every class has
           actually graded since 2015, who is teaching it this term and how students rate them, where and
           when each section meets, how full it is, and which requirements it counts toward. Anyone can
@@ -33,9 +33,9 @@ export default function AboutPage() {
           four years — your Academic History, and student housing.
         </p>
 
-        <section className="mt-8">
+        <section className="mt-12">
           <h2 className={SECTION_TITLE}>Who makes it</h2>
-          <p className="mt-2 text-sm leading-relaxed text-gray-700 dark:text-gray-200">
+          <p className="mt-3 text-sm leading-relaxed text-gray-700 dark:text-gray-200">
             UCSDPlans is built and run by <span className="font-semibold">@{INSTAGRAM_HANDLE}</span>. Found a
             mistake in a number, or want something added? Get in touch.
           </p>
@@ -49,13 +49,13 @@ export default function AboutPage() {
           </div>
         </section>
 
-        <section className="mt-8">
+        <section className="mt-12">
           <h2 className={SECTION_TITLE}>Where the numbers come from</h2>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+          <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">
             Grades, courses, sections, seats and the university requirements come from UC San Diego&rsquo;s own
             publications. Two things do not yet: the college GE lists and the RateMyProfessors scores.
           </p>
-          <ul className="mt-4 space-y-4">
+          <ul className="mt-5 space-y-4">
             <Source
               name="UCSD Associated Students Instructor Grade Archive"
               url="https://asmain.ucsd.edu/Home/InstructorGradeArchive"
@@ -93,9 +93,9 @@ export default function AboutPage() {
           </ul>
         </section>
 
-        <section id="letter" className="mt-8 scroll-mt-28 lg:scroll-mt-20">
+        <section id="letter" className="mt-12 scroll-mt-32 lg:scroll-mt-24">
           <h2 className={SECTION_TITLE}>How the letter grade is worked out</h2>
-          <div className="mt-2 space-y-3 text-sm leading-relaxed text-gray-700 dark:text-gray-200">
+          <div className="mt-3 space-y-4 text-sm leading-relaxed text-gray-700 dark:text-gray-200">
             <p>
               The letter on a course is not a grade anyone received. For each course we take every
               published grade record (one per instructor per term), average their GPAs weighted by the
@@ -119,15 +119,15 @@ export default function AboutPage() {
           </div>
         </section>
 
-        <section className="mt-8">
+        <section className="mt-12">
           <h2 className={SECTION_TITLE}>What is public, and what is yours</h2>
-          <p className="mt-2 text-sm leading-relaxed text-gray-700 dark:text-gray-200">
+          <p className="mt-3 text-sm leading-relaxed text-gray-700 dark:text-gray-200">
             Browsing courses, departments, professors and GEs needs no account. Your Planner, starred
             courses, your own instructor ratings and your Academic History are saved to your UCSD account
             and shown only to you. Housing is for signed-in UCSD students only, so a lister&rsquo;s place and
             contact details are never public.
           </p>
-          <p className="mt-4 text-sm">
+          <p className="mt-5 text-sm">
             <Link href="/" className="font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]">Back to the courses →</Link>
           </p>
         </section>
@@ -138,7 +138,7 @@ export default function AboutPage() {
 
 function Source({ name, url, what }: { name: string; url: string; what: string }) {
   return (
-    <li className="rounded-xl border border-gray-200 p-4 dark:border-white/10">
+    <li className="rounded-xl border border-gray-200 p-5 dark:border-white/10">
       <a href={url} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 text-sm font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]">
         {name} <ArrowUpRight className="h-3.5 w-3.5" />
       </a>

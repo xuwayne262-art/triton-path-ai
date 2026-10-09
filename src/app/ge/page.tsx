@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import PageHeader from "@/components/plat/PageHeader";
-import { LABEL, SECTION_TITLE } from "@/components/plat/typeScale";
+import { LABEL, PAGE_GAP, PAGE_PAD, SECTION_TITLE } from "@/components/plat/typeScale";
 import CourseResults, { DEFAULT_FILTERS, type ResultFilters } from "@/components/plat/CourseResults";
 import {
   CAMPUS, UNIVERSITY_REQUIREMENTS, collegeName, loadGE, loadIndex,
@@ -102,7 +102,7 @@ function GESearch() {
 
   return (
     <PlatShell>
-      <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
+      <div className={`mx-auto max-w-4xl px-4 sm:px-6 ${PAGE_PAD}`}>
         {/* The first of the page's decisions, so it sits on the title's line. */}
         <PageHeader
           title="Easy GEs"
@@ -122,14 +122,14 @@ function GESearch() {
         />
 
         {isWarren && !onReq && (
-          <div className="mt-5 rounded-xl border border-gray-200 p-4 dark:border-white/10">
+          <div className={`${PAGE_GAP} rounded-xl border border-gray-200 p-5 dark:border-white/10`}>
             <h2 className={SECTION_TITLE}>Warren states a rule, not a list</h2>
-            <p className="mt-1.5 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+            <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
               Every course outside your major&rsquo;s discipline can count, so there is no short
               approved list to browse. You build two collections instead, each drawn from a
               discipline that is neither your major&rsquo;s nor the other collection&rsquo;s.
             </p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {[WARREN_RULE.standard, WARREN_RULE.engineering].map((r) => (
                 <div key={r.label} className="rounded-lg bg-gray-50 p-3 dark:bg-white/[0.03]">
                   <p className="text-sm font-semibold">{r.label}</p>
@@ -140,11 +140,11 @@ function GESearch() {
                 </div>
               ))}
             </div>
-            <p className="mt-3 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+            <p className="mt-4 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
               A minor may stand in for either collection, and an interdisciplinary collection
               needs Warren advising approval &mdash; they are the authority, not this page.
             </p>
-            <div className="mt-3 flex flex-wrap gap-1.5">
+            <div className="mt-4 flex flex-wrap gap-2">
               <AreaChip active={discipline === null} onClick={() => setDiscipline(null)}>
                 Warren&rsquo;s own courses
               </AreaChip>
@@ -163,7 +163,7 @@ function GESearch() {
 
         {/* The filters as labelled rows, label on the left from a tablet up:
             one block to read across instead of three stacked boxes. */}
-        <div className="mt-5 space-y-3">
+        <div className={`${PAGE_GAP} space-y-6`}>
           <FilterRow label={`${collegeName(college)} GE requirements`}>
             {!discipline && (
               <AreaChip active={area === null} onClick={() => setArea(null)}>All areas</AreaChip>
@@ -210,7 +210,7 @@ function GESearch() {
         </div>
 
         {onReq && area && campus && (
-          <p className="mt-4 flex flex-wrap items-center gap-x-1 text-xs leading-relaxed text-gray-600 dark:text-gray-300">
+          <p className="mt-6 flex flex-wrap items-center gap-x-1 text-xs leading-relaxed text-gray-600 dark:text-gray-300">
             {area.endsWith(":DEI") ? (
               <>
                 From the Academic Senate&rsquo;s list of approved courses
@@ -232,7 +232,7 @@ function GESearch() {
           </p>
         )}
 
-        <div className="mt-5">
+        <div className="mt-12">
           <CourseResults
             rows={rows}
             filters={filters}
@@ -241,7 +241,7 @@ function GESearch() {
             emptyHint={index && ge ? "No approved courses match these filters." : "Loading…"}
           />
           {unknown.length > 0 && (
-            <p className="mt-4 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+            <p className="mt-5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
               Also approved here, but not yet in UCSD&rsquo;s catalog, grade archive or schedule, so there is
               nothing to rank them by: <span className="font-mono">{unknown.join(", ")}</span>.
             </p>
@@ -249,7 +249,7 @@ function GESearch() {
         </div>
 
         {ge && (
-          <p className="mt-8 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+          <p className="mt-12 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
             {ge.meta.note}
           </p>
         )}
@@ -263,11 +263,11 @@ function FilterRow({
   label, hint, children,
 }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
-    <div className="sm:grid sm:grid-cols-[13rem_minmax(0,1fr)] sm:gap-4">
+    <div className="sm:grid sm:grid-cols-[13rem_minmax(0,1fr)] sm:gap-6">
       <p className={`${LABEL} sm:pt-2`}>{label}</p>
-      <div className="mt-2 sm:mt-0">
-        <div className="flex flex-wrap gap-1.5">{children}</div>
-        {hint && <p className="mt-1.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{hint}</p>}
+      <div className="mt-3 sm:mt-0">
+        <div className="flex flex-wrap gap-2">{children}</div>
+        {hint && <p className="mt-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{hint}</p>}
       </div>
     </div>
   );
