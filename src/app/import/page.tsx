@@ -169,7 +169,7 @@ export default function ImportPage() {
         {savedState === "none" && !parsed && (
           // A first visit. Nothing went wrong, so nothing here is red — and
           // nothing here is a box either: it is context for the steps below.
-          <p className="mt-4 max-w-prose text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+          <p className="mt-4 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
             <span className="font-semibold text-gray-900 dark:text-gray-100">No Academic History saved yet.</span>{" "}
             Saving one keeps every course, grade and unit — term by term, plus transfer credit — with your
             UCSDPlans account on any device, and the UCSD courses you&rsquo;ve completed count toward the
