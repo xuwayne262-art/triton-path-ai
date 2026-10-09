@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { BookMarked, ChevronDown, ChevronRight, ExternalLink, LogIn, MapPin, Star } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
+import { LABEL, PAGE_TITLE, SECTION_TITLE } from "@/components/plat/typeScale";
 import Disclosure from "@/components/plat/Disclosure";
 import CourseRow from "@/components/plat/CourseRow";
 import PrereqText from "@/components/plat/PrereqText";
@@ -175,7 +176,7 @@ export default function CourseDetailPage({
     return (
       <PlatShell>
         <div className="mx-auto max-w-2xl px-4 py-24 text-center">
-          <h1 className="text-xl font-bold">Couldn&apos;t load {code}</h1>
+          <h1 className={PAGE_TITLE}>Couldn&apos;t load {code}</h1>
           <p className="mt-2 text-sm text-gray-500">
             The course data did not arrive — check your connection and try again.
           </p>
@@ -195,7 +196,7 @@ export default function CourseDetailPage({
     return (
       <PlatShell>
         <div className="mx-auto max-w-2xl px-4 py-24 text-center">
-          <h1 className="text-xl font-bold">{code} isn&apos;t in the dataset</h1>
+          <h1 className={PAGE_TITLE}>{code} isn&apos;t in the dataset</h1>
           <p className="mt-2 text-sm text-gray-500">
             It may be graduate-only or recently retired.
           </p>
@@ -226,7 +227,7 @@ export default function CourseDetailPage({
 
   return (
     <PlatShell>
-      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
         <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
           <Link href="/courses" className="hover:underline">Courses</Link>
           <ChevronRight className="h-3 w-3" aria-hidden />
@@ -236,70 +237,75 @@ export default function CourseDetailPage({
         </nav>
 
         {/* ── The answer, up front ─────────────────────────────────────────── */}
-        <header className="mt-4 flex items-start gap-5">
-          <GradeBadge gpa={detail?.gpa} terms={detail?.terms ?? 0} size="lg" />
-          <div className="min-w-0 flex-1">
-            <p className="font-mono text-sm font-bold text-[#182B49] dark:text-[#FFCD00]">{code}</p>
-            <h1 className="mt-0.5 text-2xl font-black leading-tight sm:text-3xl">{title ?? "…"}</h1>
-            <p className="mt-2 max-w-3xl text-[15px] leading-relaxed text-gray-600 dark:text-gray-300">
-              {detail ? summary(detail, verdict?.letter, teaching) : "Loading grade history…"}
-            </p>
+        {/* The grade badge stays large — it is the answer — while the title
+            is set at page-title size and the two actions sit to its right on
+            a laptop, rather than on a row of their own beneath it. */}
+        <header className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
+          <div className="flex min-w-0 items-start gap-4">
+            <GradeBadge gpa={detail?.gpa} terms={detail?.terms ?? 0} size="lg" />
+            <div className="min-w-0">
+              <p className="font-mono text-sm font-bold text-[#182B49] dark:text-[#FFCD00]">{code}</p>
+              <h1 className={`mt-0.5 ${PAGE_TITLE}`}>{title ?? "…"}</h1>
+              <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-gray-600 dark:text-gray-300">
+                {detail ? summary(detail, verdict?.letter, teaching) : "Loading grade history…"}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {signedIn === false ? (
+              <Link
+                href={signInHref}
+                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:border-white/15 dark:hover:bg-white/10"
+              >
+                <LogIn className="h-4 w-4" />
+                Sign in to save to your planner
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => toggle(code)}
+                className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                  saved
+                    ? "bg-[#182B49] text-white dark:bg-[#FFCD00] dark:text-[#182B49]"
+                    : "border border-gray-300 hover:bg-gray-50 dark:border-white/15 dark:hover:bg-white/10"
+                }`}
+              >
+                <BookMarked className="h-4 w-4" />
+                {saved ? "Saved" : "Save to planner"}
+              </button>
+            )}
+            {/*
+              Straight into UCSD's own enrolment system, on this course. The link
+              is only rendered when the build resolved a real TSS module — a URL
+              with a missing id lands on a TSS error page, which is worse for a
+              student mid-enrolment than no link at all.
+            */}
+            {detail?.tss && (
+              <a
+                href={detail.tss}
+                target="_blank"
+                rel="noreferrer noopener"
+                title={TSS_HINT}
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:border-white/15 dark:hover:bg-white/10"
+              >
+                Book on <abbr title="Triton Student System" className="no-underline">TSS</abbr>
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            )}
           </div>
         </header>
 
-        <div className="mt-5 flex flex-wrap items-center gap-2">
-          {signedIn === false ? (
-            <Link
-              href={signInHref}
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:border-white/15 dark:hover:bg-white/10"
-            >
-              <LogIn className="h-4 w-4" />
-              Sign in to save to your planner
-            </Link>
-          ) : (
-            <button
-              type="button"
-              onClick={() => toggle(code)}
-              className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                saved
-                  ? "bg-[#182B49] text-white dark:bg-[#FFCD00] dark:text-[#182B49]"
-                  : "border border-gray-300 hover:bg-gray-50 dark:border-white/15 dark:hover:bg-white/10"
-              }`}
-            >
-              <BookMarked className="h-4 w-4" />
-              {saved ? "Saved" : "Save to planner"}
-            </button>
-          )}
-          {/*
-            Straight into UCSD's own enrolment system, on this course. The link
-            is only rendered when the build resolved a real TSS module — a URL
-            with a missing id lands on a TSS error page, which is worse for a
-            student mid-enrolment than no link at all.
-          */}
-          {detail?.tss && (
-            <a
-              href={detail.tss}
-              target="_blank"
-              rel="noreferrer noopener"
-              title={TSS_HINT}
-              className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:border-white/15 dark:hover:bg-white/10"
-            >
-              Book on <abbr title="Triton Student System" className="no-underline">TSS</abbr>
-              <ExternalLink className="h-3.5 w-3.5" />
-            </a>
-          )}
-        </div>
-
-        <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-10">
+        <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-10">
           {/* ── Main column ─────────────────────────────────────────────────── */}
-          <div className="min-w-0 space-y-10 lg:col-span-7">
+          <div className="min-w-0 space-y-8 lg:col-span-7">
             {/* On a phone the facts lead; on a laptop they sit in the rail. */}
             <div className="lg:hidden">{facts}</div>
 
             <section>
-              <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">About this course</h2>
+              <h2 className={SECTION_TITLE}>About this course</h2>
               {detail?.desc ? (
-                <p className="mt-2 text-[15px] leading-relaxed text-gray-700 dark:text-gray-200">{detail.desc}</p>
+                <p className="mt-2 text-sm leading-relaxed text-gray-700 dark:text-gray-200">{detail.desc}</p>
               ) : (
                 <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
                   {detail ? "The UCSD General Catalog has no description for this course." : "Loading…"}
@@ -323,7 +329,7 @@ export default function CourseDetailPage({
             {/* ── Who to take it with ──────────────────────────────────────── */}
             {teaching.length > 0 && (
               <section>
-                <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <h2 className={SECTION_TITLE}>
                   {teaching.length} {teaching.length === 1 ? "instructor" : "instructors"} teaching this term
                 </h2>
                 {teaching.length > 1 && (
@@ -376,7 +382,7 @@ export default function CourseDetailPage({
 
             {related.length > 0 && row && (
               <section>
-                <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <h2 className={SECTION_TITLE}>
                   More {["lower-division", "upper-division", "graduate"][levelBand(row)]} {dept?.name ?? sub} courses this term
                 </h2>
                 <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
@@ -395,7 +401,7 @@ export default function CourseDetailPage({
 
             {pins.length > 0 && (
               <section className="rounded-2xl border border-gray-200 p-4 dark:border-white/10">
-                <h2 className="text-sm font-bold">Where it meets</h2>
+                <h2 className={SECTION_TITLE}>Where it meets</h2>
                 <div className="mt-3">
                   <CourseMap pins={pins} dark={theme === "dark"} />
                 </div>
@@ -420,7 +426,7 @@ export default function CourseDetailPage({
 
             {detail?.offered === 1 && seatPoints.length > 0 && (
               <section className="rounded-2xl border border-gray-200 p-4 dark:border-white/10">
-                <h2 className="text-sm font-bold">Seats over time</h2>
+                <h2 className={SECTION_TITLE}>Seats over time</h2>
                 <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                   {termLabel}, all lectures together, against the enrollment passes.
                 </p>
@@ -444,7 +450,7 @@ export default function CourseDetailPage({
 
             {termPoints.length > 1 && (
               <section className="rounded-2xl border border-gray-200 p-4 dark:border-white/10">
-                <h2 className="text-sm font-bold">Grades by term</h2>
+                <h2 className={SECTION_TITLE}>Grades by term</h2>
                 <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                   Each dot is one instructor&rsquo;s class average for one term. Every value is listed under
                   &ldquo;Every term&rsquo;s grades&rdquo;.
@@ -481,7 +487,7 @@ function FactsCard({
   const [allGe, setAllGe] = useState(false);
   return (
     <section className="rounded-2xl border border-gray-200 p-4 dark:border-white/10">
-      <h2 className="text-sm font-bold">{termLabel} at a glance</h2>
+      <h2 className={SECTION_TITLE}>{termLabel} at a glance</h2>
       <dl className="mt-3 grid grid-cols-2 gap-3">
         <Fact label="Units" value={detail?.u ? String(parseFloat(detail.u)) : "—"} />
         <Fact
@@ -501,7 +507,7 @@ function FactsCard({
 
       {(ges.length > 0 || reqs.length > 0) && (
         <div className="mt-4 border-t border-gray-100 pt-3 dark:border-white/5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Satisfies</p>
+          <p className={LABEL}>Satisfies</p>
           <ul className="mt-2 flex flex-wrap gap-1.5">
             {reqs.map((g) => (
               <li key={g} className="rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200">
@@ -541,7 +547,7 @@ function LeadsTo({ code, leads }: { code: string; leads: string[] }) {
   const shown = all ? leads : leads.slice(0, LEADS_SHOWN);
   return (
     <section>
-      <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">Leads to</h2>
+      <h2 className={SECTION_TITLE}>Leads to</h2>
       <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
         {leads.length} {leads.length === 1 ? "course lists" : "courses list"} {code} among their prerequisites — alone, or as one of several options.
       </p>
