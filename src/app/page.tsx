@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import PageHeader from "@/components/plat/PageHeader";
-import { SECTION_TITLE } from "@/components/plat/typeScale";
+import { PAGE_PAD, SECTION_TITLE } from "@/components/plat/typeScale";
 import CourseRow from "@/components/plat/CourseRow";
 import PassTimeline from "@/components/plat/PassTimeline";
 import ProfessorRow from "@/components/plat/ProfessorShelf";
@@ -155,9 +155,9 @@ export default function HomePage() {
 
   return (
     <PlatShell hideSearch>
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 ${PAGE_PAD}`}>
         {/* ── What this is and the way in, beside the term at a glance ─────── */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:gap-8">
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-12 lg:gap-12">
           <div className="min-w-0 lg:col-span-7">
             <PageHeader
               title="Grades, professors and seats for every UCSD course"
@@ -166,7 +166,7 @@ export default function HomePage() {
                 : "Loading UCSD grade distributions…"}
             />
 
-            <div ref={searchRef} className="relative mt-4 max-w-2xl">
+            <div ref={searchRef} className="relative mt-6 max-w-2xl">
               <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
                 ref={inputRef}
@@ -181,7 +181,7 @@ export default function HomePage() {
                 }}
                 aria-label="Search courses and professors"
                 placeholder="CSE 11, organic chemistry, Joe Politz…"
-                className="h-11 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-sm shadow-sm outline-none transition
+                className="h-12 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-sm shadow-sm outline-none transition
                            placeholder:text-gray-400 focus:border-[#1B2C4F] focus:ring-2 focus:ring-[#1B2C4F]/10
                            dark:border-white/10 dark:bg-white/5 dark:text-gray-100 dark:focus:border-[#FFC72C] dark:focus:ring-[#FFC72C]/15"
               />
@@ -200,7 +200,7 @@ export default function HomePage() {
 
             {/* Recent searches first, then department shortcuts. */}
             {searches.length > 0 && (
-              <div className="mt-3 flex max-w-2xl flex-wrap items-center gap-1.5">
+              <div className="mt-4 flex max-w-2xl flex-wrap items-center gap-2">
                 <span className="mr-0.5 text-xs text-gray-500 dark:text-gray-400">Recent searches</span>
                 {searches.map((s) => (
                   <button
@@ -214,7 +214,7 @@ export default function HomePage() {
                 ))}
               </div>
             )}
-            <div className="mt-3 flex max-w-2xl flex-wrap items-center gap-1.5">
+            <div className="mt-4 flex max-w-2xl flex-wrap items-center gap-2">
               {QUICK_DEPTS.map((d) => (
                 <Link
                   key={d}
@@ -231,7 +231,7 @@ export default function HomePage() {
           </div>
 
           {/* The term itself — numbers and the enrollment clock */}
-          <div className="rounded-2xl border border-gray-200 p-4 lg:col-span-5 dark:border-white/10">
+          <div className="rounded-2xl border border-gray-200 p-6 lg:col-span-5 dark:border-white/10">
             <div className="flex items-baseline justify-between gap-3">
               <h2 className={SECTION_TITLE}>
                 {data?.meta.termName ?? "This term"} at a glance
@@ -239,20 +239,20 @@ export default function HomePage() {
               <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{data?.meta.term}</span>
             </div>
 
-            <dl className="mt-3 grid grid-cols-3 gap-3">
+            <dl className="mt-5 grid grid-cols-3 gap-4">
               <Stat label="on the schedule" value={data?.meta.offered} />
               <Stat label="courses catalogued" value={data?.meta.catalogCourses} />
               <Stat label="professors rated" value={rated || undefined} />
             </dl>
 
-            <div className="mt-3 border-t border-gray-100 pt-3 dark:border-white/5">
+            <div className="mt-6 border-t border-gray-100 pt-5 dark:border-white/5">
               <PassTimeline termName={data?.meta.termName} />
             </div>
           </div>
         </div>
 
         {/* ── The four places a student goes ─────────────────────────────── */}
-        <nav aria-label="Start here" className="mt-6 grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
+        <nav aria-label="Start here" className="mt-12 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
           <EntryCard
             href="/courses"
             icon={<BookOpen className="h-4 w-4" />}
@@ -289,30 +289,30 @@ export default function HomePage() {
 
         {/* ── Pick up where you left off ─────────────────────────────────── */}
         {visits.length > 0 && (
-          <section className="mt-8">
+          <section className="mt-14">
             <div className="flex items-baseline justify-between gap-2">
               <h2 className={SECTION_TITLE}>Recently viewed</h2>
               <button type="button" onClick={clearRecent} className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
                 <X className="h-3 w-3" /> Clear
               </button>
             </div>
-            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Kept in this browser only.</p>
-            <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Kept in this browser only.</p>
+            <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {visits.map((v) => <RecentCard key={`${v.kind}:${v.key}`} item={v} index={data} />)}
             </ul>
           </section>
         )}
 
         {/* ── The index on the left, the shelves across the rest ─────────── */}
-        <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-10">
+        <div className="mt-16 grid grid-cols-1 gap-14 lg:grid-cols-12 lg:gap-12">
           {/* An index, not courses: on a phone it waits below the two shelves. */}
           <aside className="order-last lg:order-none lg:col-span-3">
             <h2 className={SECTION_TITLE}>Busiest subjects</h2>
-            <p className="mt-0.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+            <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
               Ranked by how many courses each one is actually running this term.
             </p>
 
-            <div className="mt-3 overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10">
+            <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10">
               {busiest
                 ? busiest.map((s) => (
                     <Link
@@ -339,13 +339,15 @@ export default function HomePage() {
 
             <Link
               href="/courses"
-              className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]"
+              className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]"
             >
               All {DEPARTMENTS.length} departments <ArrowRight className="h-3 w-3" />
             </Link>
           </aside>
 
-          <div className="grid grid-cols-1 gap-8 lg:col-span-9 xl:grid-cols-2">
+          {/* One shelf above the other, each the full width: side by side,
+              both were squeezed to the point of cutting off course titles. */}
+          <div className="space-y-14 lg:col-span-9">
             <section>
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className={SECTION_TITLE}>Kindest grading this term</h2>
@@ -353,11 +355,11 @@ export default function HomePage() {
                   More easy courses →
                 </Link>
               </div>
-              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Real lecture courses with several years of history behind the average — not 12-seat seminars.{" "}
                 <Link href="/about#letter" className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white">How the letter is worked out</Link>
               </p>
-              <div className="mt-3 overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10">
+              <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10">
                 {easiest
                   ? easiest.map((c) => <CourseRow key={c.k} row={c} />)
                   : <p className="py-12 text-center text-sm text-gray-500">Loading…</p>}
@@ -372,11 +374,11 @@ export default function HomePage() {
                   Rank a department&rsquo;s professors →
                 </Link>
               </div>
-              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Rated 4.0 or better on RateMyProfessors with at least 15 reviews, and on the{" "}
                 {data?.meta.termName ?? "current"} schedule.
               </p>
-              <div className="mt-3 overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10">
+              <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10">
                 {topProfs
                   ? topProfs.map((p) => <ProfessorRow key={p.n} prof={p} />)
                   : <p className="py-12 text-center text-sm text-gray-500">Loading…</p>}
@@ -423,7 +425,7 @@ function EntryCard({
     <Link
       href={href}
       title={cta}
-      className={`group flex items-start gap-3 rounded-xl p-3 transition ${
+      className={`group flex items-start gap-4 rounded-xl p-4 transition sm:p-5 ${
         filled
           ? "bg-[#1B2C4F] text-white hover:bg-[#24406e]"
           : "border border-gray-200 bg-white hover:border-[#1B2C4F]/40 hover:bg-gray-50 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-[#FFC72C]/40 dark:hover:bg-white/5"
@@ -431,7 +433,7 @@ function EntryCard({
     >
       {/* Two tiles to a row on a phone leave the words no room beside an icon. */}
       <span
-        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg max-sm:hidden ${
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg max-sm:hidden ${
           filled ? "bg-white/10 text-[#FFC72C]" : "bg-[#1B2C4F]/[0.06] text-[#1B2C4F] dark:bg-[#FFC72C]/10 dark:text-[#FFC72C]"
         }`}
       >
@@ -449,7 +451,7 @@ function EntryCard({
             <span className={`text-xs ${filled ? "text-white/80" : "text-gray-500 dark:text-gray-400"}`}>{count}</span>
           )}
         </span>
-        <span className={`mt-0.5 block text-xs leading-snug ${filled ? "text-white/75" : "text-gray-600 dark:text-gray-300"}`}>{detail}</span>
+        <span className={`mt-1 block text-xs leading-relaxed ${filled ? "text-white/75" : "text-gray-600 dark:text-gray-300"}`}>{detail}</span>
       </span>
     </Link>
   );
