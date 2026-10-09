@@ -493,6 +493,24 @@ export function offeringsForSubject(code: string): DepartmentOffering | null {
   return BY_SUBJECT.get(code.toUpperCase()) ?? null;
 }
 
+/**
+ * A department's note about its offerings, minus the parts that have gone
+ * stale. The notes were copied from the registrar's sheet in the spring, and
+ * "Will be updated by 4/16" was still on the CSE page in October; a sentence
+ * promising an update by a date that has passed tells a student nothing.
+ * Null when nothing is left.
+ */
+export function freshNote(note: string | null | undefined): string | null {
+  if (!note) return null;
+  const kept = note
+    .split(/(?<=\.)\s+/)
+    .filter((s) => !/\bwill be updated\b/i.test(s))
+    .join(" ")
+    .replace(/[.\s]+$/, "")
+    .trim();
+  return kept || null;
+}
+
 /** The first listing among a department's subject codes that carries a link. */
 export function offeringsForSubjects(codes: string[]): DepartmentOffering | null {
   for (const code of codes) {

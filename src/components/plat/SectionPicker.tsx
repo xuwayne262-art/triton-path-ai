@@ -41,7 +41,7 @@ function Seats({ s }: { s: SectionTuple }) {
         queued are different decisions, and "Full" alone cannot tell them apart.
       */}
       {waitlist != null && waitlist > 0 && (
-        <span className="text-[10px] tabular-nums text-gray-400">{waitlist} waitlisted</span>
+        <span className="text-[11px] tabular-nums text-gray-500">{waitlist} waitlisted</span>
       )}
     </span>
   );
@@ -178,7 +178,7 @@ export default function SectionPicker({
                       {f.lecture ? typeLabel(f.lecture[TYPE]) : "Sections"} {f.key}
                     </span>
                     {!chosen && subCount > 0 && (
-                      <span className="text-[11px] text-gray-400">
+                      <span className="text-[11px] text-gray-500">
                         {subCount} to choose from
                       </span>
                     )}
@@ -192,7 +192,7 @@ export default function SectionPicker({
                 <div className="mt-1.5 space-y-2 border-l-2 border-gray-200 pl-2.5 dark:border-white/10">
                   {f.parts.map((p) => (
                     <div key={p.type} role="radiogroup" aria-label={p.label}>
-                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
                         {p.label} · {p.sections.length} option{p.sections.length === 1 ? "" : "s"}
                       </p>
                       <div className="space-y-1">

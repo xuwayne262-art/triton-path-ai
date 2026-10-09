@@ -36,6 +36,29 @@ export const LAUNDRY: Record<Laundry, string> = {
   none: "No laundry",
 };
 
+/**
+ * What a photo shows, chosen by the poster — "Bathroom" on the picture of the
+ * bathroom saves a student guessing which of six rooms is theirs to share.
+ * "" is a photo the poster left unlabelled.
+ */
+export const PHOTO_LABELS = {
+  bedroom: "Bedroom",
+  bathroom: "Bathroom",
+  kitchen: "Kitchen",
+  living: "Living room",
+  building: "Building",
+  view: "View",
+  other: "Other",
+} as const;
+export type PhotoLabel = keyof typeof PHOTO_LABELS | "";
+
+const isPhotoLabel = (v: unknown): v is PhotoLabel =>
+  v === "" || (typeof v === "string" && Object.prototype.hasOwnProperty.call(PHOTO_LABELS, v));
+
+/** One label per photo, whatever was stored: missing or unknown labels read as unlabelled. */
+export const labelsFor = (photos: string[], labels: unknown): PhotoLabel[] =>
+  photos.map((_, i) => (Array.isArray(labels) && isPhotoLabel(labels[i]) ? labels[i] : ""));
+
 export interface Contact {
   /** The poster's own @ucsd.edu address, when they chose to show it. */
   email: string | null;
@@ -73,6 +96,8 @@ export interface ListingFields {
   other: string | null;
   /** Photo refs from /api/housing/photos, in the order to show them. */
   photos: string[];
+  /** What each photo shows, in the same order. */
+  photoLabels: PhotoLabel[];
 }
 
 export interface Listing extends Omit<ListingFields, "showEmail" | "phone" | "other"> {
@@ -93,6 +118,8 @@ export interface StoredListing extends Listing {
   owner: string;
   /** Hashes of the students who reported it, one each. */
   reports: string[];
+  /** Hashes of the students who said they are interested, one each. */
+  interested: string[];
   v: 1;
 }
 
@@ -111,7 +138,14 @@ export interface PublicListing extends Omit<Listing, "contact"> {
   contact: Contact | null;
   mine: boolean;
   state: ListingState;
+  /** How many students said they are interested — a count, never who. */
+  interested: number;
+  /** Whether the student looking is one of them. */
+  youInterested: boolean;
 }
+
+/** Students who may mark one listing as interesting: enough for any real place. */
+export const MAX_INTERESTED = 500;
 
 /**
  * Freshness is the thing group chats get wrong: a post from July still reads
@@ -173,10 +207,13 @@ export function toPublic(
     room: l.room, bath: l.bath, bedrooms: l.bedrooms, housemates: l.housemates,
     furnished: l.furnished, laundry: l.laundry, parking: l.parking, pets: l.pets,
     title: l.title, about: l.about, poster: l.poster, photos: l.photos,
+    photoLabels: labelsFor(l.photos, l.photoLabels),
     contact: withContact || mine ? { ...l.contact } : null,
     created: l.created, confirmed: l.confirmed, status: l.status,
     mine,
     state: listingState(l, today, now),
+    interested: (l.interested ?? []).length,
+    youInterested: viewer != null && (l.interested ?? []).includes(viewer),
   };
 }
 
@@ -289,6 +326,13 @@ export function checkListing(body: unknown, today: string): Checked {
   if (!photos.every((r) => typeof r === "string" && PHOTO_REF.test(r))) {
     return bad("photos", "One of the photos did not upload properly. Remove it and add it again.");
   }
+  // Labels travel with their photo, so a repeated photo keeps its first label.
+  const labelOf = new Map<string, PhotoLabel>();
+  const given = labelsFor(photos as string[], b.photoLabels);
+  (photos as string[]).forEach((ref, i) => {
+    if (!labelOf.has(ref)) labelOf.set(ref, given[i]);
+  });
+  const uniquePhotos = [...new Set(photos as string[])];
 
   return {
     ok: true,
@@ -302,7 +346,8 @@ export function checkListing(body: unknown, today: string): Checked {
       title: line(b.title, MAX_TITLE),
       about: prose(b.about, MAX_ABOUT),
       showEmail, phone, other,
-      photos: [...new Set(photos as string[])],
+      photos: uniquePhotos,
+      photoLabels: uniquePhotos.map((ref) => labelOf.get(ref) ?? ""),
     },
   };
 }
@@ -339,6 +384,7 @@ export function buildListing(
     status: prev?.status ?? "open",
     owner: who.owner,
     reports: prev?.reports ?? [],
+    interested: prev?.interested ?? [],
     v: 1,
   };
 }

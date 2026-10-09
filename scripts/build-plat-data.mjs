@@ -3,17 +3,21 @@
  * Builds the UCSDPlans course dataset from public UCSD sources.
  *
  *   as-grades.json     AS Instructor Grade Archive — 2015-2026 grade distributions (fetch-as-grades.mjs)
- *   catalog.json       catalog.ucsd.edu  — every catalogued course + prerequisites (fetch-catalog.mjs)
+ *   catalog.json       catalog.ucsd.edu  — every catalogued course, its description
+ *                      and prerequisites (fetch-catalog.mjs)
  *   classplanner.json  UCSD Class Planner — this term's sections, per-section
  *                      instructors, live seats, TSS module ids (fetch-classplanner.mjs)
+ *   requirements.json  the campus-wide AHI and DEI course lists (fetch-requirements.mjs)
  *   data.json          ucsd-easy-a-radar — RateMyProfessors scores only
  *   ge-courses.json    ucsd-easy-a-radar — approved GE lists per UCSD college
  *
  * Emits into public/data/plat/:
  *   index.json          browse + search index (one row per catalog course)
- *   ge.json             college -> GE area -> course codes
+ *   ge.json             college -> GE area -> course codes, plus the campus-wide
+ *                       requirements under the pseudo-college "campus"
  *   buildings.json      building code -> name + coordinates, for the campus map
- *   subject/<SUB>.json  per-instructor grade distributions + FA26 sections
+ *   subject/<SUB>.json  per-instructor grade distributions, each term's grades,
+ *                       descriptions, the courses each one leads to, FA26 sections
  *
  * Run: npm run build:data
  */
@@ -125,11 +129,43 @@ const readCache = (f) => JSON.parse(fs.readFileSync(path.join(CACHE, f), "utf8")
 /** Shared empty set, so a course with no scheduled instructor needs no branch. */
 const EMPTY = new Set();
 
+/**
+ * Instructors the schedule lists by the name they go by while the grade
+ * archive files them under their registered one. Without this, CSE 12 said
+ * Paul Cao had "no published record" when he has fourteen graded terms of it
+ * as Yingjun Cao, and BIPN 105 said the same of Chris Armour's twenty-six.
+ *
+ * Every pair was checked by hand, and only kept when the name they go by is
+ * their middle name or a standard short form of their first (Peggy for
+ * Margaret, Reza for Gholamreza), or is documented by the department (Paul
+ * Cao). Pairs that merely share a surname and a course stay apart — Deepak
+ * and Rakesh Kumar are two people — because giving one person another's
+ * grades is worse than showing none.
+ */
+const PREFERRED_NAMES = {
+  "Armour, Jon Christopher": "Chris Armour",
+  "Butler, Elizabeth Annette": "Libby Butler",
+  "Cao, Yingjun": "Paul Cao",
+  "Chapman, Eddie Nathaniel": "Nathaniel Chapman",
+  "Davis, Robert Martin": "Marty Davis",
+  "Esmaili, Gholamreza": "Reza Esmaili",
+  "Fox, Patrick Keolu Ozer": "Keolu Fox",
+  "Hendrickson, Gerald M.": "Mark Hendrickson",
+  "Lott, Margaret S.": "Peggy Lott",
+  "Wagner, Timothy Ryan": "Ryan Wagner",
+  "Wong, Thomas Hong Tsun": "Hong Tsun Wong",
+};
+
 /** "Porter, Matt J" -> "Matt J Porter" */
-function displayName(name) {
+function registeredName(name) {
   if (!name || !name.includes(",")) return name || "TBA";
   const [last, first] = name.split(",").map((s) => s.trim());
   return `${first} ${last}`.trim();
+}
+
+/** The one name the site uses for a person: the name they go by, when we know it. */
+function displayName(name) {
+  return PREFERRED_NAMES[name] ?? registeredName(name);
 }
 
 /**
@@ -153,6 +189,44 @@ function instructorKey(name) {
   }
   return last && first ? `${last}|${first[0]}` : "";
 }
+
+/** An archive name's key, under the name the person goes by. */
+const archiveKey = (name) => instructorKey(PREFERRED_NAMES[name] ?? name);
+
+// ── Prerequisite references ──────────────────────────────────────────────────
+
+/**
+ * Every course code a prerequisite sentence names.
+ *
+ * A bare number continues the subject before it when it follows "or", "and",
+ * a comma or a slash — "CHEM 6A or 6AH", "MATH 10C or 20C or 31BH" — but not
+ * in "a score of 5", where nothing joins it to a code. "20A–B" names 20A and
+ * 20B. The app reads prerequisite text with the same rule, in
+ * src/lib/prereqs.ts; a test holds the two to the same answers.
+ */
+function prereqCodes(text) {
+  if (!text) return [];
+  const out = new Set();
+  const src = String(text).replace(/[–—]/g, "-");
+  const CODE = /\b([A-Z]{2,5}) ?(\d{1,3}[A-Z]{0,3})((?:-[A-Z]{1,2}\b)*)/g;
+  const MORE = /^\s*(?:,|\/|\bor\b|\band\b|,\s*or\b|,\s*and\b)\s*(\d{1,3}[A-Z]{0,3})\b(?!\s*(?:units?|years?|quarters?|%|or more|\())/;
+  for (const m of src.matchAll(CODE)) {
+    const [whole, sub, num, tail] = m;
+    const digits = num.replace(/[A-Z]+$/, "");
+    out.add(`${sub} ${num}`);
+    for (const part of tail.split("-").filter(Boolean)) out.add(`${sub} ${digits}${part}`);
+    let rest = src.slice(m.index + whole.length);
+    for (let next = MORE.exec(rest); next; next = MORE.exec(rest)) {
+      out.add(`${sub} ${next[1]}`);
+      rest = rest.slice(next[0].length);
+    }
+  }
+  return [...out];
+}
+
+/** Academic order within a year: winter, spring, summer, fall. */
+const QUARTER_ORDER = { WI: 1, SP: 2, S1: 3, S2: 3, S3: 3, SU: 3, FA: 4 };
+const termOrder = (yy, q) => Number(yy) * 10 + (QUARTER_ORDER[q] ?? 0);
 
 /**
  * A final, a midterm, or any meeting pinned to a single date (its days column
@@ -208,10 +282,83 @@ function tssBookUrl(moduleId, packageId, year, period) {
  * quarters is what dragged CSE 191/Micciancio down to a "C-" when its one
  * graded term was a 3.88.
  */
+/**
+ * The archive sometimes files one person under two spellings — "Savage,
+ * Stefan" and "Savage, Stefan Roberts" — which split their history into two
+ * records on the same course. Spellings are one person when the surname and
+ * first name match, the middle names agree wherever both give one (an initial
+ * agrees with a name it starts), and they taught in a shared subject. A group
+ * is only merged when every pair in it agrees, so a bare "John Smith" never
+ * joins a John A. Smith to a John B. Smith. The spelling with the most history
+ * names the person.
+ *
+ * Returns raw name -> the raw name it is filed under.
+ */
+function canonicalArchiveNames(rows) {
+  const info = new Map();
+  for (const r of rows) {
+    const raw = r[5];
+    if (!raw || !raw.includes(",")) continue;
+    let e = info.get(raw);
+    if (!e) {
+      const [last, rest = ""] = raw.split(",").map((s) => s.toLowerCase().replace(/[^a-z ]/g, " ").trim());
+      const words = rest.split(/\s+/).filter(Boolean);
+      e = { last, first: words[0] || "", middles: words.slice(1), subs: new Set(), n: 0 };
+      info.set(raw, e);
+    }
+    e.subs.add(r[0]);
+    e.n++;
+  }
+
+  const agree = (a, b) => {
+    if (!a.first || a.last !== b.last || a.first !== b.first) return false;
+    const [short, long] = a.middles.length <= b.middles.length ? [a, b] : [b, a];
+    return short.middles.every((m, i) => long.middles[i].startsWith(m) || m.startsWith(long.middles[i]));
+  };
+
+  const groups = new Map();
+  for (const [raw, e] of info) {
+    const k = `${e.last}|${e.first}`;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(raw);
+  }
+
+  const canon = new Map();
+  for (const raws of groups.values()) {
+    if (raws.length < 2) continue;
+    // Link agreeing spellings that share a subject, then keep only groups in
+    // which every pair agrees.
+    const parent = new Map(raws.map((r) => [r, r]));
+    const find = (r) => (parent.get(r) === r ? r : find(parent.get(r)));
+    for (let i = 0; i < raws.length; i++) {
+      for (let j = i + 1; j < raws.length; j++) {
+        const a = info.get(raws[i]), b = info.get(raws[j]);
+        if (agree(a, b) && [...a.subs].some((s) => b.subs.has(s))) parent.set(find(raws[i]), find(raws[j]));
+      }
+    }
+    const clusters = new Map();
+    for (const r of raws) {
+      const root = find(r);
+      if (!clusters.has(root)) clusters.set(root, []);
+      clusters.get(root).push(r);
+    }
+    for (const members of clusters.values()) {
+      if (members.length < 2) continue;
+      const allAgree = members.every((a, i) => members.slice(i + 1).every((b) => agree(info.get(a), info.get(b))));
+      if (!allAgree) continue;
+      const name = [...members].sort((a, b) => info.get(b).n - info.get(a).n || b.length - a.length)[0];
+      for (const m of members) if (m !== name) canon.set(m, name);
+    }
+  }
+  return canon;
+}
+
 function foldAsGrades(as) {
   const byPair = new Map();
+  const canon = canonicalArchiveNames(as.rows);
 
-  for (const [sub, num, yy, , title, instructor, gpa, A, B, C, D, F, W, P, NP] of as.rows) {
+  for (const [sub, num, yy, , title, rawInstructor, gpa, A, B, C, D, F, W, P, NP] of as.rows) {
+    const instructor = canon.get(rawInstructor) ?? rawInstructor;
     const key = `${sub} ${num}|${instructor}`;
     if (!byPair.has(key)) {
       byPair.set(key, {
@@ -247,7 +394,7 @@ function foldAsGrades(as) {
     ]);
   }
 
-  return { cols, titles, recs, meta: as.meta };
+  return { cols, titles, recs, meta: as.meta, canon };
 }
 
 function build() {
@@ -260,6 +407,8 @@ function build() {
   const catalog = readCache("catalog.json");
   const sched = readCache("classplanner.json");
   const ge = readCache("ge-courses.json");
+  const requirements = fs.existsSync(path.join(CACHE, "requirements.json")) ? readCache("requirements.json") : null;
+  if (!requirements) console.log("  no requirements.json — building without the AHI and DEI lists (run: node scripts/fetch-requirements.mjs)");
 
   const grades = foldAsGrades(asGrades);
   const col = Object.fromEntries(grades.cols.map((c, i) => [c, i]));
@@ -360,12 +509,29 @@ function build() {
   // The catalog is the roster of what exists. Seeding from it first means a
   // course keeps its entry through the quarters it is not offered and has no
   // grade history yet — which is most of the catalogue most of the time.
-  for (const [code, , , title, units, prereq] of catalog.courses) {
+  for (const [code, , , title, units, prereq, description] of catalog.courses) {
     const c = upsert(code);
     c.title = title || "";
     c.units = units || "";
     if (prereq) c.pre = prereq;
+    if (description) c.desc = description;
     c.inCatalog = 1;
+  }
+
+  /** Display name -> the registered spellings behind it, for the professor index. */
+  const registeredAs = new Map();
+  const noteSpelling = (shown, raw) => {
+    const registered = registeredName(raw);
+    if (registered === shown) return;
+    if (!registeredAs.has(shown)) registeredAs.set(shown, new Set());
+    registeredAs.get(shown).add(registered);
+  };
+  /** Archive name -> every spelling folded into it, so ratings filed under any of them are found. */
+  const spellings = new Map();
+  for (const [raw, name] of grades.canon) {
+    if (!spellings.has(name)) spellings.set(name, []);
+    spellings.get(name).push(raw);
+    noteSpelling(displayName(name), raw);
   }
 
   for (const r of grades.recs) {
@@ -373,18 +539,40 @@ function build() {
     const c = upsert(code);
     const t = titles[r[col.t]];
     if (t && (!c.title || t.length > c.title.length)) c.title = t;
-    const rating = rmp.get(r[col.i]) || {};
+    const rating = rmp.get(r[col.i])
+      || (spellings.get(r[col.i]) || []).map((s) => rmp.get(s)).find(Boolean)
+      || {};
+    const shown = displayName(r[col.i]);
+    noteSpelling(shown, r[col.i]);
     c.profs.push({
-      i: displayName(r[col.i]),
+      i: shown,
       g: r[col.g] || 0,
       A: r[col.gA] || 0, B: r[col.gB] || 0, C: r[col.gC] || 0,
       D: r[col.gD] || 0, F: r[col.gF] || 0, W: r[col.gW] || 0,
       P: r[col.gP] || 0, NP: r[col.gNP] || 0,
       n: r[col.n] || 0,
       y: r[col.y] ?? null,
-      cur: (teachingThisTerm.get(code) ?? EMPTY).has(instructorKey(r[col.i])) ? 1 : 0,
+      cur: (teachingThisTerm.get(code) ?? EMPTY).has(archiveKey(r[col.i])) ? 1 : 0,
       rq: rating.rq ?? null, rd: rating.rd ?? null,
       rw: rating.rw ?? null, rn: rating.rn ?? null, rid: rating.rid ?? null,
+    });
+  }
+
+  /**
+   * Each term's grades, kept term by term so a page can show whether a course
+   * or a professor has been getting harder — the archive publishes one row per
+   * course x instructor x quarter, and the loop above folds them together.
+   */
+  const termRows = new Map();
+  for (const [sub, num, yy, q, , instructor, gpa, A, B, C, D, F, W, P, NP] of asGrades.rows) {
+    const code = `${sub} ${num}`;
+    if (!termRows.has(code)) termRows.set(code, []);
+    // One decimal is all a chart can show, and it halves the file.
+    const pct = (v) => Math.round((v || 0) * 10) / 10;
+    termRows.get(code).push({
+      yy, q, who: displayName(grades.canon.get(instructor) ?? instructor),
+      gpa: gpa > 0 ? +gpa.toFixed(2) : null,
+      grades: [A, B, C, D, F, W, P, NP].map(pct),
     });
   }
 
@@ -452,6 +640,32 @@ function build() {
   // Both now come from Class Planner in the schedule loop above — the seat link
   // as a real TSS booking URL, the instructors per course rather than per term.
 
+  // ── Campus-wide requirements ──────────────────────────────────────────────
+  // Every undergraduate also owes American History & Institutions and DEI,
+  // whatever their college. They travel as GE areas of a pseudo-college,
+  // "campus", so a course page lists them with the rest and the GE page can
+  // look for a course that clears a college area and one of these at once.
+  if (requirements) {
+    const ahi = new Set(requirements.ahi.codes);
+    // "Any course listed under HIUS (other than HIUS colloquia)" — the
+    // requirement is an undergraduate one, so graduate numbers are left out.
+    for (const sub of requirements.ahi.anyUnder || []) {
+      for (const c of byCourse.values()) {
+        if (c.sub !== sub || !c.inCatalog || courseNumOrder(c.num) >= 200) continue;
+        if (/colloqui/i.test(`${c.title} ${c.desc || ""}`)) continue;
+        ahi.add(c.code);
+      }
+    }
+    for (const [key, area, codes] of [
+      ["campus:AHI", "American History & Institutions (AHI)", [...ahi]],
+      ["campus:DEI", "Diversity, Equity & Inclusion (DEI)", requirements.dei.codes],
+    ]) {
+      geAreas.push({ key, college: "campus", area, n: codes.length });
+      geRaw.push([key, codes]);
+    }
+    console.log(`  AHI ${ahi.size} courses, DEI ${requirements.dei.codes.length} courses`);
+  }
+
   // ── GE list codes -> courses ──────────────────────────────────────────────
   // A list can name a course by a code UCSD has since changed. Political Science
   // added a "D" to its lower-division numbers, so a list still saying "POLI 13R"
@@ -484,6 +698,26 @@ function build() {
   console.log(`  GE codes renumbered: ${[...renamed].join(", ") || "none"}`);
   console.log(`  GE codes with no course anywhere: ${[...unknownGe].join(", ") || "none"}`);
 
+  // ── What each course leads to ─────────────────────────────────────────────
+  // The reverse of every prerequisite sentence: CSE 12 leads to each course
+  // whose prerequisites name it, alone or as one option. Only courses that are
+  // current (in the catalog or on the schedule) count, since pointing a
+  // student at a retired course helps nobody.
+  const leadsTo = new Map();
+  for (const c of byCourse.values()) {
+    if (!c.inCatalog && !c.offered) continue;
+    for (const ref of prereqCodes(c.pre)) {
+      if (ref === c.code || !byCourse.has(ref)) continue;
+      if (!leadsTo.has(ref)) leadsTo.set(ref, new Set());
+      leadsTo.get(ref).add(c.code);
+    }
+  }
+  const byCode = (a, b) => {
+    const [sa, na] = [a.slice(0, a.lastIndexOf(" ")), a.slice(a.lastIndexOf(" ") + 1)];
+    const [sb, nb] = [b.slice(0, b.lastIndexOf(" ")), b.slice(b.lastIndexOf(" ") + 1)];
+    return sa.localeCompare(sb) || courseNumOrder(na) - courseNumOrder(nb) || na.localeCompare(nb);
+  };
+
   // ── derive aggregates ─────────────────────────────────────────────────────
   const index = [];
   const bySubject = new Map();
@@ -507,20 +741,33 @@ function build() {
     // Current FA26 instructors first, then the most-experienced.
     c.profs.sort((a, b) => (b.cur - a.cur) || (b.n - a.n) || (b.g - a.g));
 
+    // Term rows point at their instructor by position in `profs`, newest term
+    // first: [term, instructor index, GPA, A, B, C, D, F, W, P, NP].
+    const at = new Map();
+    c.profs.forEach((p, i) => { if (!at.has(p.i)) at.set(p.i, i); });
+    c.hist = (termRows.get(c.code) || [])
+      .filter((r) => at.has(r.who))
+      .sort((a, b) => termOrder(b.yy, b.q) - termOrder(a.yy, a.q) || a.who.localeCompare(b.who))
+      .map((r) => [`${r.q}${r.yy}`, at.get(r.who), r.gpa, ...r.grades]);
+
     // Primary meeting = first weekly section that actually has a time.
     const lec = c.sec.find((s) => !isOneOff(s) && s[2] && s[3]) || null;
 
-    // Seats live on the enrollable sections (discussions/labs), not the lecture,
-    // so total them across every non-exam section — once each, since a section
-    // meeting in two weekly patterns arrives as two rows carrying the same seats.
+    // Class Planner counts a lecture's students on the lecture itself, and each
+    // of them again on their discussion, so adding every section counted CSE
+    // 11's open seats twice ("80 left" when lecture B had 40). Lectures are
+    // summed when a course has them, every other section when it has none —
+    // the rule src/lib/seats/tally.ts uses on the course page — once each,
+    // since a section meeting in two weekly patterns arrives as two rows.
     let seatsAvail = null, seatsLimit = null;
     const counted = new Set();
-    for (const s of c.sec) {
-      if (isOneOff(s) || s[9] == null) continue;
+    const live = c.sec.filter((s) => !isOneOff(s) && s[10] !== 1 && s[9] != null);
+    const pool = live.some((s) => s[1] === "LE") ? live.filter((s) => s[1] === "LE") : live;
+    for (const s of pool) {
       const id = s[13] || `${s[0]}|${s[1]}`;
       if (counted.has(id)) continue;
       counted.add(id);
-      seatsAvail = (seatsAvail ?? 0) + (s[8] ?? 0);
+      seatsAvail = (seatsAvail ?? 0) + Math.max(0, s[8] ?? 0);
       seatsLimit = (seatsLimit ?? 0) + s[9];
     }
 
@@ -565,7 +812,10 @@ function build() {
     bySubject.get(c.sub)[c.code] = {
       t: c.title,
       u: c.units || null,
+      desc: c.desc || null,
       pre: c.pre || null,
+      unl: [...(leadsTo.get(c.code) || [])].sort(byCode),
+      hist: c.hist,
       ge: c.ge,
       gpa: c.gpa,
       aRate: c.aRate,
@@ -657,16 +907,43 @@ function build() {
     }
   }
 
+  // Someone shown under the name they go by is still findable by the one the
+  // registrar files them under.
+  for (const [shown, names] of registeredAs) {
+    const rec = profMap.get(shown);
+    if (rec) for (const n of names) rec.aliases.add(n);
+  }
+
   // The source lists some instructors twice — once under the schedule's short
   // spelling with no grade history, once under the full name that carries it.
   // Fold the empty one into the real record so a search for "Politz" returns one
   // person, not two. Only records with no grade history are folded, so two
   // genuinely different people who share a surname and initial stay separate.
+  // Surname and initial alone are not enough across the whole campus: they
+  // folded Penghui Cao (MAE) into Paul Cao (CSE). The first names must also
+  // agree — one a short form of the other ("Joe", "Joseph") or sharing their
+  // opening letters.
+  const firstName = (n) => n.toLowerCase().replace(/[^a-z ]/g, " ").trim().split(/\s+/)[0] || "";
+  const sameFirst = (a, b) => {
+    const x = firstName(a), y = firstName(b);
+    return x.startsWith(y) || y.startsWith(x) || x.slice(0, 2) === y.slice(0, 2);
+  };
+  // A spelling that only drops middle names ("Andrea Carter" for "Andrea L
+  // Carter") is the strongest match of all, so it is tried first; only when
+  // there is no such record does the looser surname-and-initial rule apply.
+  const words = (n) => n.toLowerCase().replace(/[^a-z ]/g, " ").trim().split(/\s+/).filter(Boolean);
+  const dropsMiddles = (short, long) => {
+    const s = words(short), l = words(long);
+    return s.length < l.length && s[0] === l[0] && s[s.length - 1] === l[l.length - 1]
+      && s.slice(1, -1).every((m) => l.slice(1, -1).some((x) => x.startsWith(m)));
+  };
   for (const rec of [...profMap.values()]) {
     if (rec.terms > 0) continue;
-    const matches = [...profMap.values()].filter(
-      (o) => o !== rec && o.terms > 0 && sameInstructor(o.n, rec.n),
-    );
+    const others = [...profMap.values()].filter((o) => o !== rec && o.terms > 0);
+    const exact = others.filter((o) => dropsMiddles(rec.n, o.n));
+    const matches = exact.length
+      ? exact
+      : others.filter((o) => sameInstructor(o.n, rec.n) && sameFirst(o.n, rec.n));
     if (matches.length !== 1) continue;
     const target = matches[0];
     target.aliases.add(rec.n);
@@ -719,7 +996,21 @@ function build() {
   }
 
   const sizeIndex = write("index.json", { meta, subjects, courses: index });
-  const sizeGe = write("ge.json", { meta: ge.meta, areas: geAreas, lists: geLists });
+  const geMeta = {
+    ...ge.meta,
+    ...(requirements
+      ? {
+        campus: {
+          ahi: { source: requirements.ahi.source, url: requirements.ahi.url, retrieved: requirements.ahi.retrieved, note: requirements.ahi.note },
+          dei: {
+            source: requirements.dei.source, url: requirements.dei.url, retrieved: requirements.dei.retrieved,
+            termUrl: requirements.dei.termUrl, termName: requirements.dei.term.name, asOf: requirements.dei.term.asOf,
+          },
+        },
+      }
+      : {}),
+  };
+  const sizeGe = write("ge.json", { meta: geMeta, areas: geAreas, lists: geLists });
   const sizeBuildings = write("buildings.json", { term: sched.term, buildings });
   const sizeProfs = write("professors.json", { meta: { term: sched.term }, professors });
   let sizeSubjects = 0;

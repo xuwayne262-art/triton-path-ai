@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import {
-  AlertTriangle, CalendarClock, CalendarDays, Footprints, ImageDown, ListChecks, Map as MapIcon,
+  AlertTriangle, CalendarClock, CalendarDays, CalendarPlus, Footprints, ImageDown, ListChecks, Map as MapIcon,
   PanelLeftClose, PanelLeftOpen, Search, Wand2, X,
 } from "lucide-react";
 import CourseCatalog from "@/components/triton/CourseCatalog";
@@ -14,7 +14,8 @@ import ExamList, { type ExamItem } from "@/components/planner/ExamList";
 import EventSheet from "@/components/planner/EventSheet";
 import ScheduleImageDialog from "@/components/planner/ScheduleImageDialog";
 import { scheduleImageInput, type ScheduleImageInput } from "@/lib/scheduleImage";
-import { todayInSanDiego } from "@/lib/housing/terms";
+import { buildIcs, icsFileName } from "@/lib/ics";
+import { quarterByKey, todayInSanDiego } from "@/lib/housing/terms";
 import { CAN_HOVER, PHONE, useMediaQuery } from "@/components/planner/useMediaQuery";
 import { useWalkRoutes } from "@/components/planner/useWalkRoutes";
 import { usePref } from "@/components/planner/usePref";
@@ -425,6 +426,29 @@ export default function TermWorkspacePage() {
     }));
   }, [termName, events, exams, selectedCourses, roleOf, platByCode, sectionsByCode, selections]);
 
+  // The week as a calendar file, for Google, Apple or Outlook Calendar. Only
+  // offered for a term whose instruction dates and holidays are on file.
+  const quarter = quarterByKey(term);
+  const canExportCalendar = Boolean(quarter?.lastClass) && events.some((e) => !e.ghost);
+  const downloadCalendar = useCallback(() => {
+    if (!quarter?.lastClass) return;
+    const text = buildIcs({
+      quarter: {
+        key: quarter.key, name: quarter.name, classes: quarter.classes,
+        lastClass: quarter.lastClass, holidays: quarter.holidays ?? [],
+      },
+      events,
+      exams: exams.map((x) => ({ code: x.code, title: courseByCode.get(x.code)?.title ?? x.code, row: x.row })),
+    });
+    const url = URL.createObjectURL(new Blob([text], { type: "text/calendar;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = icsFileName(termName || quarter.name);
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setToast({ text: "Calendar file saved — open it to add every class and final to your calendar" });
+  }, [quarter, events, exams, courseByCode, termName]);
+
   const clearWithUndo = useCallback(() => {
     const snapshot = selectedCourses;
     if (!snapshot.length) return;
@@ -662,6 +686,18 @@ export default function TermWorkspacePage() {
               >
                 <ImageDown className="h-3.5 w-3.5" />
                 Save image
+              </button>
+              <button
+                type="button"
+                onClick={downloadCalendar}
+                disabled={!canExportCalendar}
+                title={canExportCalendar
+                  ? "Download a calendar file (.ics) with every class, weekly until the last day of instruction, and your finals"
+                  : "Pick sections first — then add your week to your calendar"}
+                className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/15 dark:text-gray-200 dark:hover:bg-white/5"
+              >
+                <CalendarPlus className="h-3.5 w-3.5" />
+                Add to calendar
               </button>
               {/* The one map control on a desktop (a phone has its Map tab). A
                   pull tab on the calendar's edge used to open it too, under a

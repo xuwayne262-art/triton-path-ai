@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   HttpError, collegeGEs, collegeName, dayLabel, geLabel, gpaTier, LETTER_SCALE, loadIndex, loadJSON, loadSubject,
-  prereqKnown, ratingTone, refreshedLabel, sortCourses, tidyTitle, typicalGrade, type CourseRow, type PlatIndex,
+  prereqKnown, ratingTone, refreshedDay, refreshedLabel, sortCourses, termName, termOrder, tidyTitle, typicalGrade,
+  type CourseRow, type GEFile, type PlatIndex, type ProfessorFile, type SubjectFile,
 } from "./plat";
 import { COLLEGE_REQUIREMENTS } from "@/data/requirements";
 import { COLLEGES } from "@/components/triton/types";
@@ -243,5 +244,84 @@ describe("college names", () => {
 
   test("each college's GE set has one name, in the planner's progress list too", () => {
     for (const c of COLLEGES) assert.equal(COLLEGE_REQUIREMENTS[c].groupLabel, collegeGEs(c), c);
+  });
+
+  test("a university requirement is named as UCSD names it, not as a college's GE", () => {
+    assert.equal(geLabel("campus:DEI"), "University requirement · Diversity, Equity & Inclusion (DEI)");
+    assert.equal(geLabel("campus:AHI"), "University requirement · American History & Institutions (AHI)");
+  });
+});
+
+describe("terms", () => {
+  test("are named in full and ordered through the academic year", () => {
+    assert.equal(termName("FA25"), "Fall 2025");
+    assert.equal(termName("WI26"), "Winter 2026");
+    const order = ["FA26", "WI26", "SP26", "FA25"].sort((a, b) => termOrder(a) - termOrder(b));
+    assert.deepEqual(order, ["FA25", "WI26", "SP26", "FA26"]);
+  });
+
+  test("the schedule's refresh is dated in San Diego", () => {
+    assert.equal(refreshedDay("2026-09-25 15:53:24+00"), "2026-09-25");
+    assert.equal(refreshedDay("2026-09-26 02:00:00+00"), "2026-09-25");
+    assert.equal(refreshedDay(null), null);
+  });
+});
+
+describe("the dataset's people and history", () => {
+  const read = <T,>(p: string) => JSON.parse(readFileSync(new URL(`../../public/data/plat/${p}`, import.meta.url), "utf8")) as T;
+  const cse = read<SubjectFile>("subject/CSE.json");
+  const profs = read<ProfessorFile>("professors.json").professors;
+
+  test("a current instructor known by another name keeps their history", () => {
+    // CSE 12 said Paul Cao had "no published record" when the archive holds
+    // fourteen terms of it under his registered name, Yingjun Cao.
+    const cao = cse.courses["CSE 12"].profs.find((p) => p.i === "Paul Cao");
+    assert.ok(cao, "Paul Cao is listed");
+    assert.equal(cao.cur, 1);
+    assert.ok(cao.n >= 14, `${cao.n} terms`);
+    assert.ok(!cse.courses["CSE 12"].profs.some((p) => p.i === "Yingjun Cao"), "not listed twice");
+    const rec = profs.find((p) => p.n === "Paul Cao");
+    assert.ok(rec?.a?.includes("Yingjun Cao"), "searchable by the registered name");
+    assert.ok(!rec?.a?.includes("Penghui Cao"), "a different person is not folded in");
+  });
+
+  test("no one teaching in CSE this term is listed twice under two spellings", () => {
+    const now = profs.filter((p) => p.c.some(([code, , , cur]) => cur === 1 && code.startsWith("CSE ")));
+    const key = (n: string) => {
+      const w = n.toLowerCase().replace(/[^a-z ]/g, " ").trim().split(/\s+/);
+      return `${w[0]}|${w.at(-1)}`;
+    };
+    const seen = new Map<string, string>();
+    for (const p of now) {
+      const k = key(p.n);
+      assert.ok(!seen.has(k), `${p.n} and ${seen.get(k)}`);
+      seen.set(k, p.n);
+    }
+  });
+
+  test("every term row points at an instructor on the course, newest first", () => {
+    for (const [code, c] of Object.entries(cse.courses)) {
+      const hist = c.hist ?? [];
+      for (let i = 0; i < hist.length; i++) {
+        assert.ok(c.profs[hist[i][1]], `${code}: row ${i} names no instructor`);
+        if (i) assert.ok(termOrder(hist[i][0]) <= termOrder(hist[i - 1][0]), `${code}: ${hist[i][0]} after ${hist[i - 1][0]}`);
+      }
+    }
+    assert.ok((cse.courses["CSE 12"].hist ?? []).length >= 30);
+  });
+
+  test("courses carry the catalog's own description, without the prerequisite sentence", () => {
+    const desc = cse.courses["CSE 12"].desc ?? "";
+    assert.match(desc, /^Use and implementation of basic data structures/);
+    assert.doesNotMatch(desc, /Prerequisites?:/);
+  });
+
+  test("the university requirements come with the lists UCSD publishes", () => {
+    const ge = read<GEFile>("ge.json");
+    assert.ok(ge.lists["campus:AHI"].includes("HILD 2A"));
+    assert.ok(ge.lists["campus:AHI"].includes("POLI 10D"), "POLI 10 is listed under its current code");
+    assert.ok(ge.lists["campus:DEI"].includes("CSE 194"));
+    assert.ok(!ge.lists["campus:DEI"].includes("CSE 12"), "a prerequisite named in the Senate list is not a DEI course");
+    assert.ok(ge.meta.campus?.dei.url.startsWith("https://senate.ucsd.edu/"));
   });
 });

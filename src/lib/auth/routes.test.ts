@@ -22,29 +22,50 @@ describe("isPublicPath", () => {
     }
   });
 
-  test("protects every application page", () => {
+  test("opens the course explorer and the dataset it reads to anyone", () => {
     for (const path of [
       "/",
-      "/planner",
-      "/planner/four-year",
       "/courses",
       "/courses/CSE",
       "/course/CSE/11",
       "/ge",
-      "/professor/Smith",
+      "/professor/joseph-gibbs-politz",
+      "/about",
+      "/data/plat/index.json",
+      "/data/plat/subject/CSE.json",
+      "/data/plat/professors.json",
+      "/api/seats",
+      "/api/cron/seats",
+    ]) {
+      assert.equal(isPublicPath(path), true, path);
+    }
+  });
+
+  test("keeps everything that belongs to a student behind sign-in", () => {
+    for (const path of [
+      "/planner",
+      "/planner/four-year",
+      "/import",
+      "/housing",
+      "/housing/new",
+      "/housing/abc123",
     ]) {
       assert.equal(isPublicPath(path), false, path);
     }
   });
 
-  test("protects the API routes and the course dataset", () => {
+  test("protects the API routes that read or write a student's data", () => {
     for (const path of [
       "/api/chat",
-      "/api/advisor",
-      "/api/generate-plan",
-      "/data/plat/index.json",
-      "/data/plat/subject/CSE.json",
-      "/data/plat/professors.json",
+      "/api/plan",
+      "/api/history",
+      "/api/housing",
+      "/api/housing/abc123",
+      "/api/housing/photos/x",
+      "/api/walk",
+      "/api/geocode",
+      "/api/seatsx",
+      "/data/other.json",
     ]) {
       assert.equal(isPublicPath(path), false, path);
     }
@@ -80,9 +101,9 @@ describe("decideAccess", () => {
   const eligible = (email: unknown) =>
     typeof email === "string" && email.toLowerCase().endsWith("@ucsd.edu");
 
-  test("allows the login page and auth endpoints to anyone", () => {
-    for (const path of ["/login", "/api/auth/callback/google", "/brand/logo.png"]) {
-      assert.deepEqual(decideAccess(path, "", null, eligible), { kind: "allow" });
+  test("allows the login page, auth endpoints and the course explorer to anyone", () => {
+    for (const path of ["/login", "/api/auth/callback/google", "/brand/logo.png", "/", "/course/CSE/11", "/data/plat/index.json"]) {
+      assert.deepEqual(decideAccess(path, "", null, eligible), { kind: "allow" }, path);
     }
   });
 
@@ -104,16 +125,8 @@ describe("decideAccess", () => {
     });
   });
 
-  test("carries no next for the homepage — the default is already the homepage", () => {
-    assert.deepEqual(decideAccess("/", "", null, eligible), {
-      kind: "redirect",
-      next: null,
-      ineligible: false,
-    });
-  });
-
-  test("401s anonymous API and dataset requests instead of redirecting", () => {
-    for (const path of ["/api/chat", "/data/plat/index.json"]) {
+  test("401s anonymous requests to a student's APIs instead of redirecting", () => {
+    for (const path of ["/api/chat", "/api/plan", "/api/housing"]) {
       assert.deepEqual(decideAccess(path, "", null, eligible), { kind: "json401" }, path);
     }
   });
@@ -127,7 +140,7 @@ describe("decideAccess", () => {
       ineligible: true,
     });
     assert.deepEqual(
-      decideAccess("/data/plat/index.json", "", "mallory@gmail.com", eligible),
+      decideAccess("/api/plan", "", "mallory@gmail.com", eligible),
       { kind: "json401" },
     );
   });

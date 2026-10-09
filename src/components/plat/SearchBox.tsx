@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import SearchResults, { type Combined } from "./SearchResults";
+import { noteRecent } from "./useRecent";
 import { useMediaQuery } from "@/components/planner/useMediaQuery";
 import {
   loadIndex, loadProfessors, professorHref, searchCourses, searchProfessors,
@@ -61,6 +62,8 @@ export default function SearchBox({ className = "" }: { className?: string }) {
 
   const go = (href: string | undefined) => {
     if (!href) return;
+    // Kept in this browser so the home page can offer the search again.
+    if (q.trim().length >= 2) noteRecent({ kind: "search", key: q.trim(), label: q.trim(), href: "/" });
     setOpen(false);
     setQ("");
     router.push(href);

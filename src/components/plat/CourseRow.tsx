@@ -51,7 +51,7 @@ export default function CourseRow({
       <span className="flex w-11 shrink-0 flex-col items-center gap-0.5">
         <GradeBadge gpa={row.g} terms={row.r} />
         {row.g != null && row.g > 0 && (
-          <span className="text-[10px] font-semibold tabular-nums text-gray-400">{row.g.toFixed(2)}</span>
+          <span className="text-[11px] font-semibold tabular-nums text-gray-500">{row.g.toFixed(2)}</span>
         )}
       </span>
 
@@ -86,7 +86,7 @@ export default function CourseRow({
             <LoadTag difficulty={row.pd} />
           </>
         ) : (
-          <span className="text-xs text-gray-400">Instructor TBA</span>
+          <span className="text-xs text-gray-500">Instructor TBA</span>
         )}
       </span>
     </Link>

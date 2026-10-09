@@ -13,8 +13,11 @@
  * rather than inferred from the filename.
  *
  * Emits .data-cache/catalog.json:
- *   courses  [code, sub, num, title, units, prereqText]
+ *   courses  [code, sub, num, title, units, prereqText, description]
  *   meta     { source, retrieved, pages, courses }
+ *
+ * The description is the catalog's own paragraph with its closing
+ * "Prerequisites:" sentence taken off, since that is shown on its own line.
  *
  * Run: node scripts/fetch-catalog.mjs
  */
@@ -113,17 +116,36 @@ function parseName(text) {
 function parsePrereq(desc) {
   const m = /Prerequisites?:\s*([\s\S]+)$/i.exec(desc);
   if (!m) return "";
-  return m[1].split(/(?:\s|^)(?:Note|Renumbered|Formerly|May be)\b/)[0].trim();
+  return m[1].split(/(?:\s|^)(?:Note|Renumbered|Formerly|May be)\b/)[0].replace(/\s*\+\s*$/, "").trim();
 }
 
+/**
+ * The description a student reads first: everything before the prerequisite
+ * sentence. A trailing "+" is the catalog's own change marker, not prose.
+ */
+function parseDescription(desc) {
+  return desc.replace(/\s*Prerequisites?:[\s\S]*$/i, "").replace(/\s*\+\s*$/, "").trim();
+}
+
+/**
+ * Each course is a name paragraph followed by its description paragraph. They
+ * used to be paired by position in two separate lists, so one entry with no
+ * description (HIST has several) handed every later course on the page the
+ * next course's text — HIUS 112 "The US Civil War" read as California history
+ * and took HIUS 114A's prerequisites. Now each name owns only the description
+ * between it and the next name.
+ */
 function parsePage(html) {
-  const names = [...html.matchAll(/<p class="course-name">([\s\S]*?)<\/p>/g)].map((m) => clean(m[1]));
-  const descs = [...html.matchAll(/<p class="course-descriptions">([\s\S]*?)<\/p>/g)].map((m) => clean(m[1]));
   const out = [];
-  for (let i = 0; i < names.length; i++) {
-    const prereq = parsePrereq(descs[i] || "");
-    for (const c of parseName(names[i])) {
-      out.push([c.code, c.sub, c.num, c.title, c.units, prereq]);
+  const blocks = html.split(/<p class="course-name">/).slice(1);
+  for (const block of blocks) {
+    const name = clean(block.slice(0, block.indexOf("</p>")));
+    const d = /<p class="course-descriptions">([\s\S]*?)<\/p>/.exec(block);
+    const text = d ? clean(d[1]) : "";
+    const prereq = parsePrereq(text);
+    const description = parseDescription(text);
+    for (const c of parseName(name)) {
+      out.push([c.code, c.sub, c.num, c.title, c.units, prereq, description]);
     }
   }
   return out;
@@ -149,7 +171,10 @@ async function main() {
         for (const r of rows) {
           const prev = byCode.get(r[0]);
           if (!prev) byCode.set(r[0], r);
-          else if (!prev[5] && r[5]) prev[5] = r[5];
+          else {
+            if (!prev[5] && r[5]) prev[5] = r[5];
+            if (!prev[6] && r[6]) prev[6] = r[6];
+          }
         }
         done++;
         console.log(`  ${String(done).padStart(2)}/${pages.length}  ${page.padEnd(6)} ${rows.length} courses`);
@@ -172,7 +197,8 @@ async function main() {
       pages: pages.length,
       courses: courses.length,
       withPrereq: courses.filter((c) => c[5]).length,
-      cols: ["code", "sub", "num", "title", "units", "prereq"],
+      withDescription: courses.filter((c) => c[6]).length,
+      cols: ["code", "sub", "num", "title", "units", "prereq", "description"],
     },
     courses,
   };

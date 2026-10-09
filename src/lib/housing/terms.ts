@@ -21,12 +21,28 @@ export interface Quarter {
   classes: string;
   /** Last day of the quarter, finals included, YYYY-MM-DD. */
   end: string;
+  /** Last day of instruction, when weekly classes stop, where the calendar is published. */
+  lastClass?: string;
+  /** Campus holidays during instruction: no classes meet. */
+  holidays?: string[];
 }
 
 export const QUARTERS: Quarter[] = [
-  { key: "FA26", name: "Fall 2026", classes: "2026-09-24", end: "2026-12-12" },
-  { key: "WI27", name: "Winter 2027", classes: "2027-01-04", end: "2027-03-20" },
-  { key: "SP27", name: "Spring 2027", classes: "2027-03-29", end: "2027-06-11" },
+  {
+    key: "FA26", name: "Fall 2026", classes: "2026-09-24", end: "2026-12-12",
+    // Veterans Day; Thanksgiving Thursday and Friday.
+    lastClass: "2026-12-04", holidays: ["2026-11-11", "2026-11-26", "2026-11-27"],
+  },
+  {
+    key: "WI27", name: "Winter 2027", classes: "2027-01-04", end: "2027-03-20",
+    // Martin Luther King, Jr. Day; Presidents' Day.
+    lastClass: "2027-03-12", holidays: ["2027-01-18", "2027-02-15"],
+  },
+  {
+    key: "SP27", name: "Spring 2027", classes: "2027-03-29", end: "2027-06-11",
+    // Memorial Day. (Farmworkers Day, Mar 26, falls before instruction begins.)
+    lastClass: "2027-06-04", holidays: ["2027-05-31"],
+  },
   { key: "SU27", name: "Summer 2027", classes: "2027-06-28", end: "2027-09-04" },
   { key: "FA27", name: "Fall 2027", classes: "2027-09-23", end: "2027-12-11" },
   { key: "WI28", name: "Winter 2028", classes: "2028-01-10", end: "2028-03-25" },

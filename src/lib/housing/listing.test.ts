@@ -129,6 +129,41 @@ describe("building the stored listing", () => {
     assert.equal(toPublic(l, "own:z", TODAY).mine, false);
     assert.equal(toPublic(l, null, TODAY).mine, false);
   });
+
+  test("the page sees how many are interested and whether the viewer is, never who", () => {
+    const l = buildListing(fields, { owner: "own:a", email: "a@ucsd.edu", name: "A" }, { id: "abc123", now: "2026-09-27T10:00:00Z" });
+    const withInterest = { ...l, interested: ["own:b", "own:c"] };
+    const pub = toPublic(withInterest, "own:b", TODAY);
+    assert.equal(pub.interested, 2);
+    assert.equal(pub.youInterested, true);
+    assert.equal(toPublic(withInterest, "own:z", TODAY).youInterested, false);
+    assert.ok(!JSON.stringify(pub).includes("own:c"));
+  });
+
+  test("an edit keeps who is interested", () => {
+    const first = buildListing(fields, { owner: "own:a", email: "a@ucsd.edu", name: "A" }, { id: "abc123", now: "2026-09-01T10:00:00Z" });
+    const next = buildListing(fields, { owner: "own:a", email: "a@ucsd.edu", name: "A" }, { id: "abc123", now: "2026-09-27T10:00:00Z", previous: { ...first, interested: ["own:b"] } });
+    assert.deepEqual(next.interested, ["own:b"]);
+  });
+});
+
+describe("photo labels", () => {
+  const ref = (c: string) => c.repeat(32);
+
+  test("travel with their photo, and anything unknown reads as unlabelled", () => {
+    const r = checkListing({ ...valid(), photos: [ref("a"), ref("b"), ref("a")], photoLabels: ["bedroom", "castle", "kitchen"] }, TODAY);
+    assert.ok(r.ok);
+    assert.deepEqual(r.fields.photos, [ref("a"), ref("b")]);
+    assert.deepEqual(r.fields.photoLabels, ["bedroom", ""]);
+  });
+
+  test("a listing saved before labels existed shows its photos unlabelled", () => {
+    const r = checkListing({ ...valid(), photos: [ref("a")] }, TODAY);
+    assert.ok(r.ok);
+    const l = buildListing(r.fields, { owner: "own:a", email: "a@ucsd.edu", name: "A" }, { id: "abc123", now: "2026-09-27T10:00:00Z" });
+    const legacy = { ...l, photoLabels: undefined as unknown as typeof l.photoLabels };
+    assert.deepEqual(toPublic(legacy, null, TODAY).photoLabels, [""]);
+  });
 });
 
 describe("listingState", () => {

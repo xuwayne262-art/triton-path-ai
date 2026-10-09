@@ -1,8 +1,8 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { applyFilters, DEFAULT_FILTERS } from "./courseFilters";
-import type { PlatIndex } from "./plat";
+import { applyFilters, DEFAULT_FILTERS, splitByTerm } from "./courseFilters";
+import { typicalGrade, type PlatIndex } from "./plat";
 
 const index = JSON.parse(readFileSync(new URL("../../public/data/plat/index.json", import.meta.url), "utf8")) as PlatIndex;
 const chem = index.courses.filter((c) => c.s === "CHEM");
@@ -37,5 +37,37 @@ describe("a department's course list", () => {
     assert.equal(sorted.length, chem.length);
     const firstBlank = sorted.findIndex((c) => !(c.g != null && c.g > 0));
     assert.ok(sorted.slice(firstBlank).every((c) => !(c.g != null && c.g > 0)));
+  });
+});
+
+describe("reading this term's courses first", () => {
+  const cse = index.courses.filter((c) => c.s === "CSE");
+
+  test("keeps every course, this term's first, and hides nothing", () => {
+    const sorted = applyFilters(cse, { ...DEFAULT_FILTERS, sort: "code" });
+    const { offered, other } = splitByTerm(sorted);
+    assert.equal(offered.length + other.length, cse.length);
+    assert.ok(offered.every((c) => c.o === 1));
+    assert.ok(other.every((c) => c.o !== 1));
+    // CSE opened on six courses that are not running; now its first rows are.
+    assert.ok(offered.slice(0, 6).every((c) => c.o === 1));
+  });
+
+  test("each part keeps the sort, so the averages still read straight down", () => {
+    const sorted = applyFilters(cse, { ...DEFAULT_FILTERS, sort: "grade" });
+    for (const [name, part] of Object.entries(splitByTerm(sorted))) {
+      let prev = Infinity;
+      let seenBlank = false;
+      for (const c of part) {
+        const has = c.g != null && c.g > 0;
+        if (!has) { seenBlank = true; continue; }
+        assert.ok(!seenBlank, `${name}: ${c.k} has a history but sorts after one without`);
+        assert.ok(c.g! <= prev, `${name}: ${c.k} (${c.g}) sorts below a lower average`);
+        prev = c.g!;
+      }
+      // And the letters shown beside them therefore never climb back up.
+      const letters = part.map((c) => typicalGrade(c.g)?.letter).filter((l): l is string => Boolean(l));
+      assert.equal(letters.length, part.filter((c) => c.g != null && c.g > 0).length);
+    }
   });
 });

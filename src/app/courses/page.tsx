@@ -98,15 +98,16 @@ export default function CoursesPage() {
 
   return (
     <PlatShell>
-      <div className="mx-auto max-w-3xl px-4 py-8">
-        <h1 className="text-2xl font-black tracking-tight">Departments</h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          {DEPARTMENTS.length} departments across {SCHOOLS.length} schools and divisions, plus the{" "}
+      <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+        <h1 className="text-3xl font-black tracking-tight">Courses</h1>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+          By department: {DEPARTMENTS.length} departments across {SCHOOLS.length} schools and divisions, plus the{" "}
           {COLLEGE_UNITS.length} colleges and their core sequences.
+          {data ? ` ${data.meta.catalogCourses.toLocaleString()} courses in all, ${data.meta.offered.toLocaleString()} on the ${data.meta.termName} schedule.` : ""}
         </p>
 
         <div className="relative mt-5">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -124,7 +125,7 @@ export default function CoursesPage() {
         <div className="mt-6 space-y-8">
           {schools.map(({ school, depts }) => (
             <section key={school.id}>
-              <h2 className="text-xs font-bold uppercase tracking-wide text-gray-400">
+              <h2 className="text-xs font-bold uppercase tracking-wide text-gray-500">
                 {school.name}
               </h2>
               <div className="mt-2">
@@ -142,19 +143,19 @@ export default function CoursesPage() {
                         {dept.subjects.slice(0, 8).map((code) => (
                           <span
                             key={code}
-                            className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-gray-600 dark:bg-white/10 dark:text-gray-300"
+                            className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-gray-600 dark:bg-white/10 dark:text-gray-300"
                           >
                             {code}
                           </span>
                         ))}
                         {dept.subjects.length > 8 && (
-                          <span className="text-[10px] text-gray-400">
+                          <span className="text-[11px] text-gray-500">
                             +{dept.subjects.length - 8}
                           </span>
                         )}
                       </span>
                     </span>
-                    <span className="shrink-0 text-right text-xs text-gray-400">
+                    <span className="shrink-0 text-right text-xs text-gray-500">
                       {data && <span className="block">{courses} courses</span>}
                       {offered > 0 && (
                         <span className="block text-emerald-600 dark:text-emerald-400">
@@ -172,7 +173,7 @@ export default function CoursesPage() {
               writing sequence, so one section holds all of them. */}
           {colleges.length > 0 && (
             <section>
-              <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-gray-400">
+              <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-gray-500">
                 <GraduationCap className="h-3.5 w-3.5" /> The eight colleges
               </h2>
               <p className="mt-1.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
@@ -196,14 +197,14 @@ export default function CoursesPage() {
                         {college.subjects.map((code) => (
                           <span
                             key={code}
-                            className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-gray-600 dark:bg-white/10 dark:text-gray-300"
+                            className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-gray-600 dark:bg-white/10 dark:text-gray-300"
                           >
                             {code}
                           </span>
                         ))}
                       </span>
                     </span>
-                    <span className="shrink-0 text-right text-xs text-gray-400">
+                    <span className="shrink-0 text-right text-xs text-gray-500">
                       {data && <span className="block">{courses} courses</span>}
                       {offered > 0 && (
                         <span className="block text-emerald-600 dark:text-emerald-400">

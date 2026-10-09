@@ -77,7 +77,14 @@ function parseListing(v: unknown): StoredListing | null {
   const l = (typeof v === "string" ? safeJson(v) : v) as Partial<StoredListing> | null;
   if (!l || typeof l !== "object" || typeof l.id !== "string" || typeof l.owner !== "string") return null;
   if (!Array.isArray(l.ll) || typeof l.from !== "string" || typeof l.to !== "string") return null;
-  return { ...l, photos: Array.isArray(l.photos) ? l.photos : [], reports: Array.isArray(l.reports) ? l.reports : [] } as StoredListing;
+  return {
+    ...l,
+    photos: Array.isArray(l.photos) ? l.photos : [],
+    photoLabels: Array.isArray(l.photoLabels) ? l.photoLabels : [],
+    reports: Array.isArray(l.reports) ? l.reports : [],
+    // Listings saved before interest was counted have nobody interested yet.
+    interested: Array.isArray(l.interested) ? l.interested.filter((k) => typeof k === "string") : [],
+  } as StoredListing;
 }
 
 function safeJson(s: string): unknown {

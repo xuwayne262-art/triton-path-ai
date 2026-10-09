@@ -38,7 +38,7 @@ export default function ProfessorRow({ prof }: { prof: ProfessorRecord }) {
         <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-100 text-lg font-black tabular-nums text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300">
           {prof.q?.toFixed(1)}
         </span>
-        <span className="flex items-center gap-0.5 text-[10px] font-semibold text-gray-400">
+        <span className="flex items-center gap-0.5 text-[11px] font-semibold text-gray-500">
           <Star className="h-2.5 w-2.5 fill-current" />
           {prof.nr}
         </span>
@@ -61,7 +61,7 @@ export default function ProfessorRow({ prof }: { prof: ProfessorRecord }) {
 
       <span className="hidden shrink-0 flex-col items-end gap-0.5 sm:flex">
         <GradeBadge gpa={prof.gpa} terms={prof.terms} size="sm" />
-        <span className="text-[10px] text-gray-400">they give</span>
+        <span className="text-[11px] text-gray-500">they give</span>
       </span>
     </Link>
   );

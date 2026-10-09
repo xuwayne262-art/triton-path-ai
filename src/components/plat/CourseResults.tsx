@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
 import CourseRow from "./CourseRow";
-import { applyFilters, type ResultFilters } from "@/lib/courseFilters";
+import { applyFilters, splitByTerm, type ResultFilters } from "@/lib/courseFilters";
 import type { CourseRow as Row, SortKey } from "@/lib/plat";
 
 // The filter rules live in lib/courseFilters.ts, where they are tested; the
@@ -55,7 +55,14 @@ export default function CourseResults({
   const [showFilters, setShowFilters] = useState(false);
   const [limit, setLimit] = useState(PAGE);
 
-  const results = useMemo(() => applyFilters(rows, filters), [rows, filters]);
+  // Every row stays on the list; this term's courses are simply read first,
+  // under a heading that says so, and the sort runs within each part.
+  const { results, offeredCount } = useMemo(() => {
+    const sorted = applyFilters(rows, filters);
+    if (filters.offeredOnly || !termName) return { results: sorted, offeredCount: null };
+    const { offered, other } = splitByTerm(sorted);
+    return { results: [...offered, ...other], offeredCount: offered.length };
+  }, [rows, filters, termName]);
 
   // Paging belongs to a particular result set, so reset it during render when
   // that set changes rather than after a paint.
@@ -186,11 +193,23 @@ export default function CourseResults({
       )}
 
       {results.length === 0 ? (
-        <p className="py-20 text-center text-sm text-gray-400">{emptyHint}</p>
+        <p className="py-20 text-center text-sm text-gray-500 dark:text-gray-400">{emptyHint}</p>
       ) : (
         <div className="mt-1">
-          {results.slice(0, limit).map((c) => (
-            <CourseRow key={c.k} row={c} note={noteFor?.(c)} />
+          {results.slice(0, limit).map((c, i) => (
+            <div key={c.k}>
+              {offeredCount != null && i === 0 && offeredCount > 0 && (
+                <GroupHeading>
+                  On the {termName} schedule <span className="font-normal text-gray-500 dark:text-gray-400">· {offeredCount.toLocaleString()}</span>
+                </GroupHeading>
+              )}
+              {offeredCount != null && i === offeredCount && (
+                <GroupHeading>
+                  Not offered in {termName} <span className="font-normal text-gray-500 dark:text-gray-400">· {(results.length - offeredCount).toLocaleString()}</span>
+                </GroupHeading>
+              )}
+              <CourseRow row={c} note={noteFor?.(c)} />
+            </div>
           ))}
         </div>
       )}
@@ -205,6 +224,14 @@ export default function CourseResults({
         </button>
       )}
     </div>
+  );
+}
+
+function GroupHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="border-b border-gray-200 bg-gray-50/80 px-3 pb-2 pt-4 text-xs font-bold uppercase tracking-wide text-gray-700 dark:border-white/10 dark:bg-white/[0.02] dark:text-gray-200">
+      {children}
+    </p>
   );
 }
 

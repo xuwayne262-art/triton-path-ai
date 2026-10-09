@@ -134,6 +134,39 @@
 }
 
 /*
+ * Chart colours, by role. The three series slots are the dataviz reference
+ * palette's first three, validated all-pairs for colour-blind separation
+ * against these surfaces (white, and the site's #0d1420 in dark mode); dark
+ * mode has its own steps rather than an automatic flip. Everything that is
+ * not a highlighted series wears the muted grey. Text never wears a series
+ * colour — labels use the ink roles.
+ */
+:root {
+  --viz-surface: #ffffff;
+  --viz-1: #2a78d6;
+  --viz-2: #eb6834;
+  --viz-3: #1baf7a;
+  --viz-muted: #9ca3af;
+  --viz-grid: #e5e7eb;
+  --viz-axis: #d1d5db;
+  --viz-ink: #111827;
+  --viz-ink-2: #4b5563;
+  --viz-ink-3: #6b7280;
+}
+.dark {
+  --viz-surface: #0d1420;
+  --viz-1: #3987e5;
+  --viz-2: #d95926;
+  --viz-3: #199e70;
+  --viz-muted: #6b7280;
+  --viz-grid: #1f2937;
+  --viz-axis: #374151;
+  --viz-ink: #f3f4f6;
+  --viz-ink-2: #d1d5db;
+  --viz-ink-3: #9ca3af;
+}
+
+/*
  * iPhone Safari zooms the whole page into any text field set below 16px the
  * moment it is focused, and leaves it zoomed. On touch screens every field is
  * 16px. This sits outside any @layer on purpose: unlayered rules outrank

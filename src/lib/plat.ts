@@ -68,6 +68,17 @@ export function refreshedLabel(refreshed: string | null | undefined): string | n
   });
 }
 
+/** "2026-09-25 15:53:24+00" -> "2026-09-25", the San Diego date it happened on; null when unreadable. */
+export function refreshedDay(refreshed: string | null | undefined): string | null {
+  if (!refreshed) return null;
+  const iso = refreshed.trim().replace(" ", "T").replace(/([+-]\d\d)$/, "$1:00");
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(d);
+}
+
 /**
  * "2026-12-11" -> "Fri, Dec 11": the one way the site writes a calendar date.
  * Finals printed as "2026-12-11" on a course page and "Sat, Dec 5" in the
@@ -147,10 +158,26 @@ export type SectionTuple = [
   string?, string?, string?,
 ];
 
+/**
+ * One instructor's grades for one term, as published:
+ * [term "FA25", index into the course's `profs`, GPA or null, A, B, C, D, F, W, P, NP].
+ * The letter columns are percentages of the class.
+ */
+export type TermGrades = [
+  string, number, number | null,
+  number, number, number, number, number, number, number, number,
+];
+
 export interface CourseDetail {
   t: string;
   u: string | null;
+  /** The catalog's description, without its closing prerequisite sentence. */
+  desc?: string | null;
   pre: string | null;
+  /** Courses whose prerequisites name this one, alone or as one option. */
+  unl?: string[];
+  /** Every published term of grades, newest first. */
+  hist?: TermGrades[];
   ge: string[];
   gpa: number | null;
   aRate: number | null;
@@ -181,8 +208,24 @@ export interface GEArea {
   n: number;
 }
 
+/** Where a university requirement's list came from, for the page that shows it. */
+export interface RequirementSource {
+  source: string;
+  url: string;
+  retrieved: string;
+  note?: string;
+  termUrl?: string;
+  termName?: string | null;
+  asOf?: string | null;
+}
+
 export interface GEFile {
-  meta: { date: string; note: string };
+  meta: {
+    date: string;
+    note: string;
+    /** The university requirements, when the build had their lists. */
+    campus?: { ahi: RequirementSource; dei: RequirementSource };
+  };
   areas: GEArea[];
   lists: Record<string, string[]>;
 }
@@ -536,10 +579,50 @@ export const collegeName = (college: string) => COLLEGE_NAMES[college.toLowerCas
 /** "Warren College GE requirements" — the heading for a college's GE set, wherever it appears. */
 export const collegeGEs = (college: string) => `${collegeName(college)} GE requirements`;
 
-/** "seventh:Alternatives · Humanities" -> "Seventh College GE · Alternatives · Humanities" */
+/**
+ * The requirements every undergraduate owes whatever their college. The data
+ * files them as GE areas of the pseudo-college "campus"; UCSD calls them
+ * university requirements.
+ */
+export const CAMPUS = "campus";
+export const UNIVERSITY_REQUIREMENTS: Record<string, string> = {
+  DEI: "Diversity, Equity & Inclusion (DEI)",
+  AHI: "American History & Institutions (AHI)",
+};
+
+/** "campus:DEI" -> "DEI"; null for a college's own GE key. */
+export const universityRequirement = (key: string): string | null =>
+  key.startsWith(`${CAMPUS}:`) ? key.slice(CAMPUS.length + 1) : null;
+
+/**
+ * "seventh:Alternatives · Humanities" -> "Seventh College GE · Alternatives · Humanities"
+ * "campus:DEI" -> "University requirement · Diversity, Equity & Inclusion (DEI)"
+ */
 export function geLabel(key: string): string {
+  const req = universityRequirement(key);
+  if (req) return `University requirement · ${UNIVERSITY_REQUIREMENTS[req] ?? req}`;
   const [college, ...rest] = key.split(":");
   return `${collegeName(college)} GE · ${rest.join(":")}`;
+}
+
+// ── Terms ────────────────────────────────────────────────────────────────────
+
+const QUARTER_NAMES: Record<string, string> = {
+  FA: "Fall", WI: "Winter", SP: "Spring", SU: "Summer",
+  S1: "Summer Session I", S2: "Summer Session II", S3: "Summer Session III",
+};
+const QUARTER_ORDER: Record<string, number> = { WI: 1, SP: 2, S1: 3, S2: 3, S3: 3, SU: 3, FA: 4 };
+
+/** "FA25" -> "Fall 2025"; anything else comes back unchanged. */
+export function termName(code: string): string {
+  const m = /^([A-Z][A-Z0-9])(\d{2})$/.exec(code);
+  return m && QUARTER_NAMES[m[1]] ? `${QUARTER_NAMES[m[1]]} 20${m[2]}` : code;
+}
+
+/** Chronological sort key: "WI25" < "SP25" < "FA25" < "WI26". */
+export function termOrder(code: string): number {
+  const m = /^([A-Z][A-Z0-9])(\d{2})$/.exec(code);
+  return m ? Number(m[2]) * 10 + (QUARTER_ORDER[m[1]] ?? 0) : -1;
 }
 
 /** Normalizes "cse11", "CSE 11", "cse-11" to a comparable form. */

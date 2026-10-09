@@ -1,10 +1,13 @@
 /**
  * What the middleware lets through unauthenticated.
  *
- * The allowlist is deliberately short: the login page, the Auth.js endpoints,
- * and the assets the login page itself needs to render. Everything else —
- * every app page, every API route, and the course dataset under /data — is
- * protected, because the dataset is the product, not just the pages showing it.
+ * Browsing is open, the way UCSBPlat's is: the course explorer — home, the
+ * department and course pages, professors, GEs, About — and the dataset they
+ * read, so a link sent to a friend or found on a search engine opens the page
+ * instead of a sign-in wall. What belongs to a student stays behind their
+ * @ucsd.edu sign-in: the Planner, the Academic History, housing (listers
+ * posted expecting only UCSD students to see their place and contacts), and
+ * every API that reads or writes their data.
  */
 
 /**
@@ -18,6 +21,13 @@ const PUBLIC_PREFIXES = [
   "/api/auth/",
   "/_next/",
   "/brand/", // the UCSDPlans logo shown on the login page
+  // The course explorer and what it reads.
+  "/courses/",
+  "/course/",
+  "/professor/",
+  "/data/plat/",
+  // Checks CRON_SECRET itself; the scheduler has no session to show.
+  "/api/cron/",
 ] as const;
 
 /** Exact paths reachable without a session. */
@@ -29,9 +39,19 @@ const PUBLIC_FILES = new Set([
   "/apple-touch-icon.png",
 ]);
 
+/** Exact pages and read-only endpoints anyone may open. */
+const PUBLIC_PAGES = new Set([
+  "/",
+  "/courses",
+  "/ge",
+  "/about",
+  // Seat counts over time, read by the public course page.
+  "/api/seats",
+]);
+
 export function isPublicPath(pathname: string): boolean {
   if (pathname === "/login") return true;
-  if (PUBLIC_FILES.has(pathname)) return true;
+  if (PUBLIC_FILES.has(pathname) || PUBLIC_PAGES.has(pathname)) return true;
   return PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 }
 

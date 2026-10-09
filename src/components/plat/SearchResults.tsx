@@ -42,7 +42,7 @@ export default function SearchResults({
         <p className="text-sm text-gray-500 dark:text-gray-400">
           Nothing matched “{query}”
         </p>
-        <p className="mt-1 text-xs text-gray-400">
+        <p className="mt-1 text-xs text-gray-500">
           Try a course code like CSE 11, a subject, or an instructor&apos;s surname.
         </p>
       </div>
@@ -137,7 +137,7 @@ export default function SearchResults({
 
 function Header({ children }: { children: React.ReactNode }) {
   return (
-    <p className="px-3 pb-1 pt-2 text-[10px] font-bold uppercase tracking-wide text-gray-400">
+    <p className="px-3 pb-1 pt-2 text-[11px] font-bold uppercase tracking-wide text-gray-500">
       {children}
     </p>
   );

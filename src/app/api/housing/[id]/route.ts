@@ -1,5 +1,5 @@
 import {
-  MAX_BODY_BYTES, REPORT_LIMIT, buildListing, checkListing, isListed, listingState, toPublic,
+  MAX_BODY_BYTES, MAX_INTERESTED, REPORT_LIMIT, buildListing, checkListing, isListed, listingState, toPublic,
   type StoredListing,
 } from "@/lib/housing/listing";
 import { housingStore, photoBelongsTo, type HousingStore } from "@/lib/housing/store";
@@ -16,6 +16,8 @@ import { failed, json, readJson, signInFirst, unavailable, viewer, type Viewer }
  *         { action: "reopen" }   ...and puts it back up
  *         { action: "report" }   anyone else flags it; enough distinct
  *                                reports hide it pending review
+ *         { action: "interest" } anyone else says they are interested, or
+ *                                takes it back; the listing shows a count
  * DELETE  its owner removes it and its photos for good
  *
  * A listing the caller may not see answers 404, not 403, so ids of hidden or
@@ -106,6 +108,13 @@ export async function PATCH(request: Request, ctx: Ctx): Promise<Response> {
     next = listing.reports.includes(me.key)
       ? listing
       : { ...listing, reports: [...listing.reports, me.key].slice(0, REPORT_LIMIT * 4) };
+  } else if (action === "interest") {
+    if (listing.owner === me.key) return json({ error: "That is your own listing.", code: "HOUSING_OWN" }, 400);
+    // One mark per student, kept as a hash like a report; pressing again takes it back.
+    const current = listing.interested ?? [];
+    next = current.includes(me.key)
+      ? { ...listing, interested: current.filter((k) => k !== me.key) }
+      : { ...listing, interested: [...current, me.key].slice(-MAX_INTERESTED) };
   } else if (action === "confirm" || action === "taken" || action === "reopen") {
     if (listing.owner !== me.key) return notYours();
     if (action === "taken") next = { ...listing, status: "taken" };

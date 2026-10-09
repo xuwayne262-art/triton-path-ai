@@ -28,10 +28,10 @@ export default function Disclosure({
         className="flex w-full items-center gap-3 py-4 text-left"
       >
         <ChevronDown
-          className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`}
+          className={`h-4 w-4 shrink-0 text-gray-500 transition-transform ${open ? "rotate-180" : ""}`}
         />
         <span className="flex-1 text-sm font-semibold">{title}</span>
-        {hint && <span className="text-xs text-gray-400">{hint}</span>}
+        {hint && <span className="text-xs text-gray-500">{hint}</span>}
       </button>
       {open && <div className="pb-6 pl-7">{children}</div>}
     </section>

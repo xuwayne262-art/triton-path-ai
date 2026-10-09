@@ -6,7 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
-  ArrowLeft, Bath, BedDouble, Car, Check, Flag, House, Loader2, Mail, MessageCircle, PawPrint, Pencil, Phone,
+  ArrowLeft, Bath, BedDouble, Car, Check, Flag, Heart, House, Loader2, Mail, MessageCircle, PawPrint, Pencil, Phone,
   RotateCcw, Sofa, Trash2, Users, WashingMachine,
 } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
@@ -22,7 +22,7 @@ import type { ClassPin, HomePin, Spoke } from "@/components/housing/HousingMap";
 import { LIBRARY_WALK, isMode, type Mode } from "@/lib/housing/commute";
 import { formatStay } from "@/lib/housing/terms";
 import {
-  KINDS, KIND_HINT, dollars, headline, listedUntil, type Laundry, type PublicListing,
+  KINDS, KIND_HINT, PHOTO_LABELS, dollars, headline, listedUntil, type Laundry, type PhotoLabel, type PublicListing,
 } from "@/lib/housing/listing";
 
 const LAUNDRY_SHORT: Record<Laundry, string> = { unit: "In unit", building: "On site", none: "None" };
@@ -130,7 +130,7 @@ export default function ListingPage() {
           <div className="mt-4 grid grid-cols-1 gap-8 lg:grid-cols-12">
             {/* ── The place ──────────────────────────────────────────────── */}
             <div className="space-y-6 lg:col-span-7">
-              <Gallery photos={listing.photos} />
+              <Gallery photos={listing.photos} labels={listing.photoLabels} />
 
               <header>
                 <div className="flex flex-wrap items-center gap-2">
@@ -193,6 +193,8 @@ export default function ListingPage() {
                 </section>
               )}
 
+              <Interest listing={listing} onChanged={setListing} />
+
               <ContactCard listing={listing} />
 
               {listing.mine ? <OwnerControls listing={listing} onChanged={load} onDeleted={() => router.push(boardHref)} /> : <ReportButton id={listing.id} />}
@@ -234,14 +236,26 @@ function Fact({ icon, label, value }: { icon: React.ReactNode; label: string; va
   );
 }
 
-function Gallery({ photos }: { photos: string[] }) {
+function Gallery({ photos, labels }: { photos: string[]; labels: PhotoLabel[] }) {
   const [shown, setShown] = useState(0);
   if (!photos.length) return null;
-  const main = photos[Math.min(shown, photos.length - 1)];
+  const at = Math.min(shown, photos.length - 1);
+  const main = photos[at];
+  const labelOf = (i: number) => (labels[i] ? PHOTO_LABELS[labels[i] as keyof typeof PHOTO_LABELS] : "");
   return (
     <div>
       <div className="relative aspect-[16/10] overflow-hidden rounded-2xl bg-slate-100 dark:bg-white/5">
-        <Image src={photoUrl(main)} alt="" fill unoptimized sizes="(min-width: 1024px) 640px, 100vw" className="object-cover" priority />
+        <Image src={photoUrl(main)} alt={labelOf(at)} fill unoptimized sizes="(min-width: 1024px) 640px, 100vw" className="object-cover" priority />
+        {labelOf(at) && (
+          <span className="absolute bottom-3 left-3 rounded-full bg-black/60 px-2.5 py-1 text-xs font-semibold text-white">
+            {labelOf(at)}
+          </span>
+        )}
+        {photos.length > 1 && (
+          <span className="absolute bottom-3 right-3 rounded-full bg-black/60 px-2.5 py-1 text-xs font-semibold tabular-nums text-white">
+            {at + 1} / {photos.length}
+          </span>
+        )}
       </div>
       {photos.length > 1 && (
         <div className="mt-2 grid grid-cols-6 gap-2">
@@ -250,18 +264,81 @@ function Gallery({ photos }: { photos: string[] }) {
               key={ref}
               type="button"
               onClick={() => setShown(i)}
-              aria-label={`Photo ${i + 1}`}
+              aria-label={labelOf(i) ? `Photo ${i + 1}: ${labelOf(i)}` : `Photo ${i + 1}`}
               aria-pressed={i === shown}
-              className={`relative aspect-square overflow-hidden rounded-lg ring-offset-2 transition dark:ring-offset-[#0d1420] ${
-                i === shown ? "ring-2 ring-[#182B49] dark:ring-[#FFCD00]" : "opacity-80 hover:opacity-100"
-              }`}
+              className="text-left"
             >
-              <Image src={photoUrl(ref)} alt="" fill unoptimized sizes="96px" className="object-cover" />
+              <span className={`relative block aspect-square overflow-hidden rounded-lg ring-offset-2 transition dark:ring-offset-[#0d1420] ${
+                i === shown ? "ring-2 ring-[#182B49] dark:ring-[#FFCD00]" : "opacity-80 hover:opacity-100"
+              }`}>
+                <Image src={photoUrl(ref)} alt="" fill unoptimized sizes="96px" className="object-cover" />
+              </span>
+              {labelOf(i) && <span className="mt-1 block truncate text-xs text-gray-600 dark:text-gray-300">{labelOf(i)}</span>}
             </button>
           ))}
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * "12 students interested", and a way to be one of them. A count, never who:
+ * the poster learns there is demand, and a student learns the place is
+ * wanted, without anyone's name leaving the server.
+ */
+function Interest({ listing, onChanged }: { listing: PublicListing; onChanged: (l: PublicListing) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const count = listing.interested;
+  const says = count === 0
+    ? "Nobody has marked this yet"
+    : `${count} ${count === 1 ? "student is" : "students are"} interested`;
+
+  const toggle = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/housing/${listing.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "interest" }),
+      });
+      const body = (await res.json().catch(() => ({}))) as { listing?: PublicListing; error?: string };
+      if (!res.ok || !body.listing) throw new Error(body.error ?? "That did not go through.");
+      onChanged(body.listing);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "That did not go through.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-200 px-4 py-3 dark:border-white/10">
+      <p className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+        <Heart className={`h-4 w-4 ${count ? "fill-rose-500 text-rose-500" : "text-gray-400"}`} aria-hidden />
+        {says}
+        {listing.youInterested && <span className="text-gray-500 dark:text-gray-400">· including you</span>}
+      </p>
+      {!listing.mine && (
+        <button
+          type="button"
+          onClick={toggle}
+          disabled={busy}
+          aria-pressed={listing.youInterested}
+          className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition disabled:opacity-40 ${
+            listing.youInterested
+              ? "border border-gray-200 text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:text-gray-200 dark:hover:bg-white/5"
+              : "bg-[#182B49] text-white hover:bg-[#1e3a63] dark:bg-[#FFCD00] dark:text-[#182B49]"
+          }`}
+        >
+          <Heart className="h-4 w-4" aria-hidden />
+          {listing.youInterested ? "Not interested any more" : "I’m interested"}
+        </button>
+      )}
+      {error && <p className="w-full text-xs text-rose-600 dark:text-rose-400">{error}</p>}
+    </section>
   );
 }
 

@@ -15,8 +15,8 @@ import { CoverageChips, measureFrom } from "./parts";
 import { isMode, type Mode } from "@/lib/housing/commute";
 import { parseAddressQuery, type Place } from "@/lib/housing/geocode";
 import {
-  KINDS, KIND_HINT, LAUNDRY, MAX_PHOTOS,
-  type Laundry, type ListingKind, type PublicListing, type Share,
+  KINDS, KIND_HINT, LAUNDRY, MAX_PHOTOS, PHOTO_LABELS,
+  type Laundry, type ListingKind, type PhotoLabel, type PublicListing, type Share,
 } from "@/lib/housing/listing";
 import { isIsoDate, todayInSanDiego } from "@/lib/housing/terms";
 
@@ -36,6 +36,8 @@ interface Photo {
   ref: string;
   /** A local preview of a photo uploaded in this visit; null for one already saved. */
   preview: string | null;
+  /** What it shows, as the poster labels it. */
+  label: PhotoLabel;
 }
 
 type UtilityMode = "included" | "amount" | "unknown";
@@ -131,7 +133,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
         setFurnished(l.furnished); setLaundry(l.laundry); setParking(l.parking); setPets(l.pets);
         setTitle(l.title); setAbout(l.about);
         setShowEmail(Boolean(l.contact?.email)); setPhone(l.contact?.phone ?? ""); setOther(l.contact?.other ?? "");
-        setPhotos(l.photos.map((ref) => ({ ref, preview: null })));
+        setPhotos(l.photos.map((ref, i) => ({ ref, preview: null, label: l.photoLabels?.[i] ?? "" })));
       } catch (err) {
         setError({ field: "form", text: err instanceof Error ? err.message : "That listing is not available." });
       } finally {
@@ -232,7 +234,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
         if (!res.ok || !body.ref) throw new Error(body.error ?? "upload failed");
         uploadedHere.current.add(body.ref);
         const ref = body.ref;
-        setPhotos((prev) => [...prev, { ref, preview: URL.createObjectURL(jpeg) }]);
+        setPhotos((prev) => [...prev, { ref, preview: URL.createObjectURL(jpeg), label: "" }]);
       } catch (err) {
         const text = err instanceof Error && err.message !== "too large" && err.message !== "upload failed"
           ? err.message
@@ -251,6 +253,11 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
     if (uploadedHere.current.delete(ref)) {
       fetch(`/api/housing/photos/${ref}`, { method: "DELETE" }).catch(() => {});
     }
+  };
+
+  const labelPhoto = (ref: string, label: PhotoLabel) => {
+    touch();
+    setPhotos((prev) => prev.map((p) => (p.ref === ref ? { ...p, label } : p)));
   };
 
   const movePhoto = (ref: string, by: -1 | 1) => {
@@ -279,6 +286,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
     title, about,
     showEmail, phone, other,
     photos: photos.map((p) => p.ref),
+    photoLabels: photos.map((p) => p.label),
   });
 
   const submit = async (e: React.FormEvent) => {
@@ -325,8 +333,8 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
       id: "preview", kind, rent: Number(rent) || 0, utilities: null, address: place.address, area: place.area, ll: place.ll,
       from: isIsoDate(from) && isIsoDate(to) ? from : "", to: isIsoDate(from) && isIsoDate(to) ? to : "",
       room, bath, bedrooms: bedrooms === "" ? null : Number(bedrooms), housemates: null,
-      furnished, laundry, parking, pets, title, about, contact: null, poster: "", photos: [],
-      created: now, confirmed: now, status: "open", mine: false, state: "live",
+      furnished, laundry, parking, pets, title, about, contact: null, poster: "", photos: [], photoLabels: [],
+      created: now, confirmed: now, status: "open", mine: false, state: "live", interested: 0, youInterested: false,
     };
   }, [place, kind, rent, from, to, room, bath, bedrooms, furnished, laundry, parking, pets, title, about]);
 
@@ -576,14 +584,26 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
             <legend className="text-sm font-bold">Photos <span className="font-normal text-gray-400">(up to {MAX_PHOTOS})</span></legend>
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
               {photos.map((p, i) => (
-                <div key={p.ref} className="group relative aspect-square overflow-hidden rounded-lg bg-slate-100 dark:bg-white/5">
-                  <Image src={p.preview ?? photoUrl(p.ref)} alt={`Photo ${i + 1}`} fill unoptimized sizes="120px" className="object-cover" />
-                  {i === 0 && <span className="absolute left-1 top-1 rounded bg-black/60 px-1 text-[9px] font-semibold text-white">Cover</span>}
-                  <div className="absolute inset-x-0 bottom-0 flex justify-between bg-gradient-to-t from-black/60 p-1 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100">
-                    <button type="button" onClick={() => movePhoto(p.ref, -1)} disabled={i === 0} aria-label="Move earlier" className="rounded px-1 text-xs font-bold text-white disabled:opacity-30">‹</button>
-                    <button type="button" onClick={() => removePhoto(p.ref)} aria-label="Remove photo" className="rounded p-0.5 text-white"><X className="h-3.5 w-3.5" /></button>
-                    <button type="button" onClick={() => movePhoto(p.ref, 1)} disabled={i === photos.length - 1} aria-label="Move later" className="rounded px-1 text-xs font-bold text-white disabled:opacity-30">›</button>
+                <div key={p.ref} className="space-y-1">
+                  <div className="group relative aspect-square overflow-hidden rounded-lg bg-slate-100 dark:bg-white/5">
+                    <Image src={p.preview ?? photoUrl(p.ref)} alt={`Photo ${i + 1}`} fill unoptimized sizes="120px" className="object-cover" />
+                    {i === 0 && <span className="absolute left-1 top-1 rounded bg-black/60 px-1 text-[10px] font-semibold text-white">Cover</span>}
+                    <div className="absolute inset-x-0 bottom-0 flex justify-between bg-gradient-to-t from-black/60 p-1 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100">
+                      <button type="button" onClick={() => movePhoto(p.ref, -1)} disabled={i === 0} aria-label="Move earlier" className="rounded px-1 text-xs font-bold text-white disabled:opacity-30">‹</button>
+                      <button type="button" onClick={() => removePhoto(p.ref)} aria-label="Remove photo" className="rounded p-0.5 text-white"><X className="h-3.5 w-3.5" /></button>
+                      <button type="button" onClick={() => movePhoto(p.ref, 1)} disabled={i === photos.length - 1} aria-label="Move later" className="rounded px-1 text-xs font-bold text-white disabled:opacity-30">›</button>
+                    </div>
                   </div>
+                  {/* What the photo shows, so students know which room is which. */}
+                  <select
+                    value={p.label}
+                    onChange={(e) => labelPhoto(p.ref, e.target.value as PhotoLabel)}
+                    aria-label={`What photo ${i + 1} shows`}
+                    className="w-full rounded-md border border-gray-200 bg-white px-1.5 py-1 text-xs dark:border-white/10 dark:bg-[#0d1420]"
+                  >
+                    <option value="">No label</option>
+                    {Object.entries(PHOTO_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
                 </div>
               ))}
               {Array.from({ length: uploading }, (_, i) => (

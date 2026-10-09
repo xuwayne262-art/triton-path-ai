@@ -35,6 +35,20 @@ export const DEFAULT_FILTERS: ResultFilters = {
   sort: "grade",
 };
 
+/**
+ * A sorted list cut in two — this term's courses, then the rest — each part
+ * keeping the order it came in. Every row stays on the list (nothing is
+ * filtered by it), but a student looking for something to take next term no
+ * longer reads past retired and not-offered courses to find it: the CSE list
+ * opened on CSE 4GS, 5A, 5R, 6GS, 6R and 7, none of them running.
+ */
+export function splitByTerm(rows: CourseRow[]): { offered: CourseRow[]; other: CourseRow[] } {
+  const offered: CourseRow[] = [];
+  const other: CourseRow[] = [];
+  for (const r of rows) (r.o === 1 ? offered : other).push(r);
+  return { offered, other };
+}
+
 export function applyFilters(rows: CourseRow[], f: ResultFilters): CourseRow[] {
   const q = f.q.trim().toLowerCase();
   const maxUnits = f.units === "any" ? Infinity : Number(f.units);

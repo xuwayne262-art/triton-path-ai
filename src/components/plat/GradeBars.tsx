@@ -31,7 +31,7 @@ export default function GradeBars({ prof, compact = false }: { prof: ProfRecord;
 
   if (!total) {
     return (
-      <p className="rounded-lg bg-gray-50 px-3 py-4 text-center text-xs text-gray-400 dark:bg-white/5">
+      <p className="rounded-lg bg-gray-50 px-3 py-4 text-center text-xs text-gray-500 dark:bg-white/5">
         No published grade distribution for this instructor yet.
       </p>
     );
@@ -83,7 +83,7 @@ export default function GradeBars({ prof, compact = false }: { prof: ProfRecord;
         ))}
       </div>
 
-      <p className="mt-3 text-[11px] text-gray-400">
+      <p className="mt-3 text-[11px] text-gray-500">
         {prof.n > 0
           ? `Aggregated over ${prof.n} graded term${prof.n === 1 ? "" : "s"}${prof.y ? `, most recently 20${prof.y}` : ""}.`
           : "Single-term sample."}
