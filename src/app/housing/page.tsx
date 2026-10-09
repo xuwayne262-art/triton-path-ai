@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, CalendarCheck, List, Loader2, Map as MapIcon, Plus, RotateCw, Search, X } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
+import PageHeader from "@/components/plat/PageHeader";
+import { SECTION_TITLE } from "@/components/plat/typeScale";
 import { useTheme } from "@/components/plat/theme";
 import { usePref } from "@/components/planner/usePref";
 import ListingCard, { street } from "@/components/housing/ListingCard";
@@ -205,43 +207,30 @@ export default function HousingPage() {
 
   return (
     <PlatShell>
-      {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden border-b border-gray-200 bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:border-white/10 dark:from-[#101a2b] dark:via-[#0d1420] dark:to-[#101a2b]">
-        <div aria-hidden className="pointer-events-none absolute -right-40 -top-40 h-[28rem] w-[28rem] rounded-full bg-[#FFC72C]/[0.08] blur-3xl" />
-        <div className="relative mx-auto flex max-w-7xl flex-col gap-6 px-4 py-8 sm:px-6 sm:py-10 lg:flex-row lg:items-end lg:justify-between lg:px-8 lg:py-12">
-          <div className="max-w-2xl">
-            <span className="inline-flex items-center gap-2 rounded-full border border-[#1B2C4F]/15 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#1B2C4F] shadow-sm dark:border-[#FFC72C]/25 dark:bg-white/5 dark:text-[#FFC72C]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#FFC72C]" />
-              New · Housing
-            </span>
-            <h1 className="mt-4 text-4xl font-black leading-[1.05] tracking-tight sm:text-5xl">
-              Live closer to
-              <span className="text-[#1B2C4F] dark:text-[#FFC72C]"> your 8 a.m.</span>
-            </h1>
-            <p className="mt-4 max-w-xl text-[15px] leading-relaxed text-gray-600 dark:text-gray-300">
-              Sublets and rooms from verified @ucsd.edu students, each one measured by the trip to the
-              classes on your schedule.
-            </p>
-          </div>
-          <div className="flex shrink-0 flex-wrap gap-2">
-            <Link
-              href="/housing/new"
-              className="inline-flex items-center gap-1.5 rounded-xl bg-[#182B49] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1e3a63] dark:bg-[#FFCD00] dark:text-[#182B49] dark:hover:bg-[#FFD740]"
-            >
-              <Plus className="h-4 w-4" /> List your place
-            </Link>
-            <a
-              href="#check"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:border-gray-300 dark:border-white/10 dark:bg-white/5 dark:text-gray-200"
-            >
-              <Search className="h-4 w-4" /> Check an address
-            </a>
-          </div>
-        </div>
-      </section>
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        {/* The site bar already marks Housing as new; the page says what it holds and gets out of the way. */}
+        <PageHeader
+          title="Housing"
+          description="Sublets and rooms from verified @ucsd.edu students, each one measured by the trip to the classes on your schedule."
+          actions={
+            <>
+              <Link
+                href="/housing/new"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[#182B49] px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1e3a63] dark:bg-[#FFCD00] dark:text-[#182B49] dark:hover:bg-[#FFD740]"
+              >
+                <Plus className="h-4 w-4" /> List your place
+              </Link>
+              <a
+                href="#check"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 transition hover:border-gray-300 dark:border-white/10 dark:bg-white/5 dark:text-gray-200"
+              >
+                <Search className="h-4 w-4" /> Check an address
+              </a>
+            </>
+          }
+        />
 
-      <div className="mx-auto max-w-7xl px-4 pb-10 pt-6 sm:px-6 lg:px-8">
-        <ScheduleBanner schedule={schedule} placedCount={placed.length} mode={mode} onMode={setMode} />
+        <ScheduleBanner schedule={schedule} placedCount={placed.length} mode={mode} onMode={setMode} className="mt-5" />
 
         {/* Phones get one pane at a time, like the planner. */}
         <div className="mt-4 flex rounded-lg bg-gray-100 p-0.5 dark:bg-white/10 lg:hidden" role="tablist" aria-label="View">
@@ -262,13 +251,13 @@ export default function HousingPage() {
           ))}
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12 lg:gap-8">
+        <div className="mt-5 grid grid-cols-1 gap-6 lg:grid-cols-12 lg:gap-8">
           {/* ── The list ─────────────────────────────────────────────────── */}
-          <div className={`space-y-10 lg:col-span-5 ${phoneView === "map" ? "max-lg:hidden" : ""}`}>
+          <div className={`space-y-8 lg:col-span-5 ${phoneView === "map" ? "max-lg:hidden" : ""}`}>
             {mine.length > 0 && <MyListings rows={mine} onChanged={load} />}
 
             <section aria-labelledby="listings-h">
-              <h2 id="listings-h" className="text-lg font-bold tracking-tight">Posted by students</h2>
+              <h2 id="listings-h" className={SECTION_TITLE}>Posted by students</h2>
               {/* The count and the order share a line: both describe the list, neither is a filter. */}
               <div className="mt-0.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
                 <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -360,7 +349,8 @@ export default function HousingPage() {
 
           {/* ── The map ──────────────────────────────────────────────────── */}
           <div className={`lg:col-span-7 ${phoneView === "list" ? "max-lg:hidden" : ""}`}>
-            <div className="h-[70dvh] overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10 lg:sticky lg:top-24 lg:h-[calc(100dvh-8rem)]">
+            {/* Pinned 24px under the 56px site bar, ending 24px above the window's foot. */}
+            <div className="h-[70dvh] overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10 lg:sticky lg:top-20 lg:h-[calc(100dvh-6.5rem)]">
               <HousingMap
                 darkMode={theme === "dark"}
                 homes={homes}
@@ -385,16 +375,17 @@ export default function HousingPage() {
 
 /** What every commute on the page is measured against, and the one control for how you travel. */
 function ScheduleBanner({
-  schedule, placedCount, mode, onMode,
+  schedule, placedCount, mode, onMode, className = "",
 }: {
   schedule: ReturnType<typeof useTermSchedule>;
   placedCount: number;
   mode: Mode;
   onMode: (m: Mode) => void;
+  className?: string;
 }) {
   const days = new Set(schedule.events.filter((e) => e.buildingCode && schedule.buildings[e.buildingCode]).map((e) => e.day));
   return (
-    <div className="flex flex-col gap-3 rounded-2xl bg-slate-50 px-4 py-3 dark:bg-white/[0.03] sm:flex-row sm:items-center sm:justify-between">
+    <div className={`flex flex-col gap-3 rounded-2xl bg-slate-50 px-4 py-3 dark:bg-white/[0.03] sm:flex-row sm:items-center sm:justify-between ${className}`}>
       <div className="flex min-w-0 items-start gap-2.5">
         <CalendarCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#182B49] dark:text-[#FFCD00]" />
         {schedule.status === "loading" ? (
@@ -477,8 +468,8 @@ function CheckAddress({
   };
 
   return (
-    <section id="check" aria-labelledby="check-h" className="scroll-mt-24">
-      <h2 id="check-h" className="text-base font-bold tracking-tight">Found a place somewhere else?</h2>
+    <section id="check" aria-labelledby="check-h" className="scroll-mt-28 lg:scroll-mt-20">
+      <h2 id="check-h" className={SECTION_TITLE}>Found a place somewhere else?</h2>
       <p className="mt-1 text-[13px] leading-relaxed text-gray-500 dark:text-gray-400">
         Paste its address and see your commute from there, next to everything listed here.
       </p>
@@ -610,7 +601,7 @@ function MyListings({ rows, onChanged }: { rows: PublicListing[]; onChanged: () 
 
   return (
     <section aria-labelledby="mine-h" className="rounded-2xl border border-gray-200 p-4 dark:border-white/10 sm:p-5">
-      <h2 id="mine-h" className="text-base font-bold tracking-tight">Your listings</h2>
+      <h2 id="mine-h" className={SECTION_TITLE}>Your listings</h2>
       <ul className="mt-1 divide-y divide-gray-100 dark:divide-white/5">
         {rows.map((l) => {
           const s = STATE_LABEL[l.state];
