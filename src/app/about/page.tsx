@@ -76,7 +76,7 @@ export default function AboutPage() {
               name="UC San Diego Class Planner"
               url="https://classplanner.apps.ucsd.edu"
               what={meta
-                ? `${meta.termName}'s sections, rooms, instructors, seats and waitlists${takenOn ? `, as of ${takenOn}` : ""}${seatsOn && seatsOn !== takenOn ? `; its seat counts are from ${seatsOn}, the last time Class Planner counted them in TSS` : ""}. Seats are counted again every day, which is what draws each course's "Seats over time".`
+                ? `${meta.termName}'s sections, rooms, instructors, seats and waitlists${takenOn ? `, as of ${takenOn}` : ""}${seatsOn && seatsOn !== takenOn ? `; its seat counts are from ${seatsOn}, the last time Class Planner counted them in TSS` : ""}. Each day Class Planner counts them again adds a point to each course's "Seats over time".`
                 : "This term's sections, rooms, seats and waitlists."}
             />
             <Source

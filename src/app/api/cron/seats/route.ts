@@ -3,8 +3,9 @@ import { seatStore } from "@/lib/seats/store";
 import { todayInSanDiego } from "@/lib/housing/terms";
 
 /**
- * `/api/cron/seats` — takes today's seat counts for every course and keeps
- * them, so course pages can draw how each one filled.
+ * `/api/cron/seats` — takes Class Planner's seat counts for every course and
+ * keeps them under the day it counted them, so course pages can draw how
+ * each one filled.
  *
  * Called once a day by Vercel Cron (vercel.json), which sends
  * `Authorization: Bearer $CRON_SECRET`. The route sits outside the sign-in
@@ -38,9 +39,11 @@ export async function GET(request: Request): Promise<Response> {
 
   try {
     const snap = await takeSnapshot();
-    const day = todayInSanDiego();
+    // Filed under the San Diego day Class Planner counted the seats, so
+    // counts it has not retaken overwrite that day instead of posing as new.
+    const day = todayInSanDiego(snap.counted ? new Date(snap.counted) : new Date());
     const written = await store.record(snap.term, day, snap.rows);
-    return json({ term: snap.term, day, refreshed: snap.refreshed, courses: written, store: store.name });
+    return json({ term: snap.term, day, counted: snap.counted, refreshed: snap.refreshed, courses: written, store: store.name });
   } catch (err) {
     console.error(`[seats] snapshot failed (store=${store.name}): ${err instanceof Error ? err.message : String(err)}`);
     return json({ error: "Could not take today's seat counts." }, 502);

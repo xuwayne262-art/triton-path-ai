@@ -443,9 +443,9 @@ export default function CourseDetailPage({
                 </div>
                 {seatPoints.length < 3 && (
                   <p className="mt-3 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-                    Each dot is a day the seats were counted from UCSD&rsquo;s Class Planner, the first on{" "}
-                    {dayLabel(seatPoints[0].day, { weekday: false })}. A new one is added every day, so Winter 2027&rsquo;s
-                    passes will be the first measured from start to finish.
+                    Each dot is a day UCSD&rsquo;s Class Planner counted the seats, the first on{" "}
+                    {dayLabel(seatPoints[0].day, { weekday: false })}. A new one is added each day it counts them
+                    again, so the next enrollment passes will be the first measured from start to finish.
                   </p>
                 )}
               </section>

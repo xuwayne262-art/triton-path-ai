@@ -25,8 +25,32 @@ export interface Snapshot {
   term: string;
   /** When UCSD last refreshed the term, as the API says it. */
   refreshed: string | null;
+  /**
+   * When Class Planner last counted seats from TSS (ISO), judged on the term's
+   * busiest courses; null when it would not say. Its counts can stay the same
+   * for weeks — Fall 2026's were Sep 21's on Oct 10 — so a snapshot is filed
+   * under this day, not the day it was taken.
+   */
+  counted: string | null;
   rows: CourseSeats[];
 }
+
+/**
+ * When Class Planner says it last counted a course's seats: "9/21/26 8:37 AM
+ * PDT" -> "2026-09-21T15:37:00.000Z". Null for a label in another shape.
+ */
+export function seatTime(label: string | null | undefined): string | null {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4}) (\d{1,2}):(\d{2}) ?([AP]M) (PDT|PST)$/i.exec(String(label ?? "").trim());
+  if (!m) return null;
+  const year = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+  const hour = (Number(m[4]) % 12) + (/^p/i.test(m[6]) ? 12 : 0);
+  const t = Date.UTC(year, Number(m[1]) - 1, Number(m[2]), hour + (/^PST$/i.test(m[7]) ? 8 : 7), Number(m[5]));
+  return Number.isFinite(t) ? new Date(t).toISOString() : null;
+}
+
+/** A share link's schedule ref, as Class Planner builds it: ids sorted, at most 15 courses. */
+const scheduleRef = (ids: string[], term: string) =>
+  "CS2" + Buffer.from(JSON.stringify({ s: [...new Set(ids)].sort(), t: term })).toString("base64").replace(/=+$/, "");
 
 type Fetch = typeof fetch;
 
@@ -119,5 +143,29 @@ export async function takeSnapshot(f: Fetch = fetch): Promise<Snapshot> {
     if (count) rows.push({ course, ...count });
   }
   rows.sort((a, b) => a.course.localeCompare(b.course));
-  return { term: term.term_code, refreshed: term.last_full_refresh_at ?? null, rows };
+
+  // When the counts were taken, asked of the busiest fifteen courses (one
+  // schedule request holds at most fifteen). An outage here is not fatal:
+  // the snapshot is then filed under the day it was taken, as it used to be.
+  let counted: string | null = null;
+  const busiest = rows
+    .map((r) => ({ r, id: (sections.get(r.course) ?? []).find((s) => s.section_id)?.section_id }))
+    .filter((x): x is { r: CourseSeats; id: string } => Boolean(x.id))
+    .sort((a, b) => b.r.enrolled - a.r.enrolled)
+    .slice(0, 15);
+  if (busiest.length) {
+    try {
+      const res = await getJson<{ course_details?: Record<string, { seat_freshness?: { label?: string } }> }>(
+        f, `${API}/schedules/${scheduleRef(busiest.map((x) => x.id), term.term_code)}?context=planner`,
+      );
+      counted = Object.values(res.course_details ?? {})
+        .map((d) => seatTime(d.seat_freshness?.label))
+        .filter((t): t is string => Boolean(t))
+        .sort()
+        .pop() ?? null;
+    } catch (err) {
+      console.error(`[seats] could not ask when the seats were counted: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  return { term: term.term_code, refreshed: term.last_full_refresh_at ?? null, counted, rows };
 }

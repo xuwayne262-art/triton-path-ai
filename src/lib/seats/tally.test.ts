@@ -57,3 +57,20 @@ describe("counting a course's seats", () => {
     assert.deepEqual(count, { enrolled: 279, capacity: 348, waitlist: 0 });
   });
 });
+
+describe("when Class Planner counted the seats", () => {
+  test("reads the label it shows students, in Pacific time", async () => {
+    const { seatTime } = await import("./snapshot");
+    assert.equal(seatTime("9/21/26 8:37 AM PDT"), "2026-09-21T15:37:00.000Z");
+    assert.equal(seatTime("9/20/26 5:48 PM PDT"), "2026-09-21T00:48:00.000Z", "evening in San Diego is the next day in UTC");
+    assert.equal(seatTime("1/12/27 12:05 AM PST"), "2027-01-12T08:05:00.000Z", "standard time is eight hours behind");
+    assert.equal(seatTime("12/1/2026 12:30 PM PST"), "2026-12-01T20:30:00.000Z");
+  });
+
+  test("says nothing about a label it does not know", async () => {
+    const { seatTime } = await import("./snapshot");
+    assert.equal(seatTime("18 days ago"), null);
+    assert.equal(seatTime(""), null);
+    assert.equal(seatTime(null), null);
+  });
+});
