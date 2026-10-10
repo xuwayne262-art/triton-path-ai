@@ -183,13 +183,17 @@ function foldMeetings(meetings) {
     if (!g) {
       const remote = !!m.is_remote;
       const noRoom = remote || isTba(m.building_code) || !m.building_code;
+      // A meeting that ends when it starts has no time either: Class Planner
+      // writes MAE 299's unscheduled section as 12:00am to 12:00am.
+      const noTime = isTba(m.start_time_display) || isTba(m.end_time_display)
+        || (m.start_minutes != null && m.start_minutes === m.end_minutes);
       g = {
         kind: m.meeting_kind,
         days: [],
-        start: isTba(m.start_time_display) ? "" : clock(m.start_time_display),
-        end: isTba(m.end_time_display) ? "" : clock(m.end_time_display),
-        startMin: m.start_minutes ?? null,
-        endMin: m.end_minutes ?? null,
+        start: noTime ? "" : clock(m.start_time_display),
+        end: noTime ? "" : clock(m.end_time_display),
+        startMin: noTime ? null : m.start_minutes ?? null,
+        endMin: noTime ? null : m.end_minutes ?? null,
         building: remote ? "Remote" : noRoom ? "" : buildingName(m.building_name || m.building_code),
         buildingCode: noRoom ? "" : m.building_code,
         room: noRoom || isTba(m.room_code) ? "" : m.room_code || "",

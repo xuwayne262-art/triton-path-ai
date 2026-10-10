@@ -112,8 +112,8 @@ const SUBJECT_NAMES = {
  */
 function checkInputs() {
   fs.mkdirSync(CACHE, { recursive: true });
+  console.log(`  grades  ${path.relative(ROOT, gradesFile())}`);
   for (const [file, script] of [
-    ["as-grades.json", "fetch-as-grades.mjs"],
     ["catalog.json", "fetch-catalog.mjs"],
     ["classplanner.json", "fetch-classplanner.mjs"],
   ]) {
@@ -127,6 +127,20 @@ function checkInputs() {
 }
 
 const cached = (f) => fs.existsSync(path.join(CACHE, f)) && fs.statSync(path.join(CACHE, f)).size > 1000;
+
+/**
+ * The AS grade archive went behind UCSD's sign-in in October 2026, so its last
+ * open harvest (Aug 23, 2026; 30,146 rows) is kept in the repository: a fresh
+ * checkout — the automatic update's — builds from it. A harvest in .data-cache
+ * with rows in it wins; replace the snapshot with it when there is a newer one.
+ */
+const GRADES_SNAPSHOT = path.join(ROOT, "data", "sources", "as-grades.json");
+function gradesFile() {
+  const local = path.join(CACHE, "as-grades.json");
+  if (fs.existsSync(local) && (JSON.parse(fs.readFileSync(local, "utf8")).rows || []).length) return local;
+  if (fs.existsSync(GRADES_SNAPSHOT)) return GRADES_SNAPSHOT;
+  throw new Error("no grade archive: neither .data-cache/as-grades.json (node scripts/fetch-as-grades.mjs) nor data/sources/as-grades.json");
+}
 const readCache = (f) => JSON.parse(fs.readFileSync(path.join(CACHE, f), "utf8"));
 
 /**
@@ -444,7 +458,7 @@ function build() {
   // remaining extras (RateMyProfessors scores, prerequisites, seat links, FA26
   // instructor lists) still ride along in data.json and each need their own
   // first-party source before that file can be dropped entirely.
-  const asGrades = readCache("as-grades.json");
+  const asGrades = JSON.parse(fs.readFileSync(gradesFile(), "utf8"));
   const extras = cached("data.json") ? readCache("data.json") : null;
   const catalog = readCache("catalog.json");
   const sched = readCache("classplanner.json");

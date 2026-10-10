@@ -103,7 +103,14 @@ async function fetchSubject(subject) {
           Referer: ENDPOINT,
         },
         body,
+        // A redirect means the archive wants something other than a form post.
+        redirect: "manual",
       });
+      if (res.status >= 300 && res.status < 400) {
+        const to = res.headers.get("location") || "";
+        // Since October 2026 the archive sends every visitor to UCSD's sign-in.
+        throw new Error(/a5\.ucsd\.edu|SSO|SAML/i.test(to) ? "the archive now asks for a UCSD sign-in" : `redirected to ${to}`);
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return parseRows(await res.text());
     } catch (err) {
@@ -160,9 +167,20 @@ async function main() {
     rows,
   };
 
+  // A harvest that lost subjects, or came back smaller than the one already
+  // kept, is an outage or a locked door, not a new archive: it used to be
+  // written anyway, and an empty file replaced eleven thousand grade records.
+  const kept = fs.existsSync(OUT) ? (JSON.parse(fs.readFileSync(OUT, "utf8")).rows || []).length : 0;
+  if (failed.length) console.log(`failed subjects: ${failed.join(", ")}`);
+  if (!rows.length || failed.length > subjects.length * 0.1 || rows.length < kept * 0.95) {
+    console.error(
+      `\nnot written: ${rows.length.toLocaleString()} rows from ${subjects.length - failed.length} of ${subjects.length} subjects`
+      + (kept ? `; ${path.relative(ROOT, OUT)} keeps its ${kept.toLocaleString()}` : ""),
+    );
+    process.exit(1);
+  }
   fs.writeFileSync(OUT, JSON.stringify(payload));
   console.log(`\n${rows.length.toLocaleString()} rows, ${years.length} years -> ${path.relative(ROOT, OUT)}`);
-  if (failed.length) console.log(`failed subjects: ${failed.join(", ")}`);
 }
 
 await main();

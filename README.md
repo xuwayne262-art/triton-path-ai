@@ -74,7 +74,8 @@ Every source is first-party UCSD and needs no key. Rebuild with
 | `classplanner.json` | `fetch-classplanner.mjs` | [Class Planner](https://classplanner.apps.ucsd.edu) — this term's sections, per-section instructors, live seats and waitlists, prerequisites, restrictions, TSS module ids, building coordinates (→ `buildings.json`) |
 | `as-grades.json` | `fetch-as-grades.mjs` | [AS Instructor Grade Archive](https://asmain.ucsd.edu/Home/InstructorGradeArchive) — 2015–2026 grade distributions |
 | `catalog.json` | `fetch-catalog.mjs` | [General Catalog](https://catalog.ucsd.edu/front/courses.html) — every catalogued course |
-| `data.json` | — | `ucsd-easy-a-radar`, now read for RateMyProfessors scores only |
+| `requirements.json` | `fetch-requirements.mjs` | The AHI and DEI course lists (needs `pdftotext`) |
+| `data.json`, `ge-courses.json` | — | `ucsd-easy-a-radar`, for RateMyProfessors scores and the colleges' GE lists only. It has no licence, so the build never downloads them: it uses copies already in `.data-cache/`, or without them carries that part of the published dataset over unchanged |
 
 **The legacy Schedule of Classes cannot supply this term.** `act.ucsd.edu`'s
 term list stops at SU26 — enrolment moved to TSS for Fall 2026, and Class
@@ -125,6 +126,50 @@ Every course list opens on every course — this term's schedule is a switch in
 plain sight, never a hidden default — and "Best grades" sorts by the average the
 letter is read from, so letters and GPAs descend together. Each letter has one
 colour (A dark green, A− green, B+ amber, B and B− orange, C+ and below red).
+
+### Automatic updates
+
+`.github/workflows/update-data.yml` keeps `public/data/plat/` in step with Class
+Planner without anyone running the scripts:
+
+- **Every half hour** `scripts/watch-classplanner.mjs` asks Class Planner, in two
+  or three small requests, whether a rebuild is due: the next quarter's listings
+  are out (and hold at least 60% of the current term's courses — quarters are
+  often published department by department), the term's course, section or
+  meeting count changed, or seats were recounted on the busiest courses at least
+  three hours after the dataset's. **Once a day** (17:20 UTC, after UCSD's own
+  refresh) it rebuilds on any refresh, to catch an instructor or room changing.
+- A rebuild fetches the term, builds, then must pass `scripts/check-data.mjs`
+  and `npm test`. The checker fails an update on files that do not parse,
+  impossible times or seat counts, courses the index and subject files disagree
+  about, broken GE lists, and drops against the published dataset (a tenth of the
+  term's courses, any grade records, the professors' ratings, or a new quarter
+  too thinly listed to switch to).
+- `scripts/data-changed.mjs` sets aside the times sources were read; if nothing
+  else changed, nothing is published. Otherwise the workflow commits to `main`
+  — authored as the site's owner, which Vercel requires to deploy a private
+  repository — and Vercel deploys it.
+- **A failure publishes nothing.** The site keeps its data, and an issue labelled
+  `data-update` explains what failed, with a link to the run. Later failures edit
+  that issue rather than opening more, rebuilds pause for six hours after one, and
+  the next good update closes it. *Actions → Update course data → Run workflow*
+  (with "force") rebuilds at once.
+
+When the dataset moves to a new quarter, the planner puts each student's picks
+for the old one away under that term (`src/lib/plan/term.ts`): a section code
+like "A01" names a different section every term.
+
+Seat counts are only as fresh as Class Planner's last recount from TSS, which can
+lag its schedule by days — on Oct 10, 2026 every Fall course still showed Sep 21's
+counts, and Class Planner's own refresh was failing ("Academic History returned
+HTTP 404"). The dataset records each course's count time (`seatsAt`) and the
+term's oldest (`meta.seatsAsOf`), and the site says "seats as of" that date. TSS
+itself needs a UCSD sign-in, so nothing here reads it directly.
+
+The checks cost about a minute of GitHub Actions each (≈1,600 minutes a month with the daily rebuilds,
+inside the free plan's 2,000 for a private repository); a rebuild takes about
+five, and fetches the grade archive, catalog and requirement lists only once a
+week.
 
 ## Campus map
 
