@@ -53,7 +53,7 @@ export default function TermNotice({
       <Archive aria-hidden className="mt-px h-3.5 w-3.5 shrink-0" />
       <span>
         Your {termLabel(last)} schedule — {kept.join(", ")} — is kept with your plan.{" "}
-        {termName || "This term"} starts empty: add its courses on the Courses tab.
+        {termName || "This term"} starts empty.
       </span>
     </p>
   );
