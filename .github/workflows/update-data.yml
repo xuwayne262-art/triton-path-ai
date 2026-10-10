@@ -126,12 +126,23 @@ jobs:
           cp -r public/data/plat "$RUNNER_TEMP/previous"
           node scripts/build-plat-data.mjs
 
+      # The findings also go on the run's summary page, warnings included.
       - name: Check it for errors
         if: steps.go.outputs.run == 'true'
-        run: node scripts/check-data.mjs --previous "$RUNNER_TEMP/previous" --report "$RUNNER_TEMP/report.md"
+        run: |
+          set +e
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-data.mjs --previous "$RUNNER_TEMP/previous" --report "$RUNNER_TEMP/report.md"
+          code=$?
+          set -e
+          if [ -f "$RUNNER_TEMP/report.md" ]; then cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"; fi
+          exit $code
 
       - name: Run the tests against it
         if: steps.go.outputs.run == 'true'
+        env:
+          # Tests that would hold back a new term over a new subject prefix
+          # step aside; the checker above warns about it instead.
+          DATA_UPDATE: "1"
         run: |
           npm ci --no-audit --no-fund
           npm test

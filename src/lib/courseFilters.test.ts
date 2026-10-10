@@ -8,18 +8,22 @@ const index = JSON.parse(readFileSync(new URL("../../public/data/plat/index.json
 const chem = index.courses.filter((c) => c.s === "CHEM");
 
 describe("a department's course list", () => {
+  // A catalogued CHEM course this term's schedule does not run. It was CHEM
+  // 118 in Fall 2026, which the list used to hide behind a filter nobody
+  // could see; taken from the data, since every term runs different ones.
+  const notRunning = chem.find((c) => !c.o)!;
+
   test("opens on every course, including ones not running this term", () => {
-    // CHEM 118 is in the catalog but not on the Fall 2026 schedule; the list
-    // used to hide it behind a filter nobody could see.
+    assert.ok(notRunning, "some CHEM course is not running this term");
     const shown = applyFilters(chem, DEFAULT_FILTERS).map((c) => c.k);
-    assert.ok(shown.includes("CHEM 118"));
+    assert.ok(shown.includes(notRunning.k));
     assert.equal(shown.length, chem.length, "nothing is left out by default");
   });
 
   test("narrows to this term's courses when asked", () => {
     const shown = applyFilters(chem, { ...DEFAULT_FILTERS, offeredOnly: true });
     assert.ok(shown.every((c) => c.o === 1));
-    assert.ok(!shown.some((c) => c.k === "CHEM 118"));
+    assert.ok(!shown.some((c) => c.k === notRunning.k));
     assert.equal(shown.length, chem.filter((c) => c.o).length);
   });
 

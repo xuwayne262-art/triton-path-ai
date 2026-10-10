@@ -79,7 +79,8 @@ describe("sorting by best grades", () => {
   });
 
   test("puts a one-term A above a B+, rather than pulling it toward the middle", () => {
-    const chem = sortCourses(index.courses.filter((c) => c.s === "CHEM" && c.o), "grade").map((c) => c.k);
+    // Every CHEM course, not this term's: either one may not run in a later term.
+    const chem = sortCourses(index.courses.filter((c) => c.s === "CHEM"), "grade").map((c) => c.k);
     assert.ok(chem.indexOf("CHEM 163") < chem.indexOf("CHEM 116"), "CHEM 163 (A, 1 term) above CHEM 116 (B+)");
     const letters = sortCourses(index.courses.filter((c) => c.s === "CHEM"), "grade")
       .map((c) => typicalGrade(c.g)?.letter)
@@ -170,7 +171,11 @@ describe("the schedule's refresh date", () => {
     assert.equal(refreshedLabel("2026-09-25 15:53:24+00"), "Sep 25, 2026");
     // Just after midnight UTC is still the day before in San Diego.
     assert.equal(refreshedLabel("2026-09-26 02:00:00+00"), "Sep 25, 2026");
-    assert.equal(refreshedLabel(index.meta.refreshed), "Sep 25, 2026");
+    // The dataset's own stamps read too, whichever day the last update took
+    // them: they change with every automatic update, so no date is pinned.
+    assert.match(refreshedLabel(index.meta.refreshed) ?? "", /^[A-Z][a-z]{2} \d{1,2}, \d{4}$/);
+    if (index.meta.seatsAsOf) assert.match(refreshedLabel(index.meta.seatsAsOf) ?? "", /^[A-Z][a-z]{2} \d{1,2}, \d{4}$/);
+    assert.equal(refreshedLabel("2026-09-21T15:37:00.000Z"), "Sep 21, 2026", "a seat count's ISO time reads the same way");
   });
 
   test("says nothing rather than something wrong", () => {
@@ -277,7 +282,9 @@ describe("the dataset's people and history", () => {
     // fourteen terms of it under his registered name, Yingjun Cao.
     const cao = cse.courses["CSE 12"].profs.find((p) => p.i === "Paul Cao");
     assert.ok(cao, "Paul Cao is listed");
-    assert.equal(cao.cur, 1);
+    // Teaching it in Fall 2026; whether he is in a later term is that term's schedule's to say.
+    const scheduled = cse.courses["CSE 12"].fa.includes("Paul Cao");
+    assert.equal(cao.cur, scheduled ? 1 : 0, "marked as teaching it exactly when the schedule names him");
     assert.ok(cao.n >= 14, `${cao.n} terms`);
     assert.ok(!cse.courses["CSE 12"].profs.some((p) => p.i === "Yingjun Cao"), "not listed twice");
     const rec = profs.find((p) => p.n === "Paul Cao");
@@ -320,7 +327,9 @@ describe("the dataset's people and history", () => {
     const ge = read<GEFile>("ge.json");
     assert.ok(ge.lists["campus:AHI"].includes("HILD 2A"));
     assert.ok(ge.lists["campus:AHI"].includes("POLI 10D"), "POLI 10 is listed under its current code");
-    assert.ok(ge.lists["campus:DEI"].includes("CSE 194"));
+    // The Senate's list changes every so often (an automatic update re-reads
+    // it weekly), so it is held to its size rather than to one course on it.
+    assert.ok(ge.lists["campus:DEI"].length >= 150, `${ge.lists["campus:DEI"].length} DEI courses`);
     assert.ok(!ge.lists["campus:DEI"].includes("CSE 12"), "a prerequisite named in the Senate list is not a DEI course");
     assert.ok(ge.meta.campus?.dei.url.startsWith("https://senate.ucsd.edu/"));
   });

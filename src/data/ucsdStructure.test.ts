@@ -10,7 +10,12 @@ const index = read<PlatIndex>("index.json");
 const ge = read<GEFile>("ge.json");
 
 describe("every course has a place to be browsed", () => {
-  test("every subject in the dataset belongs to a department or college page", () => {
+  // A new quarter can bring a new prefix. The automatic update (DATA_UPDATE)
+  // publishes it anyway — it is still found by search — and
+  // scripts/check-data.mjs warns about it, rather than holding back the term.
+  test("every subject in the dataset belongs to a department or college page", {
+    skip: process.env.DATA_UPDATE ? "an automatic update; scripts/check-data.mjs warns instead" : false,
+  }, () => {
     // Sixteen School of Medicine prefixes (184 courses) were reachable only by
     // search, because no department listed them.
     assert.deepEqual(unmappedSubjects(index.subjects.map((s) => s.code)), []);

@@ -225,6 +225,17 @@ function checkCourses(ds) {
   if (unnamed.length / offered > 0.3) warn(`${unnamed.length} of ${offered} offered courses name no instructor yet`);
 }
 
+/** Subjects no department or college page lists: found by search only until src/data/ucsdStructure.ts names them. */
+async function checkSubjects(ds) {
+  try {
+    const { unmappedSubjects } = await import("../src/data/ucsdStructure.ts");
+    const missing = unmappedSubjects((ds.index.subjects || []).map((s) => s.code));
+    if (missing.length) warn(`subjects with no department page, found by search only until src/data/ucsdStructure.ts lists them: ${some(missing)}`);
+  } catch (err) {
+    warn(`could not read src/data/ucsdStructure.ts to look for new subjects (${err.message})`);
+  }
+}
+
 function checkGe(ds) {
   const keys = new Set((ds.ge.areas || []).map((a) => a.key));
   for (const a of ds.ge.areas || []) {
@@ -260,12 +271,13 @@ function compare(now, before) {
   if (now.geAreas < before.geAreas) error(`GE areas fell from ${before.geAreas} to ${now.geAreas}`);
 }
 
-function main() {
+async function main() {
   const now = loadDataset(DATA, "the new dataset");
   if (now) {
     checkMeta(now);
     checkCourses(now);
     checkGe(now);
+    await checkSubjects(now);
   }
   const previousDir = flag("previous");
   let summary = "";
@@ -303,4 +315,4 @@ function main() {
 }
 
 // Run as a script; importing it (for LIMITS) runs nothing.
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();
