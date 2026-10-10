@@ -1,3 +1,4 @@
+import { termRank } from "@/lib/plan/term";
 import { tallyPlannerSections, type PlannerSection, type SeatCount } from "./tally";
 
 /**
@@ -79,7 +80,12 @@ export async function takeSnapshot(f: Fetch = fetch): Promise<Snapshot> {
   const { terms } = await getJson<{ terms?: { term_code: string; configured?: boolean; last_full_refresh_at?: string }[] }>(
     f, `${API}/planner/terms`,
   );
-  const term = (terms ?? []).find((t) => t.configured !== false);
+  // The latest quarter, as scripts/fetch-classplanner.mjs picks it: once the
+  // next quarter's listings are out, both are served, and the next is the one
+  // being enrolled in. A summer session is not a quarter.
+  const configured = (terms ?? []).filter((t) => t.configured !== false);
+  const quarters = configured.filter((t) => /^(FA|WI|SP)\d{2}$/.test(t.term_code));
+  const term = [...(quarters.length ? quarters : configured)].sort((a, b) => termRank(b.term_code) - termRank(a.term_code))[0];
   if (!term) throw new Error("Class Planner lists no configured term");
 
   const filters = await getJson<{ subjects?: { value: string }[] }>(

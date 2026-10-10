@@ -144,7 +144,10 @@ export default function CourseDetailPage({
   }, [detail, buildings]);
 
   // The dataset's own snapshot is one dated point; the kept history adds the rest.
-  const snapshotDay = refreshedDay(index?.meta.refreshed);
+  // It is dated when Class Planner counted this course's seats, which can be
+  // days before the schedule was taken.
+  const seatsAt = detail?.seatsAt ?? index?.meta.refreshed;
+  const snapshotDay = refreshedDay(seatsAt);
   const seatPoints = useMemo((): SeatDay[] => {
     const byDay = new Map<string, SeatDay>();
     if (seatsNow && snapshotDay) byDay.set(snapshotDay, { day: snapshotDay, ...seatsNow });
@@ -220,7 +223,7 @@ export default function CourseDetailPage({
       detail={detail}
       termLabel={termLabel}
       seats={latest ?? seatsNow}
-      asOf={latest ? dayLabel(latest.day, { weekday: false, year: true }) : refreshedLabel(index?.meta.refreshed)}
+      asOf={latest ? dayLabel(latest.day, { weekday: false, year: true }) : refreshedLabel(seatsAt)}
       finals={finals}
     />
   );

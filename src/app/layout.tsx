@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "UCSDPlans — UCSD course radar & planner",
   description:
-    "Grade distributions, professor ratings and Fall 2026 seats for every UCSD course, plus a planner for this term and all four years.",
+    "Grade distributions, professor ratings and this quarter's seats for every UCSD course, plus a planner for this term and all four years.",
   // "Add to Home Screen" on an iPhone opens it like an app, titled briefly.
   appleWebApp: { capable: true, title: "UCSDPlans", statusBarStyle: "default" },
   // A public path (see src/lib/auth/routes.ts): iOS fetches it for the icon.

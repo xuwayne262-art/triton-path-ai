@@ -43,6 +43,9 @@ export default function PlatShell({
 
   useEffect(() => { loadIndex().then((d) => setMeta(d.meta)).catch(() => {}); }, []);
   const refreshed = refreshedLabel(meta?.refreshed);
+  // Class Planner can hold seat counts days older than its schedule; the
+  // footer gives the older date when the dataset knows it.
+  const seatsAsOf = refreshedLabel(meta?.seatsAsOf);
 
   const tab = (active: boolean) =>
     `inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
@@ -144,7 +147,7 @@ export default function PlatShell({
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 text-xs leading-relaxed text-gray-500 dark:text-gray-400 sm:px-6 lg:flex-row lg:items-start lg:justify-between lg:px-8">
           <p className="max-w-3xl">
             {meta
-              ? `${meta.gradeRecords.toLocaleString()} course–instructor grade distributions (${meta.years}) from the UCSD Associated Students Instructor Grade Archive; descriptions and prerequisites from the UCSD General Catalog; ${meta.termName} sections and seats from UCSD’s Class Planner${refreshed ? `, as of ${refreshed}` : ""}. `
+              ? `${meta.gradeRecords.toLocaleString()} course–instructor grade distributions (${meta.years}) from the UCSD Associated Students Instructor Grade Archive; descriptions and prerequisites from the UCSD General Catalog; ${meta.termName} sections and seats from UCSD’s Class Planner${seatsAsOf ? `, seats as of ${seatsAsOf}` : refreshed ? `, as of ${refreshed}` : ""}. `
               : ""}
             Historical grades describe the past, not your quarter — confirm requirements with your college advisor.
           </p>

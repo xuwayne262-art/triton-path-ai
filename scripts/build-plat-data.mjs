@@ -10,6 +10,9 @@
  *   requirements.json  the campus-wide AHI and DEI course lists (fetch-requirements.mjs)
  *   data.json          ucsd-easy-a-radar — RateMyProfessors scores only
  *   ge-courses.json    ucsd-easy-a-radar — approved GE lists per UCSD college
+ *                      Neither is downloaded any more (no licence). Without
+ *                      them in .data-cache, their part of the published
+ *                      dataset is carried over unchanged (readPublished).
  *
  * Emits into public/data/plat/:
  *   index.json          browse + search index (one row per catalog course)
@@ -98,7 +101,16 @@ const SUBJECT_NAMES = {
   RMAS: "Radiation Medicine & Applied Sciences", SURG: "Surgery", UROL: "Urology",
 };
 
-async function download() {
+/**
+ * Checks the first-party inputs are in .data-cache.
+ *
+ * ucsd-easy-a-radar's two files (SOURCES) carry no licence, so they are no
+ * longer downloaded. A build uses the copies already in .data-cache when there
+ * are any; without them it carries over what the published dataset already
+ * holds (see readPublished) — which is how the automatic update in GitHub
+ * Actions builds, since it never has those files.
+ */
+function checkInputs() {
   fs.mkdirSync(CACHE, { recursive: true });
   for (const [file, script] of [
     ["as-grades.json", "fetch-as-grades.mjs"],
@@ -110,21 +122,51 @@ async function download() {
     }
   }
   for (const f of SOURCES) {
-    const dest = path.join(CACHE, f);
-    if (fs.existsSync(dest) && fs.statSync(dest).size > 1000) {
-      console.log(`  cached  ${f}`);
-      continue;
-    }
-    process.stdout.write(`  fetch   ${f} ... `);
-    const res = await fetch(`${RAW}/${f}`);
-    if (!res.ok) throw new Error(`${f}: HTTP ${res.status}`);
-    const buf = Buffer.from(await res.arrayBuffer());
-    fs.writeFileSync(dest, buf);
-    console.log(`${(buf.length / 1024 / 1024).toFixed(2)} MB`);
+    console.log(cached(f) ? `  cached  ${f}` : `  carry   ${f} is not in .data-cache; carrying its part of the published dataset over (${RAW})`);
   }
 }
 
+const cached = (f) => fs.existsSync(path.join(CACHE, f)) && fs.statSync(path.join(CACHE, f)).size > 1000;
 const readCache = (f) => JSON.parse(fs.readFileSync(path.join(CACHE, f), "utf8"));
+
+/**
+ * What the published dataset holds that a build without ucsd-easy-a-radar's
+ * files carries over: the RateMyProfessors scores, the colleges' GE areas and
+ * lists, and every course's prerequisite wording, which fills in where
+ * neither the catalog nor Class Planner says anything — the part of data.json
+ * the build used. Read before the build clears public/data/plat.
+ *
+ * Scores are kept per course and instructor, exactly as published, because a
+ * name alone is not a person: two instructors the site shows under one name
+ * would otherwise trade ratings. `byName` is the fallback for an instructor
+ * the published dataset never paired with that course.
+ */
+function readPublished() {
+  const ratings = new Map();
+  const byName = new Map();
+  const pre = {};
+  const dir = path.join(OUT, "subject");
+  if (fs.existsSync(dir)) {
+    for (const f of fs.readdirSync(dir).filter((x) => x.endsWith(".json")).sort()) {
+      const file = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"));
+      for (const [code, c] of Object.entries(file.courses || {})) {
+        if (c.pre) pre[code] = c.pre;
+        for (const p of c.profs || []) {
+          if (!p.i) continue;
+          // An unrated pair is kept too, as null: it stays unrated rather than
+          // borrowing a rating through the name fallback.
+          const rated = p.rq != null || p.rid != null;
+          const rating = rated ? { rq: p.rq ?? null, rd: p.rd ?? null, rw: p.rw ?? null, rn: p.rn ?? null, rid: p.rid ?? null } : null;
+          ratings.set(`${code}|${p.i}`, rating);
+          if (rating && !byName.has(p.i)) byName.set(p.i, rating);
+        }
+      }
+    }
+  }
+  const geFile = path.join(OUT, "ge.json");
+  const ge = fs.existsSync(geFile) ? JSON.parse(fs.readFileSync(geFile, "utf8")) : null;
+  return { ratings, byName, pre, ge };
+}
 
 /** Shared empty set, so a course with no scheduled instructor needs no branch. */
 const EMPTY = new Set();
@@ -403,11 +445,14 @@ function build() {
   // instructor lists) still ride along in data.json and each need their own
   // first-party source before that file can be dropped entirely.
   const asGrades = readCache("as-grades.json");
-  const extras = fs.existsSync(path.join(CACHE, "data.json")) ? readCache("data.json") : null;
+  const extras = cached("data.json") ? readCache("data.json") : null;
   const catalog = readCache("catalog.json");
   const sched = readCache("classplanner.json");
-  const ge = readCache("ge-courses.json");
+  const ge = cached("ge-courses.json") ? readCache("ge-courses.json") : null;
   const requirements = fs.existsSync(path.join(CACHE, "requirements.json")) ? readCache("requirements.json") : null;
+  // Without ucsd-easy-a-radar's files, their part comes from what is published.
+  const published = extras && ge ? null : readPublished();
+  if (!ge && !published.ge) throw new Error("no .data-cache/ge-courses.json and no published ge.json to carry the GE lists over from");
   if (!requirements) console.log("  no requirements.json — building without the AHI and DEI lists (run: node scripts/fetch-requirements.mjs)");
 
   const grades = foldAsGrades(asGrades);
@@ -439,8 +484,22 @@ function build() {
     }
     console.log(`  joined RateMyProfessors scores for ${rmp.size} instructors`);
   } else {
-    console.log("  no data.json — building without RateMyProfessors, prereqs or seat links");
+    for (const [name, rec] of published.byName) {
+      const key = instructorKey(name);
+      if (key && !rmpByKey.has(key)) rmpByKey.set(key, rec);
+    }
+    console.log(`  carried RateMyProfessors scores for ${published.byName.size} instructors over from the published dataset`);
   }
+  /**
+   * A carried-over score for one course's instructor: exactly what was
+   * published for that pair (none, if it was unrated), else that name's.
+   * Nothing when data.json was read.
+   */
+  const carried = (code, name) => {
+    if (extras) return undefined;
+    const pair = `${code}|${name}`;
+    return published.ratings.has(pair) ? published.ratings.get(pair) || undefined : published.byName.get(name);
+  };
   /**
    * Who is teaching THIS course this term — course code -> instructor keys.
    *
@@ -475,17 +534,27 @@ function build() {
   // further down, once every source has been read.
   const geAreas = [];
   const geRaw = [];
-  for (const [college, areas] of Object.entries(ge.colleges)) {
-    for (const [area, value] of Object.entries(areas)) {
-      const groups = Array.isArray(value)
-        ? [[area, value]]
-        : Object.entries(value).map(([sub, codes]) => [`${area} · ${sub}`, codes]);
-      for (const [label, codes] of groups) {
-        const key = `${college}:${label}`;
-        geAreas.push({ key, college, area: label, n: codes.length });
-        geRaw.push([key, codes]);
+  if (ge) {
+    for (const [college, areas] of Object.entries(ge.colleges)) {
+      for (const [area, value] of Object.entries(areas)) {
+        const groups = Array.isArray(value)
+          ? [[area, value]]
+          : Object.entries(value).map(([sub, codes]) => [`${area} · ${sub}`, codes]);
+        for (const [label, codes] of groups) {
+          const key = `${college}:${label}`;
+          geAreas.push({ key, college, area: label, n: codes.length });
+          geRaw.push([key, codes]);
+        }
       }
     }
+  } else {
+    // Carried over as published, less the campus-wide areas rebuilt below.
+    for (const a of published.ge.areas) {
+      if (a.college === "campus") continue;
+      geAreas.push({ key: a.key, college: a.college, area: a.area, n: 0 });
+      geRaw.push([a.key, published.ge.lists[a.key] || []]);
+    }
+    console.log(`  carried ${geAreas.length} college GE areas over from the published dataset`);
   }
 
   // ── course code -> record ─────────────────────────────────────────────────
@@ -539,10 +608,11 @@ function build() {
     const c = upsert(code);
     const t = titles[r[col.t]];
     if (t && (!c.title || t.length > c.title.length)) c.title = t;
+    const shown = displayName(r[col.i]);
     const rating = rmp.get(r[col.i])
       || (spellings.get(r[col.i]) || []).map((s) => rmp.get(s)).find(Boolean)
+      || carried(code, shown)
       || {};
-    const shown = displayName(r[col.i]);
     noteSpelling(shown, r[col.i]);
     c.profs.push({
       i: shown,
@@ -588,6 +658,7 @@ function build() {
     c.offered = 1;
     c.faInstructors = s.inst || [];
     if (s.res) c.res = s.res;
+    if (s.seatsAt) c.seatsAt = s.seatsAt;
 
     // "Book on TSS" for the course: the enrollable section's package, because
     // TSS books a package (lecture + its discussion), not a bare lecture.
@@ -615,7 +686,8 @@ function build() {
     for (const name of s.inst || []) {
       const key = instructorKey(name);
       if (!key || c.profs.some((p) => instructorKey(p.i) === key)) continue;
-      const rating = rmpByKey.get(key) || {};
+      const pair = `${code}|${name}`;
+      const rating = (!extras && published.ratings.has(pair) ? published.ratings.get(pair) : rmpByKey.get(key)) || {};
       c.profs.push({
         i: name,
         g: 0, A: 0, B: 0, C: 0, D: 0, F: 0, W: 0, P: 0, NP: 0,
@@ -632,7 +704,7 @@ function build() {
   // Prerequisites ride along on the catalog entries above, then Class Planner's
   // wording fills what the catalog left blank; data.json is only consulted for
   // courses neither of those lists any more.
-  for (const [code, text] of Object.entries((extras && extras.pre) || {})) {
+  for (const [code, text] of Object.entries((extras ? extras.pre : published.pre) || {})) {
     const c = byCourse.get(code);
     if (c && !c.pre) c.pre = text;
   }
@@ -825,6 +897,9 @@ function build() {
       tss: c.tss || null,
       res: c.res || null,
       fa: c.faInstructors || [],
+      // When Class Planner last counted this course's seats; only on a course
+      // it said so for, so older readers and smaller files see nothing new.
+      ...(c.seatsAt ? { seatsAt: c.seatsAt } : {}),
       profs: c.profs,
       sec: c.sec,
     };
@@ -845,6 +920,8 @@ function build() {
     }))
     .sort((a, b) => a.code.localeCompare(b.code));
 
+  const seatsAsOf = Object.values(sched.courses).map((s) => s.seatsAt).filter(Boolean).sort()[0] || null;
+
   // ── write ─────────────────────────────────────────────────────────────────
   fs.rmSync(OUT, { recursive: true, force: true });
   fs.mkdirSync(path.join(OUT, "subject"), { recursive: true });
@@ -859,11 +936,18 @@ function build() {
     catalogCourses: index.length,
     offered: index.filter((c) => c.o).length,
     refreshed: sched.refreshed || null,
+    // The oldest seat count on the schedule: what "seats as of" can honestly
+    // claim for the term as a whole. Each course carries its own `seatsAt`.
+    ...(seatsAsOf ? { seatsAsOf } : {}),
+    // Class Planner's own count of the term's listings, for the automatic
+    // update to tell new or withdrawn courses and sections from a quiet day.
+    ...(sched.counts ? { counts: sched.counts } : {}),
     sources: [
       `${grades.meta.source} (${grades.meta.url}) — ${grades.meta.years} grade distributions`,
       `${sched.source} — ${Object.keys(sched.courses).length} courses offered in ${sched.termName}, refreshed ${sched.refreshed || "unknown"}`,
       `${catalog.meta.source} (${catalog.meta.url}) — ${catalog.meta.courses} courses, ${catalog.meta.withPrereq} with prerequisites`,
-      extras && "RateMyProfessors scores via data.json",
+      // Carried-over scores came the same way.
+      (extras || published.byName.size) && "RateMyProfessors scores via data.json",
     ].filter(Boolean),
   };
 
@@ -996,8 +1080,12 @@ function build() {
   }
 
   const sizeIndex = write("index.json", { meta, subjects, courses: index });
+  // A carried-over meta keeps the published list's date and note; the campus
+  // part is rebuilt from requirements.json either way.
+  const listMeta = ge ? ge.meta : { ...published.ge.meta };
+  if (!ge) delete listMeta.campus;
   const geMeta = {
-    ...ge.meta,
+    ...listMeta,
     ...(requirements
       ? {
         campus: {
@@ -1034,6 +1122,6 @@ function build() {
 }
 
 console.log("Building UCSDPlans dataset\n");
-await download();
+checkInputs();
 build();
 console.log("Done.");

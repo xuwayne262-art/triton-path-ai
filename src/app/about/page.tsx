@@ -18,6 +18,10 @@ export default function AboutPage() {
   const [meta, setMeta] = useState<IndexMeta | null>(null);
   const [ge, setGE] = useState<GEFile | null>(null);
   useEffect(() => { loadIndex().then((d) => setMeta(d.meta)).catch(() => {}); }, []);
+  const takenOn = refreshedLabel(meta?.refreshed);
+  // Class Planner recounts seats from TSS on its own schedule, so its counts
+  // can be days older than the schedule they came with; say so when they are.
+  const seatsOn = refreshedLabel(meta?.seatsAsOf);
   useEffect(() => { loadGE().then(setGE).catch(() => {}); }, []);
   const campus = ge?.meta.campus;
 
@@ -72,7 +76,7 @@ export default function AboutPage() {
               name="UC San Diego Class Planner"
               url="https://classplanner.apps.ucsd.edu"
               what={meta
-                ? `${meta.termName}'s sections, rooms, instructors, seats and waitlists${refreshedLabel(meta.refreshed) ? `, as of ${refreshedLabel(meta.refreshed)}` : ""}. Seats are counted again every day, which is what draws each course's "Seats over time".`
+                ? `${meta.termName}'s sections, rooms, instructors, seats and waitlists${takenOn ? `, as of ${takenOn}` : ""}${seatsOn && seatsOn !== takenOn ? `; its seat counts are from ${seatsOn}, the last time Class Planner counted them in TSS` : ""}. Seats are counted again every day, which is what draws each course's "Seats over time".`
                 : "This term's sections, rooms, seats and waitlists."}
             />
             <Source

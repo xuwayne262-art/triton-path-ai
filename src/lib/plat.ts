@@ -50,6 +50,10 @@ export interface IndexMeta {
   generated: string;
   /** When this term's schedule was last taken from Class Planner, "2026-09-25 15:53:24+00". */
   refreshed?: string | null;
+  /** The oldest seat count on the schedule, ISO-8601: what "seats as of" can claim for the term. */
+  seatsAsOf?: string | null;
+  /** Class Planner's own count of the term's listings when it was taken. */
+  counts?: { courses: number | null; sections: number | null; meetings: number | null } | null;
   years: string;
   gradeRecords: number;
   catalogCourses: number;
@@ -189,6 +193,12 @@ export interface CourseDetail {
   /** Enrolment restrictions, as the registrar words them. */
   res: string | null;
   fa: string[];
+  /**
+   * When Class Planner last counted this course's seats, ISO-8601. Can be days
+   * older than the term's refresh: Class Planner recounts from TSS on its own
+   * schedule. Absent on a course it gave no time for.
+   */
+  seatsAt?: string;
   profs: ProfRecord[];
   sec: SectionTuple[];
 }

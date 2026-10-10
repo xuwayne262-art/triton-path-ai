@@ -210,14 +210,46 @@ function foldMeetings(meetings) {
 
 // ── harvest ──────────────────────────────────────────────────────────────────
 
+/** Within a year: Winter, Spring, the summer sessions, then Fall. */
+const SEASONS = ["WI", "SP", "S1", "S2", "S3", "SA", "SU", "FA"];
+const termRank = (code) => {
+  const m = /^([A-Z][A-Z0-9])(\d{2})$/.exec(String(code || ""));
+  return m ? Number(m[2]) * 10 + Math.max(0, SEASONS.indexOf(m[1])) : -1;
+};
+/** The quarters the Registrar's calendar counts; a summer session is not one. */
+const isQuarter = (code) => /^(FA|WI|SP)\d{2}$/.test(String(code || ""));
+
+/**
+ * The term to harvest: `--term` when given, otherwise the latest quarter Class
+ * Planner serves. When UCSD publishes the next quarter's listings, both terms
+ * are served for a while, and the next one is what students are enrolling in;
+ * a summer session published alongside Spring does not displace it.
+ */
 async function pickTerm() {
   const wanted = flag("term", null);
   const { terms } = await getJson(`${API}/planner/terms`);
   const configured = (terms || []).filter((t) => t.configured !== false);
   if (!configured.length) throw new Error("Class Planner lists no configured term");
-  const term = wanted ? configured.find((t) => t.term_code === wanted) : configured[0];
+  const quarters = configured.filter((t) => isQuarter(t.term_code));
+  const latest = [...(quarters.length ? quarters : configured)].sort((a, b) => termRank(b.term_code) - termRank(a.term_code))[0];
+  const term = wanted ? configured.find((t) => t.term_code === wanted) : latest;
   if (!term) throw new Error(`term ${wanted} is not offered; have: ${configured.map((t) => t.term_code).join(", ")}`);
   return term;
+}
+
+/**
+ * When Class Planner last counted a course's seats, from the label it shows
+ * students: "9/21/26 8:37 AM PDT" -> "2026-09-21T15:37:00.000Z". Null when the
+ * label is missing or in a shape this does not know, rather than a guess.
+ */
+function seatTime(label) {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4}) (\d{1,2}):(\d{2}) ?([AP]M) (PDT|PST)$/i.exec(String(label || "").trim());
+  if (!m) return null;
+  const year = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+  const hour = (Number(m[4]) % 12) + (/^p/i.test(m[6]) ? 12 : 0);
+  const offset = /^PST$/i.test(m[7]) ? 8 : 7;
+  const t = Date.UTC(year, Number(m[1]) - 1, Number(m[2]), hour + offset, Number(m[5]));
+  return Number.isFinite(t) ? new Date(t).toISOString() : null;
 }
 
 /** Every course in one subject, following `offset` until the server stops. */
@@ -280,6 +312,8 @@ async function harvestTss(term, courses) {
 
   const modules = new Map();
   const buildings = new Map();
+  /** slug -> when Class Planner last counted its seats, and why it could not since. */
+  const seats = new Map();
   let year = "";
   let period = "";
 
@@ -301,6 +335,11 @@ async function harvestTss(term, courses) {
     if (!res) continue;
     for (const [slug, d] of Object.entries(res.course_details || {})) {
       if (d && d.module_id) modules.set(slug, String(d.module_id));
+      // The seat counts are only as fresh as Class Planner's last look at TSS,
+      // which can be days older than the term's catalog refresh: on Oct 10,
+      // 2026 every Fall course still showed Sep 21's counts.
+      const f = d && d.seat_freshness;
+      if (f) seats.set(slug, { at: f.has_timestamp === false ? null : seatTime(f.label), error: f.refresh_error || null });
       // Every booking URL in one term shares the year/period pair, so read it
       // from a real URL rather than deriving it from the term code.
       if (!year && d && d.tss_booking_url) {
@@ -310,7 +349,7 @@ async function harvestTss(term, courses) {
     }
     collectLocations(res, buildings);
   }
-  return { modules, buildings, year, period };
+  return { modules, buildings, seats, year, period };
 }
 
 /**
@@ -404,10 +443,13 @@ async function main() {
   console.log(`  courses ${raw.length} fetched`);
 
   const tss = has("no-tss")
-    ? { modules: new Map(), buildings: new Map(), year: "", period: "" }
+    ? { modules: new Map(), buildings: new Map(), seats: new Map(), year: "", period: "" }
     : await harvestTss(term.term_code, raw);
   if (!has("no-tss")) {
     console.log(`  tss     ${tss.modules.size} module ids, ${tss.buildings.size} buildings, year ${tss.year || "?"} period ${tss.period || "?"}`);
+    const times = [...tss.seats.values()].map((s) => s.at).filter(Boolean).sort();
+    const failing = [...tss.seats.values()].filter((s) => s.error).length;
+    console.log(`  seats   counted ${times[0] || "?"} to ${times[times.length - 1] || "?"}${failing ? `; Class Planner could not recount ${failing} courses` : ""}`);
     const added = await harvestMissingBuildings(term.term_code, raw, tss.buildings);
     console.log(`  map     ${added} more buildings located from their own sections`);
   }
@@ -541,6 +583,8 @@ async function main() {
       packages: sum((e) => e.complete_package_count),
       openPackages: sum((e) => e.open_package_count),
       tssModule: tss.modules.get(slug) || null,
+      /** When Class Planner last counted this course's seats (ISO), or null when it does not say. */
+      seatsAt: tss.seats.get(slug)?.at || null,
       topics: topics.length > 1 ? topics : undefined,
       sections: meta,
     };
@@ -572,6 +616,13 @@ async function main() {
     termName: term.term_name || termLabel(term.term_code),
     generated: new Date().toISOString(),
     refreshed: term.last_full_refresh_at || null,
+    // Class Planner's own count of the term's listings, which the automatic
+    // update compares against to notice new or withdrawn courses and sections.
+    counts: {
+      courses: term.course_count ?? null,
+      sections: term.section_count ?? null,
+      meetings: term.meeting_count ?? null,
+    },
     source: "UC San Diego Class Planner (classplanner.apps.ucsd.edu)",
     secCols: [
       "code", "type", "days", "start", "end", "building", "room", "instructor",
