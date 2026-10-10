@@ -1,7 +1,8 @@
 import {
   DEFAULT_MAJOR, DEFAULT_MINOR,
-  type PlanDocs, type PlannerDoc, type TermRatings,
+  type PastTerm, type PlanDocs, type PlannerDoc, type TermRatings,
 } from "./record";
+import { inTerm, laterTerm, termOf } from "./term";
 
 /**
  * Bringing two copies of one student's plan back together.
@@ -127,12 +128,34 @@ function newestRatings(local: TermRatings, remote: TermRatings): TermRatings {
   return out;
 }
 
+/** The plan with its term and earlier terms set, each left off when there is nothing to say. */
+function withTerms(p: PlannerDoc, term: string | undefined, past: Record<string, PastTerm>): PlannerDoc {
+  const out: PlannerDoc = { ...p };
+  if (term) out.term = term;
+  if (Object.keys(past).length) out.past = past;
+  return out;
+}
+
+/**
+ * The term two copies should meet in when they were made against different
+ * terms' schedules — the later one — so one term's section picks are never
+ * merged into another's. Null when they agree.
+ */
+function meetingTerm(local: PlannerDoc, remote: PlannerDoc): string | null {
+  return termOf(local) === termOf(remote) ? null : laterTerm(termOf(local), termOf(remote));
+}
+
 function adoptPlanner(local: PlannerDoc, remote: PlannerDoc): PlannerDoc {
+  const term = meetingTerm(local, remote);
+  if (term) {
+    local = inTerm(local, term);
+    remote = inTerm(remote, term);
+  }
   const ids = new Set(remote.schedule.map((e) => e.id));
   const scheduled = new Set(remote.schedule.map((e) => e.course.code));
   const plannedIds = new Set(remote.planned.map((e) => e.courseId));
   const planned = new Set(remote.planned.map((e) => e.course.code));
-  return {
+  return withTerms({
     major: chosen(remote.major, local.major, DEFAULT_MAJOR),
     minor: chosen(remote.minor, local.minor, DEFAULT_MINOR),
     college: chosen(remote.college, local.college, null),
@@ -147,7 +170,7 @@ function adoptPlanner(local: PlannerDoc, remote: PlannerDoc): PlannerDoc {
     synced: union(remote.synced, local.synced),
     // The account's pick for a course it already has; this device's for the rest.
     sections: { ...local.sections, ...remote.sections },
-  };
+  }, remote.term ?? local.term, { ...local.past, ...remote.past });
 }
 
 function mergePlanner(base: PlannerDoc | null, local: PlannerDoc | null, remote: PlannerDoc | null): PlannerDoc | null {
@@ -155,7 +178,13 @@ function mergePlanner(base: PlannerDoc | null, local: PlannerDoc | null, remote:
   if (!remote) return local;
   // Both sides started a planner without ever agreeing on one.
   if (!base) return adoptPlanner(local, remote);
-  return {
+  const term = meetingTerm(local, remote);
+  if (term) {
+    local = inTerm(local, term);
+    remote = inTerm(remote, term);
+    base = inTerm(base, term);
+  }
+  return withTerms({
     major: pick(base.major, local.major, remote.major),
     minor: pick(base.minor, local.minor, remote.minor),
     college: pick(base.college, local.college, remote.college),
@@ -164,7 +193,7 @@ function mergePlanner(base: PlannerDoc | null, local: PlannerDoc | null, remote:
     // Only ever grows: it records which starred courses have been placed once.
     synced: union(remote.synced, local.synced),
     sections: mergeRecord(base.sections, local.sections, remote.sections),
-  };
+  }, pick(base.term, local.term, remote.term), mergeRecord(base.past ?? {}, local.past ?? {}, remote.past ?? {}));
 }
 
 /**

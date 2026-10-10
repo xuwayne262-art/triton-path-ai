@@ -32,8 +32,9 @@ import {
 } from "@/lib/sections";
 import {
   cleanPlanner, DEFAULT_MAJOR, DEFAULT_MINOR,
-  type PlannedCourse, type PlannerDoc, type PlanQuarter, type PlanYear, type ScheduleCourse,
+  type PastTerm, type PlannedCourse, type PlannerDoc, type PlanQuarter, type PlanYear, type ScheduleCourse,
 } from "@/lib/plan/record";
+import { inTerm, LEGACY_TERM, termRank } from "@/lib/plan/term";
 import {
   noteLocalChange, PLANNER_EVENT, PLANNER_KEY, useAccountSync, type SyncStatus,
 } from "@/lib/plan/sync";
@@ -205,6 +206,14 @@ interface PlannerValue {
   term: string;
   /** "Fall 2026", or "" until the dataset has loaded. */
   termName: string;
+  /** Earlier terms' schedules, put away when the dataset moved on (see lib/plan/term.ts). */
+  pastTerms: Record<string, PastTerm>;
+  /**
+   * The term the plan has moved on to, when this page loaded an older term's
+   * schedule — a tab left open across the switch. The planner neither picks
+   * nor saves until it is reloaded, so the newer plan cannot be overwritten.
+   */
+  newerPlanTerm: string | null;
   /** Building code -> name and UCSD's coordinates, for the campus map. */
   buildings: Record<string, Building>;
   /**
@@ -296,6 +305,9 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   /** Bumped by retrySections, so the fetch below runs again for the subjects it cleared. */
   const [retryTick, setRetryTick] = useState(0);
   const [selections, setSelections] = useState<Record<string, SectionSelection>>({});
+  /** The term `selectedCourses` and `selections` were picked from; undefined on a plan saved before terms were recorded. */
+  const [planTerm, setPlanTerm] = useState<string | undefined>(undefined);
+  const [pastTerms, setPastTerms] = useState<Record<string, PastTerm>>({});
 
   const { codes: savedCodes, toggle: toggleSaved } = useShortlist();
   const majorSubjectSet = useMemo(() => majorSubjects(selectedMajor), [selectedMajor]);
@@ -378,6 +390,8 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       setPlannedCourses(saved?.planned ?? []);
       syncedRef.current = new Set(saved?.synced ?? []);
       setSelections(saved?.sections ?? {});
+      setPlanTerm(saved?.term);
+      setPastTerms(saved?.past ?? {});
     };
     const saved = readPersisted();
     if (saved) apply(saved);
@@ -390,8 +404,46 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener(PLANNER_EVENT, onSynced);
   }, []);
 
+  // ── Which term the picks belong to ──────────────────────────────────────────
+  /**
+   * The term the plan has moved on to, when this page loaded an older term's
+   * schedule: a tab opened before the dataset switched, holding a plan another
+   * device has since moved. Its section files cannot answer for that term's
+   * picks, so nothing here picks or saves until the page is reloaded.
+   */
+  const newerPlanTerm = hydrated && term && planTerm && termRank(planTerm) > termRank(term) ? planTerm : null;
+  /** The picks and this page's schedule are the same term's; until then nothing is picked or added on its own. */
+  const termSettled = hydrated && !!term && planTerm === term;
+
+  // When the dataset has moved on to a later term since this plan was saved,
+  // the earlier term's picks are put away under it (lib/plan/term.ts) rather
+  // than read against the new term's sections, where "A01" is a different
+  // section. A plan saved before terms were recorded is stamped with its term.
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || !term) return;
+    const from = planTerm || LEGACY_TERM;
+    if (from === term) {
+      if (planTerm !== term) setPlanTerm(term);
+      return;
+    }
+    // The plan is ahead of this page (newerPlanTerm): never move it back.
+    if (termRank(term) < termRank(from)) return;
+    const moved = inTerm({
+      major: selectedMajor, minor: selectedMinor, college: selectedCollege,
+      schedule: selectedCourses, planned: plannedCourses, synced: [...syncedRef.current],
+      sections: selections, term: planTerm, past: pastTerms,
+    }, term);
+    setSelectedCourses(moved.schedule);
+    setSelections(moved.sections);
+    setPastTerms(moved.past ?? {});
+    setPlanTerm(moved.term);
+  }, [
+    hydrated, term, planTerm, pastTerms, selectedMajor, selectedMinor, selectedCollege,
+    selectedCourses, plannedCourses, selections,
+  ]);
+
+  useEffect(() => {
+    if (!hydrated || newerPlanTerm) return;
     const payload: PlannerDoc = {
       major: selectedMajor,
       minor: selectedMinor,
@@ -400,12 +452,14 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       planned: plannedCourses,
       synced: [...syncedRef.current],
       sections: selections,
+      ...(planTerm ? { term: planTerm } : {}),
+      ...(Object.keys(pastTerms).length ? { past: pastTerms } : {}),
     };
     try { localStorage.setItem(PLANNER_KEY, JSON.stringify(payload)); } catch {}
     noteLocalChange();
   }, [
-    hydrated, selectedMajor, selectedMinor, selectedCollege,
-    selectedCourses, plannedCourses, selections,
+    hydrated, newerPlanTerm, selectedMajor, selectedMinor, selectedCollege,
+    selectedCourses, plannedCourses, selections, planTerm, pastTerms,
   ]);
 
   // ── Section data ────────────────────────────────────────────────────────────
@@ -601,7 +655,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
    * decision about someone's week, and guessing it would be wrong half the time.
    */
   useEffect(() => {
-    if (!hydrated) return;
+    if (!termSettled) return;
     const additions: Record<string, SectionSelection> = {};
     for (const { course } of selectedCourses) {
       const sec = sectionsByCode[course.code];
@@ -621,7 +675,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       }
     }
     if (Object.keys(additions).length) setSelections((prev) => ({ ...prev, ...additions }));
-  }, [hydrated, selectedCourses, sectionsByCode, selections]);
+  }, [termSettled, selectedCourses, sectionsByCode, selections]);
 
   const conflictCodes = useMemo(
     () => new Set(events.filter((e) => e.conflict).map((e) => e.code)),
@@ -838,14 +892,14 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
    * the same reason: a reload would otherwise resurrect everything removed.
    */
   useEffect(() => {
-    if (!hydrated) return;
+    if (!termSettled) return;
     const pending = savedCourses.filter(({ course }) => !syncedRef.current.has(course.code));
     if (!pending.length) return;
     for (const { course } of pending) {
       syncedRef.current.add(course.code);
       addToSchedule(course);
     }
-  }, [hydrated, savedCourses, addToSchedule]);
+  }, [termSettled, savedCourses, addToSchedule]);
 
   // ── Plan actions ────────────────────────────────────────────────────────────
 
@@ -1058,7 +1112,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     platRows, savedCourses, toggleSaved,
     selectedCourses: shownSchedule, addToSchedule, removeFromSchedule, clearSchedule, restoreSchedule,
     sectionsByCode, tssByCode, selections, setSelection, clearSelection, chooseOption,
-    addCourseByCode, platByCode, term, termName, buildings, optionEvents,
+    addCourseByCode, platByCode, term, termName, pastTerms, newerPlanTerm, buildings, optionEvents,
     autoPickFor, autoPickAll, restoreSelections, retrySections,
     sectionStatus, events, conflictCodes, totalUnits,
     plannedCourses, addAICourseToPlan, removePlannedCourse, addToPlanner, movePlannedCourse,

@@ -13,6 +13,7 @@ import MapPanel, { type MapDay } from "@/components/planner/MapPanel";
 import ExamList, { type ExamItem } from "@/components/planner/ExamList";
 import EventSheet from "@/components/planner/EventSheet";
 import ScheduleImageDialog from "@/components/planner/ScheduleImageDialog";
+import TermNotice from "@/components/planner/TermNotice";
 import { scheduleImageInput, type ScheduleImageInput } from "@/lib/scheduleImage";
 import { buildIcs, icsFileName } from "@/lib/ics";
 import { quarterByKey, todayInSanDiego } from "@/lib/housing/terms";
@@ -135,7 +136,7 @@ export default function TermWorkspacePage() {
     platRows, platByCode, savedCourses, toggleSaved, addCourseByCode,
     selectedMajor, selectedMinor, selectedCollege,
     roleOf, getColorForCourse, activeRequirements,
-    term, termName, buildings,
+    term, termName, pastTerms, newerPlanTerm, buildings,
   } = usePlanner();
 
   // ── View state ──────────────────────────────────────────────────────────────
@@ -727,6 +728,14 @@ export default function TermWorkspacePage() {
               </button>
             </div>
           </div>
+
+          <TermNotice
+            term={term}
+            termName={termName}
+            newerPlanTerm={newerPlanTerm}
+            pastTerms={pastTerms}
+            scheduleEmpty={!selectedCourses.length}
+          />
 
           {/* A phone's week is five narrow columns; a day is one wide one. */}
           <div role="tablist" aria-label="Day" className="flex shrink-0 gap-1 border-b border-gray-200 px-2 py-1.5 dark:border-white/10 md:hidden">

@@ -49,6 +49,24 @@ export interface PlannerDoc {
   synced: string[];
   /** Chosen sections per course: { "CSE 11": { family: "A", parts: { DI: "A01" } } } */
   sections: Record<string, SectionSelection>;
+  /**
+   * The term `schedule` and `sections` were picked from, as the dataset names
+   * it ("FA26"). Absent on plans saved before plans recorded it, which were
+   * all made against LEGACY_TERM's schedule (see term.ts).
+   */
+  term?: string;
+  /** Earlier terms' schedules and section picks, by term. Absent when there are none. */
+  past?: Record<string, PastTerm>;
+}
+
+/**
+ * One term's "This term" picks, put away when the site moved on to the next
+ * term's schedule. A section code like "A01" names a different section in
+ * every term, so they are never read against another term's sections.
+ */
+export interface PastTerm {
+  schedule: ScheduleCourse[];
+  sections: Record<string, SectionSelection>;
 }
 
 /** One student's verdict on one instructor, for one course, in one term. */
@@ -89,6 +107,11 @@ const MAX_PLANNED = 120;
 const MAX_SECTIONS = 200;
 const MAX_CODES = 400;
 const MAX_RATINGS = 500;
+/** Earlier terms kept with a plan; the oldest beyond this are let go. */
+export const MAX_PAST_TERMS = 3;
+
+/** A term code as the dataset and Class Planner write it: "FA26", "WI27", "S127". */
+export const TERM_CODE = /^[A-Z][A-Z0-9]\d{2}$/;
 
 const COLLEGES = new Set<College>([
   "Revelle", "Muir", "Marshall", "Warren", "ERC", "Sixth", "Seventh", "Eighth",
@@ -189,14 +212,12 @@ function selection(v: unknown): SectionSelection | null {
   return { family, parts };
 }
 
-/** The planner document, or null when there is nothing that could be one. */
-export function cleanPlanner(v: unknown): PlannerDoc | null {
-  if (!isObj(v)) return null;
-
+/** A term's schedule: drawable entries, one per course, capped. */
+function cleanSchedule(v: unknown): ScheduleCourse[] {
   const schedule: ScheduleCourse[] = [];
   const ids = new Set<string>();
   const onSchedule = new Set<string>();
-  for (const e of Array.isArray(v.schedule) ? v.schedule : []) {
+  for (const e of Array.isArray(v) ? v : []) {
     if (schedule.length >= MAX_SCHEDULE) break;
     if (!isObj(e)) continue;
     const c = course(e.course);
@@ -207,6 +228,40 @@ export function cleanPlanner(v: unknown): PlannerDoc | null {
     onSchedule.add(c.code);
     schedule.push({ course: c, id });
   }
+  return schedule;
+}
+
+/** A term's section picks, by course code. */
+function cleanSections(v: unknown): Record<string, SectionSelection> {
+  const sections: Record<string, SectionSelection> = {};
+  if (isObj(v)) {
+    for (const [code, sel] of Object.entries(v).slice(0, MAX_SECTIONS)) {
+      const s = selection(sel);
+      if (code && code.length <= 24 && s) sections[code] = s;
+    }
+  }
+  return sections;
+}
+
+/** Earlier terms' picks, by term code; an empty term is not worth keeping. */
+function cleanPast(v: unknown): Record<string, PastTerm> {
+  const past: Record<string, PastTerm> = {};
+  if (!isObj(v)) return past;
+  for (const [term, e] of Object.entries(v)) {
+    if (Object.keys(past).length >= MAX_PAST_TERMS) break;
+    if (!TERM_CODE.test(term) || !isObj(e)) continue;
+    const schedule = cleanSchedule(e.schedule);
+    const sections = cleanSections(e.sections);
+    if (schedule.length || Object.keys(sections).length) past[term] = { schedule, sections };
+  }
+  return past;
+}
+
+/** The planner document, or null when there is nothing that could be one. */
+export function cleanPlanner(v: unknown): PlannerDoc | null {
+  if (!isObj(v)) return null;
+
+  const schedule = cleanSchedule(v.schedule);
 
   const planned: PlannedCourse[] = [];
   const plannedIds = new Set<string>();
@@ -224,14 +279,11 @@ export function cleanPlanner(v: unknown): PlannerDoc | null {
     planned.push({ courseId, course: c, year, quarter });
   }
 
-  const sections: Record<string, SectionSelection> = {};
-  if (isObj(v.sections)) {
-    for (const [code, sel] of Object.entries(v.sections).slice(0, MAX_SECTIONS)) {
-      const s = selection(sel);
-      if (code && code.length <= 24 && s) sections[code] = s;
-    }
-  }
+  const term = str(v.term, 8);
+  const past = cleanPast(v.past);
 
+  // `term` and `past` are left off when there is nothing to say, so a plan
+  // saved before they existed passes through unchanged.
   return {
     major: str(v.major, 120) || DEFAULT_MAJOR,
     minor: str(v.minor, 120) || DEFAULT_MINOR,
@@ -239,7 +291,9 @@ export function cleanPlanner(v: unknown): PlannerDoc | null {
     schedule,
     planned,
     synced: codes(v.synced, MAX_CODES, 24),
-    sections,
+    sections: cleanSections(v.sections),
+    ...(TERM_CODE.test(term) ? { term } : {}),
+    ...(Object.keys(past).length ? { past } : {}),
   };
 }
 
@@ -292,6 +346,7 @@ export function cleanDocs(v: unknown): PlanDocs {
 export function isBlankPlanner(p: PlannerDoc | null): boolean {
   return !p || (
     p.major === DEFAULT_MAJOR && p.minor === DEFAULT_MINOR && p.college === null &&
-    !p.schedule.length && !p.planned.length && !p.synced.length && !Object.keys(p.sections).length
+    !p.schedule.length && !p.planned.length && !p.synced.length && !Object.keys(p.sections).length &&
+    !Object.keys(p.past ?? {}).length
   );
 }

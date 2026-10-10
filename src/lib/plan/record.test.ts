@@ -162,5 +162,47 @@ describe("isBlankPlanner", () => {
     assert.ok(!isBlankPlanner({ ...blank, major: "Mathematics (BS)" }));
     assert.ok(!isBlankPlanner({ ...blank, synced: ["CSE 11"] }));
     assert.ok(!isBlankPlanner(realPlan));
+    // A term on its own says nothing about the student; a kept schedule does.
+    assert.ok(isBlankPlanner({ ...blank, term: "WI27" }));
+    assert.ok(!isBlankPlanner({ ...blank, past: { FA26: { schedule: realPlan.schedule, sections: {} } } }));
+  });
+});
+
+describe("the term a plan's picks belong to", () => {
+  const withTerms: PlannerDoc = {
+    ...realPlan,
+    term: "WI27",
+    past: { FA26: { schedule: realPlan.schedule, sections: realPlan.sections } },
+  };
+
+  test("a plan with its term and an earlier term's picks passes through unchanged", () => {
+    const roundTripped = JSON.parse(JSON.stringify(withTerms));
+    assert.deepEqual(cleanPlanner(roundTripped), roundTripped);
+  });
+
+  test("a plan from before terms were recorded gains neither key", () => {
+    const p = cleanPlanner(JSON.parse(JSON.stringify(realPlan)))!;
+    assert.ok(!("term" in p));
+    assert.ok(!("past" in p));
+  });
+
+  test("drops a term that is not a term code, and earlier terms that are not", () => {
+    const p = cleanPlanner({
+      ...withTerms,
+      term: "Winter 2027",
+      past: { "Fall 2026": withTerms.past!.FA26, SP26: "nope", WI26: { schedule: [], sections: {} }, FA26: withTerms.past!.FA26 },
+    })!;
+    assert.ok(!("term" in p));
+    // An empty term is not worth keeping either.
+    assert.deepEqual(Object.keys(p.past ?? {}), ["FA26"]);
+  });
+
+  test("cleans an earlier term's picks as strictly as this term's", () => {
+    const p = cleanPlanner({
+      ...withTerms,
+      past: { FA26: { schedule: [{ course: { title: "no code" }, id: "x" }, ...realPlan.schedule], sections: { "CSE 11": { parts: {} } } } },
+    })!;
+    assert.deepEqual(p.past?.FA26.schedule, realPlan.schedule);
+    assert.deepEqual(p.past?.FA26.sections, {});
   });
 });

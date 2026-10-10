@@ -142,6 +142,17 @@ describe("adoptLegacy: a device's plan from before syncing meets the account's",
     assert.ok(sameJson(adoptLegacy(docs(planner([])), remote), remote));
   });
 
+  test("devices on different terms meet in the later one, each term's picks kept apart", () => {
+    // A laptop still holding Fall's schedule meets an account a phone already moved to Winter.
+    const laptop = docs(planner(["CSE 11"], { sections: { "CSE 11": { family: "A", parts: { DI: "A01" } } } }));
+    const phone = docs(planner(["CSE 12"], { term: "WI27", sections: { "CSE 12": { family: "B", parts: {} } } }));
+    const merged = adoptLegacy(laptop, phone).planner!;
+    assert.equal(merged.term, "WI27");
+    assert.deepEqual(merged.schedule.map((e) => e.course.code), ["CSE 12"]);
+    assert.deepEqual(merged.sections, { "CSE 12": { family: "B", parts: {} } });
+    assert.deepEqual(merged.past?.FA26.sections, { "CSE 11": { family: "A", parts: { DI: "A01" } } });
+  });
+
   test("the same instructor rated on both devices keeps the later rating", () => {
     const at = (quality: number, when: string): TermRating => ({ quality, difficulty: 0, again: null, at: when });
     const local = docs(null, [], { k: at(5, "2026-09-20T00:00:00.000Z"), mine: at(2, "2026-09-01T00:00:00.000Z") });
@@ -149,5 +160,32 @@ describe("adoptLegacy: a device's plan from before syncing meets the account's",
     const merged = adoptLegacy(local, remote);
     assert.equal(merged.ratings.k.quality, 5);
     assert.equal(merged.ratings.mine.quality, 2);
+  });
+});
+
+describe("mergeDocs across a change of term", () => {
+  test("a stale device's edits to last term land in last term's kept picks, not in this term's", () => {
+    const base = docs(planner(["CSE 11"], { term: "FA26" }));
+    // The laptop added MATH 20A to Fall before it heard the account moved on.
+    const laptop = docs(planner(["CSE 11", "MATH 20A"], { term: "FA26" }));
+    // The phone loaded Winter's schedule, which put Fall away, then added CSE 12.
+    const phone = docs(planner(["CSE 12"], {
+      term: "WI27",
+      past: { FA26: { schedule: [on("CSE 11")], sections: {} } },
+    }));
+    const merged = mergeDocs(base, laptop, phone).planner!;
+    assert.equal(merged.term, "WI27");
+    assert.deepEqual(merged.schedule.map((e) => e.course.code), ["CSE 12"]);
+    assert.deepEqual(merged.past?.FA26.schedule.map((e) => e.course.code), ["CSE 11", "MATH 20A"]);
+  });
+
+  test("devices that agree on the term keep it, and keep both sides' earlier terms", () => {
+    const base = docs(planner([], { term: "WI27" }));
+    const local = docs(planner(["CSE 12"], { term: "WI27", past: { FA26: { schedule: [on("CSE 11")], sections: {} } } }));
+    const remote = docs(planner([], { term: "WI27" }));
+    const merged = mergeDocs(base, local, remote).planner!;
+    assert.equal(merged.term, "WI27");
+    assert.deepEqual(Object.keys(merged.past ?? {}), ["FA26"]);
+    assert.deepEqual(merged.schedule.map((e) => e.course.code), ["CSE 12"]);
   });
 });
