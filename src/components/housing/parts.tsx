@@ -133,18 +133,20 @@ export function CommuteLine({ measure, mode }: { measure: Measure; mode: Mode })
   let detail: string[];
   let title: string | undefined;
   if (measure.kind === "campus") {
-    headline = <>{figure(`${measure.trip.minutes} min`)} to Library Walk {MODES[mode].verb}</>;
+    headline = <>About {figure(`${measure.trip.minutes} min`)} to Library Walk {MODES[mode].verb}</>;
     detail = longWalk ? [`${cycled(measure)} min by bike`] : [];
   } else {
     const { week } = measure;
     const early = earliestStart(week);
-    headline = <>{figure(formatDuration(week.minutes))} a week to your classes {MODES[mode].verb}</>;
+    headline = <>About {figure(formatDuration(week.minutes))} a week to your classes {MODES[mode].verb}</>;
     detail = [
       ...(early ? [`Leave by ${clockLabel(early.leaveBy)} on ${early.day}`] : []),
       ...(longWalk ? [`${formatDuration(cycled(measure))} by bike`] : []),
     ];
     title = week.days.map((d) => `${d.day}: ${d.there.minutes} min to ${d.first.event.code} in ${d.first.building.n}`).join("\n");
   }
+  // Every figure here is an estimate from straight-line distance, not a route.
+  title = [title, "Estimated from straight-line distance, not a mapped route."].filter(Boolean).join("\n\n");
 
   return (
     <div className="flex min-w-0 items-start gap-2 text-[13px] leading-snug" title={title}>

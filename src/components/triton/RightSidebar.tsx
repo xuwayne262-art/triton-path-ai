@@ -8,7 +8,10 @@ interface Requirement {
   category: string;
   label: string;
   targetUnits: number;
+  /** Completed, planned and scheduled units together. */
   current: number;
+  /** Of those, completed on the saved Academic History. */
+  done: number;
 }
 
 interface DegreeProgressGroup {
@@ -75,10 +78,15 @@ export default function RightSidebar({
             Degree Progress
           </span>
         </div>
+        {/* A unit count against simplified targets — said here, where it is read. */}
+        <p className={`mt-1 text-[10px] leading-snug ${darkMode ? "text-gray-400" : "text-gray-600"}`}>
+          An estimate from simplified unit targets, not a degree audit. Planned courses aren&rsquo;t credit until
+          you pass them; check your degree audit for what counts.
+        </p>
         {!selectedCollege && (
           <p
             className={`text-[10px] mt-1 ${
-              darkMode ? "text-gray-500" : "text-gray-400"
+              darkMode ? "text-gray-400" : "text-gray-600"
             }`}
           >
             Choose your college (top right) to see GE progress
@@ -133,14 +141,14 @@ export default function RightSidebar({
             {/* Requirements */}
             <div className="space-y-2 pl-3.5">
               {group.requirements.map((req) => {
-                const pct =
-                  req.targetUnits > 0
-                    ? Math.min(
-                        100,
-                        Math.round((req.current / req.targetUnits) * 100)
-                      )
-                    : 0;
-                const complete = req.current >= req.targetUnits;
+                const share = (n: number) =>
+                  req.targetUnits > 0 ? Math.min(100, Math.round((n / req.targetUnits) * 100)) : 0;
+                const pct = share(req.current);
+                const donePct = share(req.done);
+                const planned = Math.max(0, req.current - req.done);
+                // Met only on completed units; met on paper is "covered by plan".
+                const complete = req.done >= req.targetUnits;
+                const covered = !complete && req.current >= req.targetUnits;
                 return (
                   <div key={req.category}>
                     <div className="flex items-start justify-between mb-0.5">
@@ -154,27 +162,37 @@ export default function RightSidebar({
                       <span
                         className={`text-[10px] tabular-nums ml-2 flex-shrink-0 ${
                           complete
-                            ? "text-green-500 font-semibold"
+                            ? "text-green-600 font-semibold dark:text-green-400"
                             : darkMode
-                            ? "text-gray-500"
-                            : "text-gray-400"
+                            ? "text-gray-400"
+                            : "text-gray-600"
                         }`}
                       >
                         {req.current}/{req.targetUnits}u
                       </span>
                     </div>
                     <div
-                      className={`h-1 rounded-full overflow-hidden ${
+                      className={`relative h-1 rounded-full overflow-hidden ${
                         darkMode ? "bg-gray-700" : "bg-slate-200"
                       }`}
+                      role="img"
+                      aria-label={`${req.label}: ${req.done} units completed${planned ? `, ${planned} planned` : ""}, of ${req.targetUnits}`}
                     >
+                      {/* Planned units, pale; completed ones, solid, over them. */}
                       <div
-                        className={`h-full rounded-full transition-all duration-500 ease-out ${
-                          group.color
-                        }${complete ? " opacity-75" : ""}`}
+                        className={`absolute inset-y-0 left-0 rounded-full opacity-35 transition-all duration-500 ease-out motion-reduce:transition-none ${group.color}`}
                         style={{ width: `${pct}%` }}
                       />
+                      <div
+                        className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ease-out motion-reduce:transition-none ${group.color}`}
+                        style={{ width: `${donePct}%` }}
+                      />
                     </div>
+                    {(planned > 0 || covered) && (
+                      <p className={`mt-0.5 text-[10px] leading-snug ${darkMode ? "text-gray-400" : "text-gray-600"}`}>
+                        {req.done} done · {planned} planned{covered ? " — covered by your plan, not yet earned" : ""}
+                      </p>
+                    )}
                   </div>
                 );
               })}

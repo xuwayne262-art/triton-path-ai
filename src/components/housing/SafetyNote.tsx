@@ -8,7 +8,8 @@ export default function SafetyNote() {
       <div>
         <p className="font-semibold text-gray-800 dark:text-gray-100">Everyone here signed in with @ucsd.edu</p>
         <p className="mt-0.5">
-          That keeps out most scams, not all. See the place (or a live video tour) before paying anything,
+          That shows the poster has a @ucsd.edu address — UCSDPlans does not check the place, the price or the
+          person. It keeps out most scams, not all. See the place (or a live video tour) before paying anything,
           never pay by wire, gift card or crypto, and sign a sublease that the landlord has approved. Report
           a listing that looks wrong — three reports take it down.
         </p>

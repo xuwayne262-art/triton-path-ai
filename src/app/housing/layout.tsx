@@ -8,7 +8,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Housing — UCSDPlans",
   description:
-    "Sublets and rooms from verified @ucsd.edu students, each one measured by the trip to the classes on your schedule.",
+    "Sublets and rooms posted by students signed in with @ucsd.edu, each one measured by the trip to the classes on your schedule.",
 };
 
 export default function HousingLayout({ children }: { children: React.ReactNode }) {

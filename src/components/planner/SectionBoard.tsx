@@ -12,10 +12,11 @@ import { ROLE_STYLES, type CourseRole } from "@/lib/plannerBridge";
 import { formatDistance, previewWalks, type LegStatus } from "@/lib/campus";
 import {
   CODE, INSTRUCTOR, TSS_HINT, TYPE,
-  clashingCourses, eventsForRow, findFamily, groupSections, isWaitlistOnly, rowsFor,
-  sectionSeats, sectionTopic, sectionTssUrl, sectionWaitlist, sectionWhere, shortWhen, typeLabel,
+  clashingCourses, eventsForRow, findFamily, groupSections, isWaitlistOnly, rowsFor, sectionMeetings, selectedSections,
+  sectionSeats, sectionTopic, sectionWaitlist, sectionWhere, shortWhen, typeLabel,
   type CalEvent, type LectureFamily, type SectionPart, type SectionSelection,
 } from "@/lib/sections";
+import { choicePackage, packageUrl, summarizeChoice } from "@/lib/sectionChoice";
 import type { Course } from "@/components/triton/types";
 import type { ScheduleCourse, SectionStatus } from "@/app/planner/PlannerProvider";
 
@@ -353,6 +354,16 @@ function CourseSections({
     return bits.join(" · ");
   }, [family, selection]);
 
+  // Chosen sections with no published weekly time: they are not on the week,
+  // so nothing can say whether they clash. Unknown is not "fits".
+  const untimed = useMemo(
+    () => selectedSections(families, selection)
+      .filter((r) => !sectionMeetings(r).length)
+      .map((r) => `${typeLabel(r[TYPE])} ${r[CODE]}`)
+      .filter((label, i, all) => all.indexOf(label) === i),
+    [families, selection],
+  );
+
   const preview = (rows: SectionTuple[], label: string) => (on: boolean) =>
     onPreview(on ? { code: course.code, rows, label } : null);
 
@@ -380,13 +391,24 @@ function CourseSections({
     onSelect({ family: family.key, parts: { ...(selection?.parts ?? {}), [p.type]: code } });
   };
 
-  const bookUrl = useMemo(() => {
+  // The TSS package that is exactly this choice: the one every chosen section
+  // shares. Linking from the last-picked section alone fell back to the
+  // course's default package whenever that section belonged to several, so
+  // "Open in TSS" could open another lab's. With no single package, the link
+  // is the course's, and says so.
+  const book = useMemo(() => {
     if (!tss || !family || !status.complete) return null;
-    const picked = family.parts.map((p) => selection?.parts[p.type]).filter(Boolean) as string[];
-    const rowOf = (c: string) => sec.find((s) => s[CODE] === c);
-    const target = picked.length ? rowOf(picked[picked.length - 1]) : family.lecture;
-    return target ? sectionTssUrl(target, tss) || tss : tss;
-  }, [tss, family, status.complete, selection, sec]);
+    const summary = summarizeChoice(sec, families, selection);
+    const pkg = summary ? choicePackage(summary) : null;
+    const exact = pkg ? packageUrl(tss, pkg) : "";
+    return exact ? { url: exact, exact: true } : { url: tss, exact: false };
+  }, [tss, family, status.complete, selection, sec, families]);
+
+  // The chosen lecture's instructor, not the first lecture's: the index row
+  // names whoever teaches lecture A, which is not who a student picking
+  // lecture B will have. Its rating is shown only when it is that person's.
+  const teacher = (family?.lecture?.[INSTRUCTOR] as string | undefined) || row?.p || "";
+  const teacherRating = teacher && teacher === row?.p ? row?.pq ?? null : null;
 
   const multiLecture = families.length > 1;
 
@@ -435,13 +457,17 @@ function CourseSections({
             )}
           </div>
           <p className="truncate text-xs text-gray-600 dark:text-gray-400">{course.title}</p>
-          {row?.p && (
+          {teacher && (
             <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-gray-600 dark:text-gray-400">
-              <span className="truncate">{row.p}</span>
-              {row.pq != null && (
-                <span className="flex shrink-0 items-center gap-0.5 text-amber-600 dark:text-amber-400" title="RateMyProfessors quality">
-                  <Star className="h-3 w-3 fill-current" />
-                  {row.pq.toFixed(1)}
+              <span className="truncate">{teacher}</span>
+              {family?.lecture && <span className="shrink-0 text-gray-500">· {typeLabel(family.lecture[TYPE])} {family.key}</span>}
+              {teacherRating != null && teacherRating > 0 && (
+                <span
+                  className="flex shrink-0 items-center gap-0.5 text-amber-700 dark:text-amber-400"
+                  title={`RateMyProfessors overall rating for ${teacher}, across all their courses`}
+                >
+                  <Star aria-hidden className="h-3 w-3 fill-current" />
+                  {teacherRating.toFixed(1)}
                 </span>
               )}
             </p>
@@ -453,6 +479,12 @@ function CourseSections({
             <p className="mt-1 flex items-center gap-1 text-xs font-medium text-red-700 dark:text-red-400">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
               Overlaps another course — pick a different section below
+            </p>
+          )}
+          {untimed.length > 0 && (
+            <p className="mt-1 text-[11px] leading-snug text-gray-600 dark:text-gray-400">
+              {untimed.join(", ")} {untimed.length === 1 ? "has" : "have"} no published time, so {untimed.length === 1 ? "it isn’t" : "they aren’t"} on
+              the week and can&rsquo;t be checked for clashes yet.
             </p>
           )}
         </div>
@@ -599,15 +631,16 @@ function CourseSections({
                     Done
                   </button>
                 )}
-                {bookUrl && (
+                {book && (
                   <a
-                    href={bookUrl}
+                    href={book.url}
                     target="_blank"
                     rel="noreferrer noopener"
-                    title={TSS_HINT}
+                    title={book.exact ? TSS_HINT : `${TSS_HINT} It opens the course; pick these sections there.`}
                     className="flex items-center gap-1 text-xs font-semibold text-[#182B49] underline-offset-2 hover:underline dark:text-[#FFCD00]"
                   >
-                    Open in TSS <ExternalLink className="h-3.5 w-3.5" />
+                    {book.exact ? "Open these sections in TSS" : `Open ${course.code} in TSS`}
+                    <ExternalLink aria-hidden className="h-3.5 w-3.5" />
                   </a>
                 )}
               </div>

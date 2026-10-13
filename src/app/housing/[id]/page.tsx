@@ -355,7 +355,7 @@ function ContactCard({ listing }: { listing: PublicListing }) {
         <div className="min-w-0">
           <p className="text-sm font-bold">{listing.poster}</p>
           <p className="text-[11px] text-gray-500 dark:text-gray-400">
-            Verified @ucsd.edu · listed {ago(listing.created)} · confirmed available {ago(listing.confirmed)}
+            Signed in with @ucsd.edu · listed {ago(listing.created)} · poster confirmed it available {ago(listing.confirmed)}
           </p>
         </div>
       </div>

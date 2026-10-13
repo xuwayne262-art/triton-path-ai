@@ -155,6 +155,13 @@ export default function FourYearPlanPage() {
             </div>
           </div>
 
+          {/* Only one term's schedule is ever published, so every other quarter
+              here is what the student intends, not what UCSD will offer. */}
+          <p className={`-mt-3 mb-6 text-xs leading-relaxed ${darkMode ? "text-gray-400" : "text-gray-600"}`}>
+            Only {termName || "this term"}&rsquo;s schedule is published. Courses in other quarters are your plan:
+            whether they&rsquo;re offered then, and whether you get a seat, isn&rsquo;t known yet.
+          </p>
+
           {/* The college's GE requirements, for a phone only: from a tablet up
               the Degree Progress rail beside the plan lists the same ones, each
               with its progress, and this tile pushed the plan 220px down. */}

@@ -119,17 +119,20 @@ export default function CourseDetailPage({
   // ── The section choice ─────────────────────────────────────────────────
   const families = useMemo(() => groupSections(detail?.sec ?? []), [detail]);
   const urlPick = useSyncExternalStore(noSubscribe, readPick, () => null);
+  const planner = usePlannerEntry(code, term);
   const [selection, setSelectionState] = useState<SectionSelection | undefined>(undefined);
   const [chosenFor, setChosenFor] = useState<string | null>(null);
-  if (detail && chosenFor !== code) {
+  // Opens on the choice in the address, else the sections this course has in
+  // the Planner (checked against this term's sections), else its only one.
+  if (detail && term && chosenFor !== code) {
     setChosenFor(code);
-    setSelectionState(decodeChoice(urlPick, families) ?? onlyChoice(families));
+    const fromPlanner = planner?.sections ? decodeChoice(encodeChoice(planner.sections), families) : null;
+    setSelectionState(decodeChoice(urlPick, families) ?? fromPlanner ?? onlyChoice(families));
   }
   const setSelection = (next: SectionSelection | undefined) => {
     setSelectionState(next);
     writePick(next);
   };
-  const planner = usePlannerEntry(code, term);
 
   /**
    * Hands the choice to the Planner: the course, and its sections when the

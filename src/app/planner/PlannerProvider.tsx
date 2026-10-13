@@ -119,7 +119,10 @@ export interface DegreeProgressGroup {
     category: string;
     label: string;
     targetUnits: number;
+    /** Units counted toward it: completed, planned and on this term's schedule. */
     current: number;
+    /** Of those, the units the saved Academic History shows completed. */
+    done: number;
   }>;
 }
 
@@ -1075,6 +1078,14 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
         if (cat in activeRequirements) tally[cat] = (tally[cat] ?? 0) + course.units;
       });
     }
+    // Completed units apart from planned ones: a plan is not credit, and a bar
+    // filled by plans alone used to turn green as if the requirement were met.
+    const doneTally: Record<string, number> = {};
+    for (const course of doneCourses) {
+      currentCategories(course)?.forEach((cat) => {
+        if (cat in activeRequirements) doneTally[cat] = (doneTally[cat] ?? 0) + course.units;
+      });
+    }
 
     const majorReqs = MAJOR_REQUIREMENTS[selectedMajor] ?? {};
     const groups: DegreeProgressGroup[] = [{
@@ -1082,7 +1093,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       groupLabel: `Major — ${selectedMajor}`,
       color: "bg-blue-500",
       requirements: Object.entries(majorReqs).map(([cat, target]) => ({
-        category: cat, label: cat, targetUnits: target, current: tally[cat] ?? 0,
+        category: cat, label: cat, targetUnits: target, current: tally[cat] ?? 0, done: doneTally[cat] ?? 0,
       })),
     }];
 
@@ -1090,7 +1101,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       const cg = COLLEGE_REQUIREMENTS[selectedCollege];
       groups.push({
         ...cg,
-        requirements: cg.requirements.map((req) => ({ ...req, current: tally[req.category] ?? 0 })),
+        requirements: cg.requirements.map((req) => ({ ...req, current: tally[req.category] ?? 0, done: doneTally[req.category] ?? 0 })),
       });
     }
 
@@ -1101,13 +1112,13 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
         groupLabel: `Minor — ${selectedMinor}`,
         color: "bg-teal-500",
         requirements: Object.entries(minorReqs).map(([cat, target]) => ({
-          category: cat, label: cat, targetUnits: target, current: tally[cat] ?? 0,
+          category: cat, label: cat, targetUnits: target, current: tally[cat] ?? 0, done: doneTally[cat] ?? 0,
         })),
       });
     }
 
     return groups;
-  }, [progressCourses, currentCategories, selectedCollege, selectedMajor, selectedMinor, activeRequirements]);
+  }, [progressCourses, doneCourses, currentCategories, selectedCollege, selectedMajor, selectedMinor, activeRequirements]);
 
   const value: PlannerValue = {
     darkMode, toggleDarkMode, syncStatus,

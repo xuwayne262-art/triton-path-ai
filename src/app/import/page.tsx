@@ -258,6 +258,7 @@ export default function ImportPage() {
           <Review
             history={review}
             preview={isPreview}
+            replaces={isPreview && saved ? (saved as ParsedHistory & { savedAt?: string }).savedAt ?? "" : null}
             phase={phase}
             onSave={save}
             onDelete={remove}
@@ -269,10 +270,12 @@ export default function ImportPage() {
 }
 
 function Review({
-  history, preview, phase, onSave, onDelete,
+  history, preview, replaces, phase, onSave, onDelete,
 }: {
   history: ParsedHistory;
   preview: boolean;
+  /** When a saved copy exists that saving this preview would replace: its save time ("" if unknown). */
+  replaces: string | null;
   phase: Phase;
   onSave: () => void;
   onDelete: () => void;
@@ -327,7 +330,10 @@ function Review({
               <li key={i} className="break-all">{w}</li>
             ))}
           </ul>
-          <p className="mt-1.5">Everything else below came through. Add these by hand if they matter.</p>
+          <p className="mt-1.5">
+            Everything else below came through. These lines are not saved or counted anywhere — if one matters,
+            check it on TritonLink, and tell us through Contact in the top bar so the reader can learn it.
+          </p>
         </div>
       )}
 
@@ -382,15 +388,24 @@ function Review({
 
       <div className="mt-8 flex flex-wrap items-center gap-2">
         {preview ? (
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={busy}
-            className="inline-flex items-center gap-2 rounded-lg bg-[#182B49] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-[#FFCD00] dark:text-[#182B49]"
-          >
-            {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            Save to my account
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={busy}
+              className="inline-flex items-center gap-2 rounded-lg bg-[#182B49] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-[#FFCD00] dark:text-[#182B49]"
+            >
+              {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+              {replaces != null ? "Replace my saved Academic History" : "Save to my account"}
+            </button>
+            {/* Saving over a saved copy replaces it whole; it is never merged or done quietly. */}
+            {replaces != null && (
+              <p className="basis-full text-xs text-gray-600 dark:text-gray-400">
+                This replaces the copy you saved{replaces ? ` on ${new Date(replaces).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : ""}. Nothing
+                is merged: what you see above is what will be saved.
+              </p>
+            )}
+          </>
         ) : (
           <button
             type="button"

@@ -26,7 +26,7 @@ import {
 } from "@/lib/plat";
 import { WEEKDAYS, planDay, walkTroubles } from "@/lib/campus";
 import {
-  CODE, eventsForRow, findFamily, groupSections, oneOffsFor, rowsFor, selectedSections,
+  CODE, eventsForRow, findFamily, groupSections, oneOffsFor, rowsFor, selectedSections, typeLabel,
   type CalEvent,
 } from "@/lib/sections";
 import { choiceText, decodeChoice, encodeChoice } from "@/lib/sectionChoice";
@@ -78,6 +78,14 @@ const MAX_PENDING_OPTIONS = 8;
 // (lib/planIntent.ts); it is read once and then taken back out of it.
 const noSubscribe = () => () => {};
 const readSearch = () => window.location.search;
+
+/** "B,LA:B03" -> "section B, Lab B03": a pick in words, before the course's sections are loaded. */
+function pickWords(pick: string): string {
+  return pick.split(",").map((t) => {
+    const [type, code] = t.split(":");
+    return code ? `${typeLabel(type)} ${code}` : `section ${t}`;
+  }).join(", ");
+}
 
 function dropIntentFromUrl() {
   try { sessionStorage.removeItem(ADD_INTENT_KEY); } catch { /* nothing kept */ }
@@ -219,18 +227,19 @@ export default function TermWorkspacePage() {
   const search = useSyncExternalStore(noSubscribe, readSearch, () => "");
   const intent = useMemo(() => parseAddIntent(new URLSearchParams(search)), [search]);
   const [askAbout, setAskAbout] = useState<AddIntent | null>(null);
-  const [pendingPick, setPendingPick] = useState<{ code: string; pick: string | null } | null>(null);
+  const [pendingPick, setPendingPick] = useState<{ code: string; pick: string | null; had: boolean } | null>(null);
   const handledIntent = useRef<string | null>(null);
 
   const applyIntent = useCallback((i: AddIntent) => {
     setAskAbout(null);
     dropIntentFromUrl();
+    const had = selectedCourses.some((sc) => sc.course.code === i.code);
     if (!addCourseByCode(i.code)) {
       setToast({ text: `${i.code} isn’t on the ${termName || "current"} schedule, so it wasn’t added.` });
       return;
     }
-    setPendingPick({ code: i.code, pick: i.pick });
-  }, [addCourseByCode, termName]);
+    setPendingPick({ code: i.code, pick: i.pick, had });
+  }, [addCourseByCode, termName, selectedCourses]);
 
   // Both steps run a tick after the render that makes them possible, as the
   // rest of the page's effect-driven state does; the guard is set inside the
@@ -251,7 +260,7 @@ export default function TermWorkspacePage() {
 
   useEffect(() => {
     if (!pendingPick) return;
-    const { code, pick } = pendingPick;
+    const { code, pick, had } = pendingPick;
     // Every offered course has sections, so a pick waits for them — or for the
     // file to fail. "Not loading" is no sign: the load starts a render later.
     const sec = sectionsByCode[code];
@@ -264,7 +273,9 @@ export default function TermWorkspacePage() {
       const whole = sel && pick === encodeChoice(sel);
       setToast({
         text: sel && whole
-          ? `Added ${code} with ${choiceText(families, sel)}, as chosen on its page.`
+          ? had
+            ? `Switched ${code} to ${choiceText(families, sel)}, as chosen on its page.`
+            : `Added ${code} with ${choiceText(families, sel)}, as chosen on its page.`
           : pick && failed
             ? `Added ${code}, but its sections could not be loaded — try again in Sections.`
             : pick
@@ -825,7 +836,7 @@ export default function TermWorkspacePage() {
             >
               <span className="min-w-0 flex-1">
                 Add <span className="font-semibold">{askAbout.code}</span>
-                {askAbout.pick ? ` (${askAbout.pick.split(",").map((t) => t.replace(":", " ")).join(", ")})` : ""} to {termName || "this term"}?
+                {askAbout.pick ? ` (${pickWords(askAbout.pick)})` : ""} to {termName || "this term"}?
                 {" "}It came from a link, so nothing changes until you say so.
               </span>
               <button

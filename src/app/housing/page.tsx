@@ -211,7 +211,7 @@ export default function HousingPage() {
         {/* The site bar already marks Housing as new; the page says what it holds and gets out of the way. */}
         <PageHeader
           title="Housing"
-          description="Sublets and rooms from verified @ucsd.edu students, each one measured by the trip to the classes on your schedule."
+          description="Sublets and rooms posted by students signed in with @ucsd.edu, each one measured by the trip to the classes on your schedule. UCSDPlans checks the poster's address, not the place."
           actions={
             <>
               <Link

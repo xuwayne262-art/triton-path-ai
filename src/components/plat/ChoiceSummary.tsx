@@ -4,7 +4,7 @@ import { AlertTriangle, CalendarPlus, CheckCircle2, ExternalLink, LogIn, X } fro
 import { geLabel, universityRequirement, type CourseDetail, type SectionTuple } from "@/lib/plat";
 import {
   CODE, INSTRUCTOR, TSS_HINT, TYPE,
-  sectionSeats, sectionSeatsAt, sectionWhen, sectionWhere, typeLabel,
+  sameSelection, sectionSeats, sectionSeatsAt, sectionWhen, sectionWhere, typeLabel,
   type LectureFamily, type SectionSelection,
 } from "@/lib/sections";
 import { choicePackage, choiceText, finalOverview, packageUrl, summarizeChoice } from "@/lib/sectionChoice";
@@ -87,12 +87,24 @@ export default function ChoiceSummary({
   })();
   const midterms = summary?.exams.filter((e) => e[TYPE] !== "FI") ?? [];
 
+  // Already in the Planner with exactly this choice, there is nothing to add;
+  // with another one, the button offers to switch the Planner over to it.
+  const sameAsPlanner = Boolean(
+    planner?.scheduled && selection && planner.sections && sameSelection(planner.sections, selection),
+  );
   const addLabel = signedIn === false
     ? (summary?.complete ? `Sign in to add ${choice} to Planner` : `Sign in to add ${code} to Planner`)
     : summary
-      ? (summary.complete ? `Add ${choice} to Planner` : `Choose a ${summary.missing[0]} to add these sections`)
+      ? (!summary.complete
+        ? `Choose a ${summary.missing[0]} to add these sections`
+        : sameAsPlanner
+          ? "These sections are in your Planner"
+          : planner?.scheduled ? `Switch Planner to ${choice}` : `Add ${choice} to Planner`)
       : planner?.scheduled ? `${code} is in your Planner` : `Add ${code} to Planner`;
-  const addDisabled = !offered || (summary != null && !summary.complete) || (!summary && planner?.scheduled === true);
+  const addDisabled = !offered
+    || (summary != null && !summary.complete)
+    || sameAsPlanner
+    || (!summary && planner?.scheduled === true);
 
   return (
     <section aria-labelledby="glance-title" className="rounded-2xl border border-gray-200 p-5 dark:border-white/10">
