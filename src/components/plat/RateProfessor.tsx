@@ -92,7 +92,7 @@ export default function RateProfessor({
 
       <fieldset className="mt-4">
         <legend className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
-          Difficulty <span className="text-gray-400">(optional)</span>
+          Difficulty <span className="text-gray-600 dark:text-gray-400">(optional)</span>
         </legend>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           {SCALE.map((n) => (
@@ -115,7 +115,7 @@ export default function RateProfessor({
 
       <fieldset className="mt-4">
         <legend className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
-          Would you take them again? <span className="text-gray-400">(optional)</span>
+          Would you take them again? <span className="text-gray-600 dark:text-gray-400">(optional)</span>
         </legend>
         <div className="mt-1.5 flex items-center gap-1.5">
           {([true, false] as const).map((v) => (
@@ -158,14 +158,14 @@ export default function RateProfessor({
           <button
             type="button"
             onClick={() => { clear(key); setQuality(0); setDifficulty(0); setAgain(null); setJustSaved(false); }}
-            className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-gray-400 transition hover:text-red-600 dark:hover:text-red-400"
+            className="ml-auto inline-flex items-center gap-1 text-xs font-medium text-gray-600 transition hover:text-red-700 dark:text-gray-400 dark:hover:text-red-400"
           >
             <Trash2 className="h-3.5 w-3.5" />Remove
           </button>
         )}
       </div>
 
-      <p className="mt-3 text-[11px] leading-relaxed text-gray-400 dark:text-gray-500">
+      <p className="mt-3 text-[11px] leading-relaxed text-gray-600 dark:text-gray-400">
         Saved to your account for you alone — your ratings are not published or
         shared, and they do not affect the RateMyProfessors score shown above.
       </p>

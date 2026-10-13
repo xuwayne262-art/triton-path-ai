@@ -51,7 +51,7 @@ export default function ProfessorRow({ prof }: { prof: ProfessorRecord }) {
           {teaching > 0 && (
             <>
               {dept && <Dot />}
-              <span className="text-emerald-600 dark:text-emerald-400">
+              <span className="text-emerald-700 dark:text-emerald-400">
                 {teaching} {teaching === 1 ? "course" : "courses"} this term
               </span>
             </>

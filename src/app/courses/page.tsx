@@ -164,7 +164,7 @@ export default function CoursesPage() {
                     <span className="shrink-0 text-right text-xs text-gray-500">
                       {data && <span className="block">{courses} courses</span>}
                       {offered > 0 && (
-                        <span className="block text-emerald-600 dark:text-emerald-400">
+                        <span className="block text-emerald-700 dark:text-emerald-400">
                           {offered} this term
                         </span>
                       )}
@@ -211,7 +211,7 @@ export default function CoursesPage() {
                     <span className="shrink-0 text-right text-xs text-gray-500">
                       {data && <span className="block">{courses} courses</span>}
                       {offered > 0 && (
-                        <span className="block text-emerald-600 dark:text-emerald-400">
+                        <span className="block text-emerald-700 dark:text-emerald-400">
                           {offered} this term
                         </span>
                       )}

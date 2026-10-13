@@ -483,10 +483,12 @@ export function typicalGrade(gpa: number | null | undefined, terms = 0): Verdict
  * amber, so a 4.8 there looked like the 3.2 the lists colour amber.
  */
 export function ratingTone(q: number | null | undefined): string {
-  if (q == null || q <= 0) return "text-gray-400";
-  if (q >= 4) return "text-emerald-600 dark:text-emerald-400";
-  if (q >= 3) return "text-amber-600 dark:text-amber-400";
-  return "text-red-500 dark:text-red-400";
+  // The 700 shades in light mode: at the 12px these numbers are set in, 600
+  // measured 3.2–3.7:1 against white, under the 4.5:1 small text needs.
+  if (q == null || q <= 0) return "text-gray-600 dark:text-gray-400";
+  if (q >= 4) return "text-emerald-700 dark:text-emerald-400";
+  if (q >= 3) return "text-amber-700 dark:text-amber-400";
+  return "text-red-700 dark:text-red-400";
 }
 
 /**

@@ -106,6 +106,8 @@ export default function CourseResults({
 
   return (
     <div>
+      {/* Names the list for the page outline, so its group headings sit under it. */}
+      <h2 className="sr-only">Courses</h2>
       <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 pb-4 dark:border-white/10">
         <p className="text-sm text-gray-600 dark:text-gray-400" aria-live="polite" aria-atomic="true">
           {loading ? (

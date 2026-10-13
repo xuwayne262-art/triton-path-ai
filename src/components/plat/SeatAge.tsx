@@ -16,7 +16,7 @@ export function SeatAgeNote({
   const age = seatAge(at, now);
   const sentence = seatAgeSentence(age, now);
   return (
-    <span className={`text-[11px] leading-tight text-gray-500 dark:text-gray-400 ${className}`} title={sentence}>
+    <span className={`text-[11px] leading-tight text-gray-600 dark:text-gray-400 ${className}`} title={sentence}>
       <span aria-hidden>
         {age.kind === "unknown" ? (
           "count time unknown"
