@@ -67,7 +67,14 @@ const scheduleRef = (ids, term) =>
 
 /**
  * The term's busiest courses — most students enrolled, so the likeliest to be
- * recounted — with a section id to ask about and the dataset's seat time.
+ * recounted — with a section id to ask about and the dataset's seat time for
+ * that same section.
+ *
+ * Class Planner counts each section on its own clock, so the comparison must
+ * be section against section. Comparing a section's new count with the
+ * course's oldest one would find "a recount" every half hour for as long as
+ * any other section of the course stayed uncounted, and rebuild for nothing.
+ * A dataset from before sections were dated keeps the old course-wide time.
  */
 function sample(term) {
   const out = [];
@@ -78,8 +85,9 @@ function sample(term) {
     for (const [code, c] of Object.entries(file.courses || {})) {
       if (!c.offered || !c.sec?.length) continue;
       const enrolled = c.sec.reduce((n, t) => n + (Number.isInteger(t[12]) ? t[12] : 0), 0);
-      const id = c.sec.find((t) => t[13])?.[13];
-      if (id) out.push({ code, id, enrolled, at: c.seatsAt || null });
+      const dated = c.sec.some((t) => t.length > 20);
+      const probe = dated ? c.sec.find((t) => t[13] && t[20]) : c.sec.find((t) => t[13]);
+      if (probe) out.push({ code, id: probe[13], enrolled, at: (dated ? probe[20] : c.seatsAt) || null });
     }
   }
   return out.sort((a, b) => b.enrolled - a.enrolled).slice(0, SAMPLE);

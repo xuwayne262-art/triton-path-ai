@@ -42,7 +42,7 @@ const CLOCK = /^(\d{1,2}):(\d{2})([ap])$/;
 const S = {
   code: 0, type: 1, days: 2, start: 3, end: 4, building: 5, room: 6, instructor: 7,
   seats: 8, limit: 9, cancelled: 10, waitlist: 11, enrolled: 12, id: 13,
-  startMin: 15, endMin: 16, buildingCode: 17,
+  startMin: 15, endMin: 16, buildingCode: 17, seatsAt: 20,
 };
 
 /** How far a count may fall in one update before it is called a broken fetch. */
@@ -125,11 +125,14 @@ function checkMeta(ds) {
   for (const k of ["offered", "catalogCourses", "gradeRecords"]) {
     if (!(m[k] > 0)) error(`index.json: meta.${k} is ${m[k]}`);
   }
-  for (const k of ["refreshed", "seatsAsOf"]) {
+  for (const k of ["refreshed", "retrieved", "seatsAsOf", "seatsNewest"]) {
     if (!m[k]) continue;
     const t = Date.parse(String(m[k]).replace(" ", "T").replace(/([+-]\d\d)$/, "$1:00"));
     if (!Number.isFinite(t)) error(`index.json: meta.${k} "${m[k]}" is not a time`);
     else if (t > Date.now() + 86_400_000) error(`index.json: meta.${k} ${m[k]} is in the future`);
+  }
+  if (m.seatsAsOf && m.seatsNewest && Date.parse(m.seatsNewest) < Date.parse(m.seatsAsOf)) {
+    error(`index.json: the newest seat count (${m.seatsNewest}) is older than the oldest (${m.seatsAsOf})`);
   }
   if (m.seatsAsOf && Date.now() - Date.parse(m.seatsAsOf) > 14 * 86_400_000) {
     const days = Math.floor((Date.now() - Date.parse(m.seatsAsOf)) / 86_400_000);
@@ -164,6 +167,7 @@ function checkCourses(ds) {
   const badTimes = [];
   const badDays = [];
   const badSeats = [];
+  const badSeatTimes = [];
   const early = new Set();
   const late = new Set();
   const negative = new Set();
@@ -203,6 +207,16 @@ function checkCourses(ds) {
         if (Number.isInteger(seats) && Number.isInteger(limit) && limit >= 0 && seats > limit) badSeats.push(`${label} ${seats} seats left of ${limit}`);
         if (Number.isInteger(seats) && seats < 0) negative.add(label);
         if (t[S.cancelled] !== 0 && t[S.cancelled] !== 1) badSeats.push(`${label} cancelled=${JSON.stringify(t[S.cancelled])}`);
+        // A seat time, when there is one, is a real time no later than now:
+        // pages date a seat count by it and judge how old the count is.
+        if (t.length > S.seatsAt) {
+          const at = t[S.seatsAt];
+          if (typeof at !== "string") badSeatTimes.push(`${label} ${JSON.stringify(at)}`);
+          else if (at) {
+            const ms = Date.parse(at);
+            if (!Number.isFinite(ms) || ms > Date.now() + 3_600_000) badSeatTimes.push(`${label} "${at}"`);
+          }
+        }
         if (t[S.buildingCode] && !buildings[t[S.buildingCode]]) unpinned.add(t[S.buildingCode]);
       }
     }
@@ -216,6 +230,7 @@ function checkCourses(ds) {
   if (badTimes.length) error(`impossible meeting times (${badTimes.length}): ${some(badTimes)}`);
   if (badDays.length) error(`unknown meeting days (${badDays.length}): ${some(badDays)}`);
   if (badSeats.length) error(`impossible seat counts (${badSeats.length}): ${some(badSeats)}`);
+  if (badSeatTimes.length) error(`seat counts dated with something that is not a past time (${badSeatTimes.length}): ${some(badSeatTimes)}`);
 
   if (early.size) warn(`meetings before 6 a.m. (${early.size}): ${some(early)}`);
   if (late.size) warn(`meetings past midnight (${late.size}): ${some(late)}`);

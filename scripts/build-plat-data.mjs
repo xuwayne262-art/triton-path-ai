@@ -462,6 +462,14 @@ function build() {
   const extras = cached("data.json") ? readCache("data.json") : null;
   const catalog = readCache("catalog.json");
   const sched = readCache("classplanner.json");
+  /**
+   * Whether this harvest dates every section's seats (tuple position 20).
+   * Older ones dated a whole course by whichever lecture they asked about,
+   * which is not a time the course's other sections were counted at, so no
+   * seat time at all is published from them.
+   */
+  const datedSeats = Array.isArray(sched.secCols) && sched.secCols.includes("seatsAt");
+  if (!datedSeats) console.log("  classplanner.json predates per-section seat times — publishing seats undated (run: node scripts/fetch-classplanner.mjs)");
   const ge = cached("ge-courses.json") ? readCache("ge-courses.json") : null;
   const requirements = fs.existsSync(path.join(CACHE, "requirements.json")) ? readCache("requirements.json") : null;
   // Without ucsd-easy-a-radar's files, their part comes from what is published.
@@ -672,7 +680,7 @@ function build() {
     c.offered = 1;
     c.faInstructors = s.inst || [];
     if (s.res) c.res = s.res;
-    if (s.seatsAt) c.seatsAt = s.seatsAt;
+    if (datedSeats && s.seatsAt) c.seatsAt = s.seatsAt;
 
     // "Book on TSS" for the course: the enrollable section's package, because
     // TSS books a package (lecture + its discussion), not a bare lecture.
@@ -849,13 +857,25 @@ function build() {
     const counted = new Set();
     const live = c.sec.filter((s) => !isOneOff(s) && s[10] !== 1 && s[9] != null);
     const pool = live.some((s) => s[1] === "LE") ? live.filter((s) => s[1] === "LE") : live;
+    /** When each summed section's seats were counted; a missing one leaves the sum's time to the course. */
+    const poolTimes = [];
+    let undated = false;
     for (const s of pool) {
       const id = s[13] || `${s[0]}|${s[1]}`;
       if (counted.has(id)) continue;
       counted.add(id);
       seatsAvail = (seatsAvail ?? 0) + Math.max(0, s[8] ?? 0);
       seatsLimit = (seatsLimit ?? 0) + s[9];
+      if (typeof s[20] === "string" && s[20]) poolTimes.push(s[20]);
+      else undated = true;
     }
+    // The "N left" a list shows is only as fresh as the oldest count in it. A
+    // summed section with no time of its own falls back on the course's
+    // oldest count, which Class Planner states across all of its sections —
+    // never on a sibling's newer one.
+    const seatsTime = !datedSeats || seatsLimit == null
+      ? null
+      : [...poolTimes, undated ? c.seatsAt : null].filter(Boolean).sort()[0] || null;
 
     const curProf = c.profs.find((p) => p.cur) || null;
     const schedProf = (lec && lec[7]) || (c.faInstructors && c.faInstructors[0]) || null;
@@ -882,6 +902,9 @@ function build() {
       ge: c.ge.length ? c.ge : undefined,
       sa: seatsAvail,
       sl: seatsLimit,
+      // When the oldest of those seats was counted, "2026-09-21T13:01Z"; only
+      // on a row whose count Class Planner dated.
+      ...(seatsTime ? { sat: seatsTime } : {}),
       d: lec ? lec[2] : null,
       st: lec ? lec[3] : null,
       en: lec ? lec[4] : null,
@@ -934,7 +957,14 @@ function build() {
     }))
     .sort((a, b) => a.code.localeCompare(b.code));
 
-  const seatsAsOf = Object.values(sched.courses).map((s) => s.seatsAt).filter(Boolean).sort()[0] || null;
+  // The span of seat counts on the schedule: Class Planner recounts sections
+  // on its own clock, so one dataset holds counts weeks apart, and no single
+  // date can stand for all of them.
+  const seatTimes = datedSeats
+    ? Object.values(sched.courses).flatMap((s) => [s.seatsAt, ...(s.sec || []).map((t) => t[20])]).filter(Boolean).sort()
+    : [];
+  const seatsAsOf = seatTimes[0] || null;
+  const seatsNewest = seatTimes[seatTimes.length - 1] || null;
 
   // ── write ─────────────────────────────────────────────────────────────────
   fs.rmSync(OUT, { recursive: true, force: true });
@@ -950,9 +980,14 @@ function build() {
     catalogCourses: index.length,
     offered: index.filter((c) => c.o).length,
     refreshed: sched.refreshed || null,
-    // The oldest seat count on the schedule: what "seats as of" can honestly
-    // claim for the term as a whole. Each course carries its own `seatsAt`.
+    // When this build read Class Planner. Not a seat time: re-reading counts
+    // UCSD has not redone makes nothing fresher, so pages never date seats by it.
+    ...(sched.generated ? { retrieved: sched.generated } : {}),
+    // The oldest and newest seat counts on the schedule: the range "seats as
+    // of" can honestly claim for the term as a whole. Each section carries its
+    // own time (tuple position 20) and each list row the oldest it sums (`sat`).
     ...(seatsAsOf ? { seatsAsOf } : {}),
+    ...(seatsNewest ? { seatsNewest } : {}),
     // Class Planner's own count of the term's listings, for the automatic
     // update to tell new or withdrawn courses and sections from a quiet day.
     ...(sched.counts ? { counts: sched.counts } : {}),

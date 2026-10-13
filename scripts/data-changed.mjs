@@ -3,7 +3,8 @@
  * Whether a rebuilt dataset says anything the published one does not.
  *
  * A rebuild always stamps when its sources were read — Class Planner's
- * refresh time, the grade archive's retrieval date, the requirement lists'.
+ * refresh time and when this build read it, the grade archive's retrieval
+ * date, the requirement lists'.
  * Those alone are not news, and publishing them would mean a commit and a
  * deploy every day for nothing, so they are set aside before comparing.
  * Everything else counts, the seat counts' own times included: "seats as of"
@@ -29,6 +30,7 @@ const STAMPS = {
   "index.json": (j) => {
     if (!j.meta) return;
     delete j.meta.refreshed;
+    delete j.meta.retrieved;
     delete j.meta.generated;
     // Each source line repeats its read-at time; the counts in them are compared elsewhere.
     delete j.meta.sources;

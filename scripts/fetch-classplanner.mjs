@@ -30,7 +30,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CACHE = path.join(ROOT, ".data-cache");
@@ -256,6 +256,20 @@ function seatTime(label) {
   return Number.isFinite(t) ? new Date(t).toISOString() : null;
 }
 
+/**
+ * A seat-count time as the dataset stores it: to the minute, in UTC —
+ * "2026-10-12T21:31:01.062884+00:00" -> "2026-10-12T21:31Z". Minutes are all
+ * a page shows, and the shorter form keeps eight thousand of them small. Null
+ * for anything that is not a time.
+ */
+function minuteIso(value) {
+  const t = Date.parse(String(value || ""));
+  return Number.isFinite(t) ? `${new Date(t).toISOString().slice(0, 16)}Z` : null;
+}
+
+/** The earliest of some ISO times, ignoring blanks; null when there are none. */
+const oldest = (times) => times.filter(Boolean).sort()[0] || null;
+
 /** Every course in one subject, following `offset` until the server stops. */
 async function fetchSubject(term, subject) {
   const rows = [];
@@ -282,49 +296,83 @@ const scheduleRef = (sectionIds, term) =>
   "CS2" + Buffer.from(JSON.stringify({ s: sectionIds, t: term })).toString("base64").replace(/=+$/, "");
 
 /**
- * TSS module ids, and the building coordinates that ride along with them.
+ * Schedule requests, each as many of `courses`' sections as the server takes.
+ *
+ * Three server rules shape the batches, all discovered by being refused:
+ *   - a ref must be CANONICAL, which means the section ids sorted ascending
+ *     ("Schedule ref is not canonical");
+ *   - a schedule may span at most 15 distinct courses; and
+ *   - it may hold at most 128 sections ("List should have at most 128 items").
+ * A course with more sections than that (SIO 299 has 156) is split across
+ * refs. Exported for the test that pins these limits.
+ */
+export const BATCH_COURSES = 15;
+export const BATCH_SECTIONS = 128;
+
+export function seatBatches(courses) {
+  const batches = [];
+  let ids = new Set();
+  let slugs = new Set();
+  const flush = () => {
+    if (ids.size) batches.push([...ids].sort());
+    ids = new Set();
+    slugs = new Set();
+  };
+  for (const c of courses) {
+    const slug = `${c.subject_code}-${c.course_code}`.toLowerCase();
+    const all = [...new Set((c.sections || []).map((s) => s.section_id).filter(Boolean))].sort();
+    for (let i = 0; i < all.length; i += BATCH_SECTIONS) {
+      const chunk = all.slice(i, i + BATCH_SECTIONS);
+      const newCourse = !slugs.has(slug);
+      if (ids.size + chunk.length > BATCH_SECTIONS || (newCourse && slugs.size >= BATCH_COURSES)) flush();
+      for (const id of chunk) ids.add(id);
+      slugs.add(slug);
+    }
+  }
+  flush();
+  return batches;
+}
+
+/**
+ * TSS module ids, every section's seat-count time, and the building
+ * coordinates that ride along with them.
  *
  * A course's TSS booking URL needs a ModuleID that /catalog/courses does not
  * return; only /schedules/{ref} does, under course_details. That would be one
  * request per course, but a ref may carry several sections and the response
  * details every course they belong to — so batching cuts ~2,400 requests to
- * ~160.
+ * ~160 (see seatBatches for the server's limits).
  *
- * Two server rules shape the batching, both discovered by being refused:
- *   - a ref must be CANONICAL, which means the section ids sorted ascending
- *     ("Schedule ref is not canonical"); and
- *   - a schedule may span at most 15 distinct courses.
- * Fifteen is therefore the batch size, not a tuning choice.
+ * Every section goes in, not one per course. Class Planner counts each
+ * section's seats from TSS on its own clock: on Oct 12, 2026 BILD 4's lecture
+ * B and lab B03 had been recounted that afternoon while lecture A and the
+ * other labs still held Sep 21's counts. Asking about one lecture per course
+ * dated the whole course by that lecture, so a section counted three weeks
+ * earlier could carry a date it never had. Each section's own time
+ * (`timed_events[].section.seat_count_refreshed_at`) is recorded instead; a
+ * section with no timed meeting is not in that list, and its time stays
+ * unknown rather than borrowed from a sibling.
  *
  * Failure here is not fatal: a course with no module id simply gets no TSS
  * link, which is the honest outcome. A URL built with a guessed id opens a TSS
  * error page, which is worse than no link.
  */
 async function harvestTss(term, courses) {
-  const BATCH = 15;
-  // One representative section per course — the parent lecture where there is
-  // one, since that is what the module id hangs off.
-  const probes = courses
-    .map((c) => {
-      const s = c.sections.find((x) => /-000-/.test(x.section_code)) || c.sections[0];
-      return s && s.section_id ? { slug: `${c.subject_code}-${c.course_code}`.toLowerCase(), id: s.section_id } : null;
-    })
-    .filter(Boolean);
-
-  const batches = [];
-  for (let i = 0; i < probes.length; i += BATCH) batches.push(probes.slice(i, i + BATCH));
+  const batches = seatBatches(courses);
 
   const modules = new Map();
   const buildings = new Map();
-  /** slug -> when Class Planner last counted its seats, and why it could not since. */
+  /** slug -> the oldest seat-count time Class Planner gave for it, and why it could not recount. */
   const seats = new Map();
+  /** section id -> when Class Planner last counted that section's seats. */
+  const sectionSeats = new Map();
   let year = "";
   let period = "";
 
   const results = await pool(
     batches,
-    async (batch) => {
-      const ref = scheduleRef([...new Set(batch.map((p) => p.id))].sort(), term);
+    async (ids) => {
+      const ref = scheduleRef(ids, term);
       try {
         return await getJson(`${API}/schedules/${ref}?context=planner`);
       } catch {
@@ -341,9 +389,18 @@ async function harvestTss(term, courses) {
       if (d && d.module_id) modules.set(slug, String(d.module_id));
       // The seat counts are only as fresh as Class Planner's last look at TSS,
       // which can be days older than the term's catalog refresh: on Oct 10,
-      // 2026 every Fall course still showed Sep 21's counts.
+      // 2026 every Fall course still showed Sep 21's counts. Its label for a
+      // course is the oldest count among the sections asked about, and a
+      // course split across requests keeps the oldest of its labels.
       const f = d && d.seat_freshness;
-      if (f) seats.set(slug, { at: f.has_timestamp === false ? null : seatTime(f.label), error: f.refresh_error || null });
+      if (f) {
+        const at = f.has_timestamp === false ? null : minuteIso(seatTime(f.label));
+        const had = seats.get(slug);
+        seats.set(slug, {
+          at: oldest([had?.at, at]),
+          error: had?.error || f.refresh_error || null,
+        });
+      }
       // Every booking URL in one term shares the year/period pair, so read it
       // from a real URL rather than deriving it from the term code.
       if (!year && d && d.tss_booking_url) {
@@ -351,9 +408,14 @@ async function harvestTss(term, courses) {
         if (m) { year = m[1]; period = m[2]; }
       }
     }
+    for (const e of res.timed_events || []) {
+      const s = e && e.section;
+      const at = s && minuteIso(s.seat_count_refreshed_at);
+      if (s && s.section_id && at) sectionSeats.set(s.section_id, at);
+    }
     collectLocations(res, buildings);
   }
-  return { modules, buildings, seats, year, period };
+  return { modules, buildings, seats, sectionSeats, year, period };
 }
 
 /**
@@ -379,10 +441,12 @@ function collectLocations(res, into) {
 /**
  * Coordinates for buildings the TSS pass never saw.
  *
- * That pass probes one section per course — the lecture — so a building used
- * only by discussions or labs never appears in its responses. This asks for
- * exactly one section per missing building, batched under the same two server
- * rules (sorted ids, at most 15 distinct courses per ref).
+ * That pass used to probe one section per course — the lecture — so a
+ * building used only by discussions or labs never appeared in its responses.
+ * It asks about every section now, so this usually finds nothing left to ask;
+ * it stays for a batch that failed. It asks for exactly one section per
+ * missing building, batched under the same server rules (sorted ids, at most
+ * 15 distinct courses per ref).
  */
 async function harvestMissingBuildings(term, courses, buildings) {
   const probes = new Map(); // building code -> { id, course }
@@ -447,13 +511,14 @@ async function main() {
   console.log(`  courses ${raw.length} fetched`);
 
   const tss = has("no-tss")
-    ? { modules: new Map(), buildings: new Map(), seats: new Map(), year: "", period: "" }
+    ? { modules: new Map(), buildings: new Map(), seats: new Map(), sectionSeats: new Map(), year: "", period: "" }
     : await harvestTss(term.term_code, raw);
   if (!has("no-tss")) {
     console.log(`  tss     ${tss.modules.size} module ids, ${tss.buildings.size} buildings, year ${tss.year || "?"} period ${tss.period || "?"}`);
-    const times = [...tss.seats.values()].map((s) => s.at).filter(Boolean).sort();
+    const times = [...tss.sectionSeats.values()].sort();
     const failing = [...tss.seats.values()].filter((s) => s.error).length;
-    console.log(`  seats   counted ${times[0] || "?"} to ${times[times.length - 1] || "?"}${failing ? `; Class Planner could not recount ${failing} courses` : ""}`);
+    const sections = new Set(raw.flatMap((c) => (c.sections || []).map((s) => s.section_id).filter(Boolean))).size;
+    console.log(`  seats   ${times.length} of ${sections} sections dated, counted ${times[0] || "?"} to ${times[times.length - 1] || "?"}${failing ? `; Class Planner could not recount ${failing} courses` : ""}`);
     const added = await harvestMissingBuildings(term.term_code, raw, tss.buildings);
     console.log(`  map     ${added} more buildings located from their own sections`);
   }
@@ -512,6 +577,8 @@ async function main() {
       }
       const instructor = (s.instructors || []).join(", ");
       const display = displayCode(s.section_code);
+      // When Class Planner counted this section's seats, or "" when it did not say.
+      const seatsAt = tss.sectionSeats.get(s.section_id) || "";
 
       // One tuple per class meeting pattern, then one per final — the same
       // grain, and the same 11 leading fields, the old schedule.json used.
@@ -538,14 +605,16 @@ async function main() {
           m ? m.buildingCode : "",
           s.status || "",
           topicOf(e),
+          seatsAt,
         ]);
         sectionCount++;
       }
+      // A final carries no seats of its own, so no seat time either.
       for (const m of finals) {
         sec.push([
           m.date || display, onceType(m), m.date || "", m.start, m.end, m.building, m.room, "",
           null, null, 0, 0, null, s.section_id || "", s.event_package_ids || [], m.startMin, m.endMin,
-          m.buildingCode, "", topicOf(e),
+          m.buildingCode, "", topicOf(e), "",
         ]);
       }
 
@@ -587,8 +656,12 @@ async function main() {
       packages: sum((e) => e.complete_package_count),
       openPackages: sum((e) => e.open_package_count),
       tssModule: tss.modules.get(slug) || null,
-      /** When Class Planner last counted this course's seats (ISO), or null when it does not say. */
-      seatsAt: tss.seats.get(slug)?.at || null,
+      /**
+       * The OLDEST seat count among this course's sections (ISO), or null when
+       * Class Planner gave no time for any of them: the most a course-wide
+       * "seats as of" can claim. Each section's own time is in its tuple.
+       */
+      seatsAt: oldest([tss.seats.get(slug)?.at, ...meta.map((x) => tss.sectionSeats.get(x.id))]),
       topics: topics.length > 1 ? topics : undefined,
       sections: meta,
     };
@@ -632,7 +705,7 @@ async function main() {
       "code", "type", "days", "start", "end", "building", "room", "instructor",
       "seatsAvail", "seatsLimit", "cancelled",
       "waitlist", "enrolled", "sectionId", "packageIds", "startMin", "endMin",
-      "buildingCode", "status", "topic",
+      "buildingCode", "status", "topic", "seatsAt",
     ],
     tss: { year: tss.year, period: tss.period },
     subjectNames,
@@ -657,7 +730,10 @@ function termLabel(code) {
   return m && S[m[1]] ? `${S[m[1]]} 20${m[2]}` : String(code || "");
 }
 
-main().catch((err) => {
-  console.error(`\nfetch-classplanner failed: ${err.message}`);
-  process.exit(1);
-});
+// Run as a script; importing it (for seatBatches, in the tests) fetches nothing.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    console.error(`\nfetch-classplanner failed: ${err.message}`);
+    process.exit(1);
+  });
+}
