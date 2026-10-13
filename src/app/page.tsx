@@ -1,39 +1,29 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
-  ArrowRight, BookOpen, CalendarDays, ChevronRight, GraduationCap, House, Layers, Search, User, X,
+  ArrowRight, BookOpen, CalendarDays, ChevronRight, GraduationCap, Layers, User, X,
 } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
-import PageHeader from "@/components/plat/PageHeader";
 import QuarterClock from "@/components/plat/QuarterClock";
 import { PAGE_PAD, SECTION_TITLE } from "@/components/plat/typeScale";
 import CourseRow from "@/components/plat/CourseRow";
 import PassTimeline from "@/components/plat/PassTimeline";
 import ProfessorRow from "@/components/plat/ProfessorShelf";
-import SearchResults, { type Combined } from "@/components/plat/SearchResults";
+import SearchCombobox from "@/components/plat/SearchCombobox";
 import { GradeBadge } from "@/components/plat/Grade";
-import { noteRecent, useRecent } from "@/components/plat/useRecent";
+import { useRecent } from "@/components/plat/useRecent";
 import {
-  CAMPUS, loadGE, loadIndex, loadProfessors, professorHref, searchCourses, searchProfessors, sortCourses,
+  CAMPUS, loadGE, loadIndex, loadProfessors, sortCourses,
   type CourseRow as Row, type GEFile, type PlatIndex, type ProfessorRecord,
 } from "@/lib/plat";
+import { SHELF_RULE, shelfEligible } from "@/lib/recommend";
 import { agoLabel, type RecentItem } from "@/lib/recent";
 import { DEPARTMENTS } from "@/data/ucsdStructure";
 
 /** Departments worth a shortcut chip; the rest are one click further in. */
 const QUICK_DEPTS = ["CSE", "MATH", "COGS", "ECON", "BILD", "PHYS", "CHEM", "PSYC", "POLI", "DSC"];
-
-/**
- * A course worth recommending: on the schedule, with real capacity, several
- * years of grade history, and at least 3 units. The unit floor matters — without
- * it the "easiest" shelf fills with 2-unit performance ensembles and practica
- * where everyone earns an A but nobody is choosing them to fill a requirement.
- */
-const REAL_CLASS = (c: Row) =>
-  c.o === 1 && (c.sl ?? 0) >= 40 && c.r >= 3 && parseFloat(c.u ?? "0") >= 3;
 
 /**
  * Keeps a shelf varied: cross-listed twins (EDS 126 / SOCI 126) share a title,
@@ -56,39 +46,23 @@ function varied(rows: Row[], count: number): Row[] {
 }
 
 /**
- * The front door says what the site is before anything else: a headline in
- * plain words and the search, with the term and the four places a student
- * goes beside them — each with how much is behind it — then whatever this
- * browser looked at last. The shelves below exist so a student who knows
- * nothing still lands on real courses.
+ * The front door leads with what a visit is for: one line on what the site
+ * is, and the search, with the quarter as a compact strip under it. Beside
+ * them, the three things a student comes to do — browse courses, find a GE,
+ * plan a week — in one list, with Housing and the Academic History as the
+ * student services they are. Then whatever this browser looked at last, and shelves of real courses
+ * for a student who knows nothing yet.
  */
 export default function HomePage() {
-  const router = useRouter();
   const [data, setData] = useState<PlatIndex | null>(null);
   const [ge, setGE] = useState<GEFile | null>(null);
-  const [q, setQ] = useState("");
-  const [active, setActive] = useState(0);
-  // The results close on a click elsewhere or Escape, as the bar's search does.
-  const [open, setOpen] = useState(false);
-  const searchRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    const onDown = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, []);
-
   const [profs, setProfs] = useState<ProfessorRecord[]>([]);
+  const [q, setQ] = useState("");
+
   useEffect(() => { loadIndex().then(setData).catch(() => {}); }, []);
   useEffect(() => { loadProfessors().then((d) => setProfs(d.professors)).catch(() => {}); }, []);
   useEffect(() => { loadGE().then(setGE).catch(() => {}); }, []);
   const { items: recent, clear: clearRecent } = useRecent();
-
-  // Everyone in the grade archive is on file, but little more than half have a
-  // RateMyProfessors score; this used to print the whole file (4,205) as rated.
-  const rated = useMemo(() => profs.filter((p) => p.q != null && p.q > 0).length, [profs]);
 
   /** Distinct courses on any college's GE list, and on the DEI list. */
   const geCounts = useMemo(() => {
@@ -97,27 +71,6 @@ export default function HomePage() {
     for (const a of ge.areas) if (a.college !== CAMPUS) for (const c of ge.lists[a.key] ?? []) college.add(c);
     return { college: college.size, dei: ge.lists[`${CAMPUS}:DEI`]?.length ?? 0 };
   }, [ge]);
-
-  const results = useMemo<Combined>(
-    () => ({
-      profs: searchProfessors(profs, q, 4),
-      courses: searchCourses(data?.courses ?? [], q, 6),
-    }),
-    [data, profs, q],
-  );
-
-  const flat = useMemo(
-    () => [
-      ...results.profs.map((p) => professorHref(p.prof.n)),
-      ...results.courses.map(({ row }) => {
-        const i = row.k.lastIndexOf(" ");
-        return `/course/${encodeURIComponent(row.k.slice(0, i))}/${encodeURIComponent(row.k.slice(i + 1))}`;
-      }),
-    ],
-    [results],
-  );
-  const [activeFor, setActiveFor] = useState(q);
-  if (activeFor !== q) { setActiveFor(q); setActive(0); }
 
   /** Rated 4.0+ with a real sample size, and actually on this term's schedule. */
   const topProfs = useMemo(() => {
@@ -128,13 +81,12 @@ export default function HomePage() {
       .slice(0, 6);
   }, [profs]);
 
-  const easiest = useMemo(() => {
-    if (!data) return null;
-    const pool = data.courses.filter(REAL_CLASS);
-    // The same order as "Best grades" everywhere else, so the shelf's letters
-    // descend too. REAL_CLASS already demands three terms of history.
-    return varied(sortCourses(pool.filter((c) => c.g != null && c.g > 0), "grade"), 6);
-  }, [data]);
+  // The same order as "Highest historical average" everywhere else, so the
+  // shelf's letters descend too, over a pool whose rule the shelf states.
+  const highest = useMemo(
+    () => (data ? varied(sortCourses(data.courses.filter(shelfEligible), "grade"), 6) : null),
+    [data],
+  );
 
   /** Subjects with the most on-schedule courses — the left rail's index. */
   const busiest = useMemo(() => {
@@ -145,170 +97,123 @@ export default function HomePage() {
       .slice(0, 12);
   }, [data]);
 
-  const go = (href: string | undefined) => {
-    if (!href) return;
-    if (q.trim().length >= 2) noteRecent({ kind: "search", key: q.trim(), label: q.trim(), href: "/" });
-    router.push(href);
-  };
-
   const searches = recent.filter((r) => r.kind === "search");
   const visits = recent.filter((r) => r.kind !== "search");
+  const term = data?.meta.termName ?? "this term";
 
   return (
     <PlatShell hideSearch>
       <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 ${PAGE_PAD}`}>
-        {/* ── What this is and the way in, beside the term at a glance ─────── */}
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-12 lg:gap-12">
+          {/* ── What this is, and the way in ──────────────────────────────── */}
           <div className="min-w-0 lg:col-span-7">
-            {/* The quarter, live, first thing in the top-left corner. */}
-            <QuarterClock />
-
-            <PageHeader
-              className="mt-10"
-              title="Grades, professors and seats for every UCSD course"
-              description={data
-                ? `${data.meta.gradeRecords.toLocaleString()} published grade distributions from ${data.meta.years}, matched to who is teaching in ${data.meta.termName}.`
-                : "Loading UCSD grade distributions…"}
-            />
-
-            <div ref={searchRef} className="relative mt-6 max-w-2xl">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <input
-                ref={inputRef}
-                value={q}
-                onChange={(e) => { setQ(e.target.value); setOpen(true); }}
-                onFocus={() => setOpen(true)}
-                onKeyDown={(e) => {
-                  if (e.key === "ArrowDown") { e.preventDefault(); setOpen(true); setActive((i) => Math.min(i + 1, flat.length - 1)); }
-                  else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
-                  else if (e.key === "Enter") { e.preventDefault(); go(flat[active]); }
-                  else if (e.key === "Escape") setOpen(false);
-                }}
-                aria-label="Search courses and professors"
-                placeholder="CSE 11, organic chemistry, Joe Politz…"
-                className="h-12 w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 text-sm shadow-sm outline-none transition
-                           placeholder:text-gray-400 focus:border-[#1B2C4F] focus:ring-2 focus:ring-[#1B2C4F]/10
-                           dark:border-white/10 dark:bg-white/5 dark:text-gray-100 dark:focus:border-[#FFC72C] dark:focus:ring-[#FFC72C]/15"
-              />
-              {open && q.trim().length >= 2 && (
-                <div className="absolute left-0 right-0 top-full z-40 mt-2 max-h-[26rem] overflow-y-auto rounded-xl border border-gray-200 bg-white p-1 shadow-xl dark:border-white/10 dark:bg-[#101a2b]">
-                  <SearchResults
-                    results={results}
-                    query={q}
-                    active={active}
-                    onHover={setActive}
-                    onPick={go}
-                  />
-                </div>
+            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
+              Grades, professors and seats for every UCSD course
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+              See how a course has graded since 2015, who teaches it in {term}, and which sections fit your week.
+              {data && (
+                <span className="text-gray-600 dark:text-gray-400">
+                  {" "}{data.meta.gradeRecords.toLocaleString()} published grade distributions ·{" "}
+                  {data.meta.offered.toLocaleString()} courses on the {data.meta.termName} schedule.
+                </span>
               )}
-            </div>
+            </p>
+
+            <SearchCombobox
+              variant="hero"
+              className="mt-5 max-w-2xl"
+              value={q}
+              onValueChange={setQ}
+              placeholder="CSE 11, organic chemistry, Joe Politz…"
+            />
 
             {/* Recent searches first, then department shortcuts. */}
             {searches.length > 0 && (
               <div className="mt-4 flex max-w-2xl flex-wrap items-center gap-2">
-                <span className="mr-0.5 text-xs text-gray-500 dark:text-gray-400">Recent searches</span>
+                <span className="mr-0.5 text-xs text-gray-600 dark:text-gray-400">Recent searches</span>
                 {searches.map((s) => (
                   <button
                     key={s.key}
                     type="button"
-                    onClick={() => { setQ(s.key); setOpen(true); inputRef.current?.focus(); }}
-                    className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-700 transition hover:border-[#1B2C4F] dark:border-white/10 dark:bg-white/5 dark:text-gray-200 dark:hover:border-[#FFC72C]"
+                    onClick={() => {
+                      setQ(s.key);
+                      document.querySelector<HTMLInputElement>('input[role="combobox"]')?.focus();
+                    }}
+                    className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-800 transition hover:border-[#1B2C4F] dark:border-white/10 dark:bg-white/5 dark:text-gray-200 dark:hover:border-[#FFC72C]"
                   >
                     {s.label}
                   </button>
                 ))}
               </div>
             )}
-            <div className="mt-4 flex max-w-2xl flex-wrap items-center gap-2">
+            <nav aria-label="Departments" className="mt-4 flex max-w-2xl flex-wrap items-center gap-2">
               {QUICK_DEPTS.map((d) => (
                 <Link
                   key={d}
                   href={`/courses/${d}`}
-                  className="rounded-full border border-gray-200 bg-white px-3 py-1 font-mono text-xs font-semibold text-gray-600 transition hover:border-[#1B2C4F] hover:text-[#1B2C4F] dark:border-white/10 dark:bg-white/5 dark:text-gray-300 dark:hover:border-[#FFC72C] dark:hover:text-[#FFC72C]"
+                  className="rounded-full border border-gray-200 bg-white px-3 py-1 font-mono text-xs font-semibold text-gray-700 transition hover:border-[#1B2C4F] hover:text-[#1B2C4F] dark:border-white/10 dark:bg-white/5 dark:text-gray-300 dark:hover:border-[#FFC72C] dark:hover:text-[#FFC72C]"
                 >
                   {d}
                 </Link>
               ))}
-              <Link href="/courses" className="px-2 text-xs font-semibold text-gray-600 hover:underline dark:text-gray-300">
+              <Link href="/courses" className="px-2 text-xs font-semibold text-gray-700 hover:underline dark:text-gray-300">
                 all {DEPARTMENTS.length} departments →
               </Link>
-            </div>
+            </nav>
+
+            {/* The quarter as context, under the search it must not outrank. */}
+            <QuarterClock className="mt-8 max-w-2xl" />
           </div>
 
-          {/* The term at a glance, then the four places a student goes. The
-              column runs as far down as the clock and the search beside it, so
-              the corner under the term card is not left empty. */}
-          <div className="flex flex-col gap-6 lg:col-span-5">
-            <div className="rounded-2xl border border-gray-200 p-6 dark:border-white/10">
-              <div className="flex items-baseline justify-between gap-3">
-                <h2 className={SECTION_TITLE}>
-                  {data?.meta.termName ?? "This term"} at a glance
-                </h2>
-                <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{data?.meta.term}</span>
-              </div>
-
-              <dl className="mt-5 grid grid-cols-3 gap-4">
-                <Stat label="on the schedule" value={data?.meta.offered} />
-                <Stat label="courses catalogued" value={data?.meta.catalogCourses} />
-                <Stat label="professors rated" value={rated || undefined} />
-              </dl>
-
-              <div className="mt-6 border-t border-gray-100 pt-5 dark:border-white/5">
-                <PassTimeline termName={data?.meta.termName} />
-              </div>
-            </div>
-
-            {/* One list rather than four boxes. The Courses row leaves its
-                counts to the card above, which already shows them. */}
-            <nav
-              aria-label="Start here"
-              className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10"
-            >
+          {/* ── What to do ────────────────────────────────────────────────── */}
+          <div className="flex min-w-0 flex-col gap-5 lg:col-span-5">
+            <nav aria-label="Start here" className="overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10">
               <EntryRow
                 href="/courses"
                 icon={<BookOpen className="h-4 w-4" />}
-                title="Courses"
+                title="Browse courses"
                 detail="Every course's grades, professors and seats, by department"
-                cta="Browse by department"
               />
               <EntryRow
                 href="/ge"
                 icon={<GraduationCap className="h-4 w-4" />}
-                title="Easy GEs"
-                count={geCounts ? `${geCounts.college.toLocaleString()} GE courses` : undefined}
-                detail={geCounts ? `Ranked by grades, by college — plus ${geCounts.dei} for DEI and the AHI list` : "Ranked by the grades students got"}
-                cta="Find a GE"
+                title="Find a GE"
+                count={geCounts ? `${geCounts.college.toLocaleString()} on college lists` : undefined}
+                detail={geCounts ? `By college, with past grades — plus ${geCounts.dei} for DEI and the AHI list` : "By college, with past grades"}
               />
               <EntryRow
                 href="/planner"
                 icon={<CalendarDays className="h-4 w-4" />}
-                title="Planner"
-                detail="Your week of sections on a map, and all four years against your major"
-                cta="Open the planner"
+                title="Plan your week"
+                detail="Sections on a calendar and a map, and all four years against your major · sign in with @ucsd.edu"
                 filled
               />
-              <EntryRow
-                href="/housing"
-                icon={<House className="h-4 w-4" />}
-                title="Housing"
-                badge="New"
-                detail="Sublets from verified @ucsd.edu students, by the walk to your classes"
-                cta="Find a place"
-              />
+              <div className="border-t border-gray-100 px-5 py-3 dark:border-white/5">
+                <PassTimeline termName={data?.meta.termName} />
+              </div>
             </nav>
+
+            <p className="text-xs leading-relaxed text-gray-600 dark:text-gray-400">
+              Also for UCSD students:{" "}
+              <Link href="/housing" className="font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]">Housing</Link>
+              {" "}— sublets posted by @ucsd.edu students, by the walk to your classes ·{" "}
+              <Link href="/import" className="font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]">Academic History</Link>
+              {" "}— import your completed courses for planning.
+            </p>
           </div>
         </div>
 
         {/* ── Pick up where you left off ─────────────────────────────────── */}
         {visits.length > 0 && (
-          <section className="mt-16">
+          <section className="mt-16" aria-labelledby="recent-title">
             <div className="flex items-baseline justify-between gap-2">
-              <h2 className={SECTION_TITLE}>Recently viewed</h2>
-              <button type="button" onClick={clearRecent} className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
-                <X className="h-3 w-3" /> Clear
+              <h2 id="recent-title" className={SECTION_TITLE}>Recently viewed</h2>
+              <button type="button" onClick={clearRecent} className="inline-flex items-center gap-1 text-xs font-semibold text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+                <X aria-hidden className="h-3 w-3" /> Clear
               </button>
             </div>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Kept in this browser only.</p>
+            <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">Kept in this browser only.</p>
             <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {visits.map((v) => <RecentCard key={`${v.kind}:${v.key}`} item={v} index={data} />)}
             </ul>
@@ -318,10 +223,10 @@ export default function HomePage() {
         {/* ── The index on the left, the shelves across the rest ─────────── */}
         <div className="mt-16 grid grid-cols-1 gap-14 lg:grid-cols-12 lg:gap-12">
           {/* An index, not courses: on a phone it waits below the two shelves. */}
-          <aside className="order-last lg:order-none lg:col-span-3">
-            <h2 className={SECTION_TITLE}>Busiest subjects</h2>
-            <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-              Ranked by how many courses each one is actually running this term.
+          <aside className="order-last lg:order-none lg:col-span-3" aria-labelledby="busiest-title">
+            <h2 id="busiest-title" className={SECTION_TITLE}>Busiest subjects</h2>
+            <p className="mt-1 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
+              Ranked by how many courses each one is running this term.
             </p>
 
             <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10">
@@ -335,65 +240,61 @@ export default function HomePage() {
                       <span className="w-12 shrink-0 font-mono text-xs font-bold text-[#1B2C4F] dark:text-[#FFC72C]">
                         {s.code}
                       </span>
-                      <span
-                        title={`${s.name} — ${s.offered} ${s.offered === 1 ? "course" : "courses"} this term`}
-                        className="min-w-0 flex-1 truncate text-sm text-gray-700 group-hover:underline dark:text-gray-200"
-                      >
+                      <span className="min-w-0 flex-1 text-sm text-gray-800 group-hover:underline dark:text-gray-200">
                         {s.name}
                       </span>
-                      <span className="shrink-0 font-mono text-xs tabular-nums text-gray-500 dark:text-gray-400">
+                      <span className="shrink-0 font-mono text-xs tabular-nums text-gray-600 dark:text-gray-400" aria-label={`${s.offered} courses this term`}>
                         {s.offered}
                       </span>
                     </Link>
                   ))
-                : <p className="py-10 text-center text-xs text-gray-500">Loading…</p>}
+                : <p className="py-10 text-center text-xs text-gray-600 dark:text-gray-400">Loading…</p>}
             </div>
 
             <Link
               href="/courses"
               className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]"
             >
-              All {DEPARTMENTS.length} departments <ArrowRight className="h-3 w-3" />
+              All {DEPARTMENTS.length} departments <ArrowRight aria-hidden className="h-3 w-3" />
             </Link>
           </aside>
 
-          {/* One shelf above the other, each the full width: side by side,
-              both were squeezed to the point of cutting off course titles. */}
           <div className="space-y-14 lg:col-span-9">
-            <section>
+            <section aria-labelledby="highest-title">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 className={SECTION_TITLE}>Kindest grading this term</h2>
+                <h2 id="highest-title" className={SECTION_TITLE}>Highest historical averages on the {term} schedule</h2>
                 <Link href="/ge" className="text-xs font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]">
-                  More easy courses →
+                  Find GEs by college →
                 </Link>
               </div>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Real lecture courses with several years of history behind the average — not 12-seat seminars.{" "}
+              <p className="mt-1 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
+                {SHELF_RULE} A high past average says nothing about workload, and some courses still have
+                restrictions — check each one.{" "}
                 <Link href="/about#letter" className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white">How the letter is worked out</Link>
               </p>
               <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10">
-                {easiest
-                  ? easiest.map((c) => <CourseRow key={c.k} row={c} />)
-                  : <p className="py-12 text-center text-sm text-gray-500">Loading…</p>}
+                {highest
+                  ? highest.map((c) => <CourseRow key={c.k} row={c} />)
+                  : <p className="py-12 text-center text-sm text-gray-600 dark:text-gray-400">Loading…</p>}
               </div>
             </section>
 
             {/* People, not courses. Open a department to rank its whole faculty. */}
-            <section>
+            <section aria-labelledby="profs-title">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 className={SECTION_TITLE}>Best-rated professors teaching now</h2>
+                <h2 id="profs-title" className={SECTION_TITLE}>Highest-rated professors teaching now</h2>
                 <Link href="/courses" className="text-xs font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]">
                   Rank a department&rsquo;s professors →
                 </Link>
               </div>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Rated 4.0 or better on RateMyProfessors with at least 15 reviews, and on the{" "}
+              <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                RateMyProfessors overall rating 4.0 or better from at least 15 reviews, across all their courses, and on the{" "}
                 {data?.meta.termName ?? "current"} schedule.
               </p>
               <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10">
                 {topProfs
                   ? topProfs.map((p) => <ProfessorRow key={p.n} prof={p} />)
-                  : <p className="py-12 text-center text-sm text-gray-500">Loading…</p>}
+                  : <p className="py-12 text-center text-sm text-gray-600 dark:text-gray-400">Loading…</p>}
               </div>
             </section>
           </div>
@@ -403,45 +304,25 @@ export default function HomePage() {
   );
 }
 
-/** One figure in the term card. Undefined reads as loading, not as zero. */
-function Stat({ label, value }: { label: string; value?: number }) {
-  return (
-    <div>
-      <dt className="sr-only">{label}</dt>
-      <dd className="text-xl font-black tracking-tight">
-        {value != null ? value.toLocaleString() : <span className="text-gray-300 dark:text-gray-600">—</span>}
-      </dd>
-      <p className="mt-0.5 text-xs leading-tight text-gray-500 dark:text-gray-400">{label}</p>
-    </div>
-  );
-}
-
-/**
- * A front door: what it is, how much is behind it, and where it goes — one row
- * of a list, since the bar above already names every one of them. The
- * planner's icon is filled: it is the one part of the site that is yours.
- */
+/** One of the things a student comes to do: what it is, and where it goes. */
 function EntryRow({
-  href, icon, title, count, detail, cta, badge, filled = false,
+  href, icon, title, count, detail, filled = false,
 }: {
   href: string;
   icon: React.ReactNode;
   title: string;
   count?: string;
   detail: string;
-  /** What following it does, in words; shown on hover. */
-  cta: string;
-  badge?: string;
   filled?: boolean;
 }) {
   return (
     <Link
       href={href}
-      title={cta}
-      className="group flex flex-1 items-center gap-4 border-b border-gray-100 px-5 py-4 transition last:border-b-0 hover:bg-gray-50 dark:border-white/5 dark:hover:bg-white/5"
+      className="group flex items-center gap-4 border-b border-gray-100 px-5 py-3.5 transition last:border-b-0 hover:bg-gray-50 dark:border-white/5 dark:hover:bg-white/5"
     >
       <span
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+        aria-hidden
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
           filled
             ? "bg-[#1B2C4F] text-[#FFC72C] dark:bg-[#FFC72C] dark:text-[#1B2C4F]"
             : "bg-[#1B2C4F]/[0.06] text-[#1B2C4F] dark:bg-[#FFC72C]/10 dark:text-[#FFC72C]"
@@ -452,16 +333,11 @@ function EntryRow({
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span className="text-sm font-semibold">{title}</span>
-          {badge && (
-            <span className="rounded-full bg-[#FFC72C] px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-[#1B2C4F]">
-              {badge}
-            </span>
-          )}
-          {count && <span className="text-xs text-gray-500 dark:text-gray-400">{count}</span>}
+          {count && <span className="text-xs text-gray-600 dark:text-gray-400">{count}</span>}
         </span>
-        <span className="mt-0.5 block text-xs leading-relaxed text-gray-600 dark:text-gray-300">{detail}</span>
+        <span className="mt-0.5 block text-xs leading-relaxed text-gray-700 dark:text-gray-300">{detail}</span>
       </span>
-      <ChevronRight className="h-4 w-4 shrink-0 text-gray-300 transition group-hover:translate-x-0.5 group-hover:text-gray-500 dark:text-gray-600 dark:group-hover:text-gray-300" />
+      <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-gray-400 transition group-hover:translate-x-0.5 group-hover:text-gray-600 motion-reduce:transition-none dark:text-gray-500 dark:group-hover:text-gray-300" />
     </Link>
   );
 }
@@ -478,7 +354,7 @@ function RecentCard({ item, index }: { item: RecentItem; index: PlatIndex | null
         {item.kind === "course" ? (
           <GradeBadge gpa={row?.g} terms={row?.r ?? 0} size="sm" />
         ) : (
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-500 dark:bg-white/10 dark:text-gray-300">
+          <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300">
             {item.kind === "professor" ? <User className="h-4 w-4" /> : <Layers className="h-4 w-4" />}
           </span>
         )}
@@ -487,7 +363,7 @@ function RecentCard({ item, index }: { item: RecentItem; index: PlatIndex | null
             {item.kind === "course" && <span className="mr-1.5 font-mono text-xs font-bold text-[#182B49] dark:text-[#FFCD00]">{item.key}</span>}
             {item.label}
           </span>
-          <span className="block text-xs text-gray-500 dark:text-gray-400">
+          <span className="block text-xs text-gray-600 dark:text-gray-400">
             {item.kind === "professor" ? "Professor" : item.kind === "department" ? "Department" : "Course"} · {agoLabel(item.at)}
           </span>
         </span>
