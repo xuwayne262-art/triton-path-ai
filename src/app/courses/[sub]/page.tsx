@@ -1,12 +1,14 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { Suspense, use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ChevronRight, ExternalLink, Star } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import PageHeader from "@/components/plat/PageHeader";
 import { PAGE_GAP, PAGE_PAD, SECTION_TITLE } from "@/components/plat/typeScale";
 import CourseResults, { DEFAULT_FILTERS, type ResultFilters } from "@/components/plat/CourseResults";
+import { filtersFromQuery, filtersToQuery } from "@/lib/courseFilters";
 import { GradeBadge } from "@/components/plat/Grade";
 import { useNoteVisit } from "@/components/plat/useRecent";
 import {
@@ -21,6 +23,17 @@ import { freshNote, offeringsForSubjects } from "@/data/departmentOfferings";
 /** How many professors show before "See all". */
 const PROFS_SHOWN = 8;
 
+/** A department's list opens by course number. */
+const BASE: ResultFilters = { ...DEFAULT_FILTERS, sort: "code" };
+
+export default function DepartmentPage({ params }: { params: Promise<{ sub: string }> }) {
+  return (
+    <Suspense fallback={<PlatShell><p role="status" className="py-24 text-center text-sm text-gray-600 dark:text-gray-400">Loading courses…</p></PlatShell>}>
+      <Department params={params} />
+    </Suspense>
+  );
+}
+
 /**
  * A department page spanning every subject code the department owns, so
  * Biological Sciences shows BILD through BGGN in one place instead of six
@@ -29,8 +42,9 @@ const PROFS_SHOWN = 8;
  * The route param accepts a department id ("biology") or any subject code
  * ("BILD"), since links and bookmarks use both.
  */
-export default function DepartmentPage({ params }: { params: Promise<{ sub: string }> }) {
+function Department({ params }: { params: Promise<{ sub: string }> }) {
   const { sub: raw } = use(params);
+  const search = useSearchParams();
   const param = decodeURIComponent(raw);
 
   const dept = departmentById(param) ?? departmentForSubject(param.toUpperCase());
@@ -49,7 +63,16 @@ export default function DepartmentPage({ params }: { params: Promise<{ sub: stri
   const [data, setData] = useState<PlatIndex | null>(null);
   const [profs, setProfs] = useState<ProfessorRecord[] | null>(null);
   const [showAllProfs, setShowAllProfs] = useState(false);
-  const [filters, setFilters] = useState<ResultFilters>({ ...DEFAULT_FILTERS, sort: "code" });
+  // The list's filters live in the address, so a reload, a shared link and
+  // Back all return to the same list; typing in the text filter replaces the
+  // entry rather than adding one per letter.
+  const filters = useMemo(() => filtersFromQuery(search, BASE), [search]);
+  const setFilters = (f: ResultFilters) => {
+    const qs = filtersToQuery(f, BASE, new URLSearchParams()).toString();
+    const url = `${window.location.pathname}${qs ? `?${qs}` : ""}`;
+    if (f.q !== filters.q) window.history.replaceState(null, "", url);
+    else window.history.pushState(null, "", url);
+  };
 
   useEffect(() => { loadIndex().then(setData).catch(() => {}); }, []);
   useEffect(() => { loadProfessors().then((f) => setProfs(f.professors)).catch(() => setProfs([])); }, []);
@@ -155,7 +178,8 @@ export default function DepartmentPage({ params }: { params: Promise<{ sub: stri
               filters={filters}
               onChange={setFilters}
               termName={data?.meta.termName}
-              emptyHint={data ? `No ${title} courses match these filters.` : "Loading…"}
+              loading={!data}
+              emptyHint={`No ${title} courses match these filters.`}
             />
           </div>
 

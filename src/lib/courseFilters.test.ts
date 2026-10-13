@@ -1,7 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { applyFilters, DEFAULT_FILTERS, splitByTerm } from "./courseFilters";
+import { applyFilters, DEFAULT_FILTERS, filtersFromQuery, filtersToQuery, splitByTerm } from "./courseFilters";
 import { typicalGrade, type PlatIndex } from "./plat";
 
 const index = JSON.parse(readFileSync(new URL("../../public/data/plat/index.json", import.meta.url), "utf8")) as PlatIndex;
@@ -73,5 +73,26 @@ describe("reading this term's courses first", () => {
       const letters = part.map((c) => typicalGrade(c.g)?.letter).filter((l): l is string => Boolean(l));
       assert.equal(letters.length, part.filter((c) => c.g != null && c.g > 0).length);
     }
+  });
+});
+
+describe("a list's filters in the address", () => {
+  const base = { ...DEFAULT_FILTERS, sort: "code" as const };
+
+  test("round-trip, leaving the defaults out", () => {
+    const f = { ...base, q: "data", offeredOnly: true, noPre: true, units: "4", load: "2.2", sort: "rating" as const };
+    const q = filtersToQuery(f, base, new URLSearchParams());
+    assert.equal(q.toString(), "q=data&units=4&rmp=2.2&term=1&nopre=1&sort=rating");
+    assert.deepEqual(filtersFromQuery(q, base), f);
+    assert.equal(filtersToQuery(base, base, new URLSearchParams()).toString(), "");
+  });
+
+  test("fall back to the page's defaults on anything unreadable", () => {
+    const f = filtersFromQuery(new URLSearchParams("sort=evil&units=12&rmp=9&term=yes&q=" + "x".repeat(200)), base);
+    assert.equal(f.sort, "code");
+    assert.equal(f.units, "any");
+    assert.equal(f.load, "any");
+    assert.equal(f.offeredOnly, false);
+    assert.equal(f.q.length, 80);
   });
 });

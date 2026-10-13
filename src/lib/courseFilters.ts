@@ -49,6 +49,46 @@ export function splitByTerm(rows: CourseRow[]): { offered: CourseRow[]; other: C
   return { offered, other };
 }
 
+// ── In a link ───────────────────────────────────────────────────────────────
+// A list's filters ride in the address — `?term=1&sort=rating&q=film` — so a
+// reload, a shared link and Back all return to the same list. Defaults are
+// left out, and anything unreadable falls back to them.
+
+const SORT_KEYS = new Set<SortKey>(["grade", "code", "rating"]);
+const UNIT_CAPS = new Set(["1", "2", "3", "4", "5", "6"]);
+const LOAD_CAPS = new Set(["2.2", "3.2", "4"]);
+
+/** The filters in a query, over `base` (a page's own defaults, e.g. its sort). */
+export function filtersFromQuery(params: { get(name: string): string | null }, base: ResultFilters): ResultFilters {
+  const sort = params.get("sort") ?? "";
+  const units = params.get("units") ?? "";
+  const load = params.get("rmp") ?? "";
+  return {
+    ...base,
+    q: (params.get("q") ?? "").slice(0, 80),
+    units: UNIT_CAPS.has(units) ? units : base.units,
+    load: LOAD_CAPS.has(load) ? load : base.load,
+    offeredOnly: params.get("term") === "1",
+    openOnly: params.get("open") === "1",
+    noPre: params.get("nopre") === "1",
+    hasGrades: params.get("graded") === "1",
+    sort: SORT_KEYS.has(sort as SortKey) ? (sort as SortKey) : base.sort,
+  };
+}
+
+/** Writes what differs from `base` into `q`. */
+export function filtersToQuery(f: ResultFilters, base: ResultFilters, q: URLSearchParams): URLSearchParams {
+  if (f.q.trim()) q.set("q", f.q.trim());
+  if (f.units !== base.units) q.set("units", f.units);
+  if (f.load !== base.load) q.set("rmp", f.load);
+  if (f.offeredOnly) q.set("term", "1");
+  if (f.openOnly) q.set("open", "1");
+  if (f.noPre) q.set("nopre", "1");
+  if (f.hasGrades) q.set("graded", "1");
+  if (f.sort !== base.sort) q.set("sort", f.sort);
+  return q;
+}
+
 export function applyFilters(rows: CourseRow[], f: ResultFilters): CourseRow[] {
   const q = f.q.trim().toLowerCase();
   const maxUnits = f.units === "any" ? Infinity : Number(f.units);

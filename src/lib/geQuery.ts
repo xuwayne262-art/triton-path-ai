@@ -18,7 +18,7 @@ import {
   CAMPUS, UNIVERSITY_REQUIREMENTS, collegeName, universityRequirement,
   type CourseRow, type GEFile,
 } from "./plat";
-import { DEFAULT_FILTERS, type ResultFilters } from "./courseFilters";
+import { DEFAULT_FILTERS, filtersFromQuery, filtersToQuery, type ResultFilters } from "./courseFilters";
 
 export interface GeState {
   /** A college key from the GE file ("sixth"), or null until one is chosen. */
@@ -41,10 +41,6 @@ export const areaSlug = (key: string) =>
 
 /** "campus:DEI" -> "dei". */
 const reqSlug = (key: string) => (universityRequirement(key) ?? "").toLowerCase();
-
-const SORTS = new Set(["grade", "code", "rating"]);
-const UNITS = new Set(["1", "2", "3", "4", "5", "6"]);
-const LOADS = new Set(["2.2", "3.2", "4"]);
 
 export interface ParsedGe {
   state: GeState;
@@ -96,20 +92,7 @@ export function parseGeQuery(
   const rawDiscipline = (params.get("d") ?? "").trim();
   const discipline = college === "warren" && disciplines.includes(rawDiscipline) ? rawDiscipline : null;
 
-  const sort = params.get("sort") ?? "";
-  const units = params.get("units") ?? "";
-  const load = params.get("rmp") ?? "";
-  const filters: ResultFilters = {
-    ...base,
-    q: (params.get("q") ?? "").slice(0, 80),
-    units: UNITS.has(units) ? units : base.units,
-    load: LOADS.has(load) ? load : base.load,
-    offeredOnly: params.get("term") === "1",
-    openOnly: params.get("open") === "1",
-    noPre: params.get("nopre") === "1",
-    hasGrades: params.get("graded") === "1",
-    sort: SORTS.has(sort) ? (sort as ResultFilters["sort"]) : base.sort,
-  };
+  const filters = filtersFromQuery(params, base);
 
   return { state: { college, areas: discipline ? [] : areas, req, also: req ? [] : also, discipline }, filters, problems };
 }
@@ -126,14 +109,7 @@ export function geQueryString(
   if (state.req) q.set("req", reqSlug(state.req));
   if (state.also.length) q.set("also", state.also.map(reqSlug).join(","));
   if (state.discipline) q.set("d", state.discipline);
-  if (filters.q.trim()) q.set("q", filters.q.trim());
-  if (filters.units !== base.units) q.set("units", filters.units);
-  if (filters.load !== base.load) q.set("rmp", filters.load);
-  if (filters.offeredOnly) q.set("term", "1");
-  if (filters.openOnly) q.set("open", "1");
-  if (filters.noPre) q.set("nopre", "1");
-  if (filters.hasGrades) q.set("graded", "1");
-  if (filters.sort !== base.sort) q.set("sort", filters.sort);
+  filtersToQuery(filters, base, q);
   const s = q.toString();
   return s ? `?${s}` : "";
 }
