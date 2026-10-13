@@ -31,6 +31,10 @@ function errorMessage(code: string | undefined): string | null {
     case "access_denied":
     case LOGIN_ERROR.cancelled:
       return "Sign-in was cancelled, so nothing changed. You can try again below.";
+    // What Auth.js reports when Google sends back an error instead of an
+    // account — most often the student cancelling on Google's page.
+    case "OAuthCallbackError":
+      return "Sign-in didn’t finish — it was cancelled on Google’s page, or Google turned it down. Nothing changed; you can try again below.";
     case "Configuration":
       return "Sign-in is not available right now. Please try again later.";
     default:
