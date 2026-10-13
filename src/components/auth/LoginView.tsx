@@ -1,7 +1,10 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import TridentMark from "@/components/plat/TridentMark";
+import type { Destination } from "@/lib/auth/destination";
 import GoogleIcon from "./GoogleIcon";
 import { signInWithGoogle } from "@/app/login/actions";
 
@@ -11,6 +14,10 @@ import { signInWithGoogle } from "@/app/login/actions";
  * Deliberately plain: one column, one action, everything on a single left
  * edge, and no card, shadow or illustration to compete with the button. The
  * only colour beyond navy on warm white is a short gold rule under the mark.
+ *
+ * It says where the student was going and what signing in does there, the
+ * @ucsd.edu rule before Google is opened, and — since the course pages need
+ * no account — a way back to browsing, so a sign-in is never a dead end.
  */
 
 const NAVY = "#182B49";
@@ -18,6 +25,10 @@ const NAVY = "#182B49";
 export interface LoginViewProps {
   /** Sanitised same-site path to land on after a successful sign-in. */
   next: string;
+  /** What signing in is for, for that destination. */
+  destination: Destination;
+  /** A public page to go back to without signing in. */
+  backHref: string;
   /** Student-facing sentence, already chosen by the server. */
   error: string | null;
   configured: boolean;
@@ -65,6 +76,8 @@ function SubmitButton() {
 
 export default function LoginView({
   next,
+  destination,
+  backHref,
   error,
   configured,
   missingEnv,
@@ -77,24 +90,35 @@ export default function LoginView({
       style={{ color: NAVY }}
     >
       <div className="w-full max-w-[480px]">
+        <Link
+          href={backHref}
+          className="inline-flex items-center gap-1.5 rounded-md text-[13px] font-semibold text-[#4A5670] underline-offset-2 hover:text-[#182B49] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#182B49] focus-visible:ring-offset-2 focus-visible:ring-offset-[#FCFBF9]"
+        >
+          <ArrowLeft aria-hidden className="h-4 w-4" />
+          Back to browsing — no sign-in needed
+        </Link>
+
         {/* Brand lockup — the same mark and wordmark the app header uses */}
-        <div className="flex items-center gap-2.5">
+        <Link href="/" aria-label="UCSDPlans home" className="mt-8 flex w-fit items-center gap-2.5">
           <TridentMark className="h-9 w-9" />
           <span className="text-[17px] font-bold tracking-tight">
             UCSD<span style={{ color: "#1B2C4F" }}>Plans</span>
           </span>
-        </div>
+        </Link>
 
         {/* The one flash of gold */}
         <div className="mt-5 h-[3px] w-12 rounded-full" style={{ background: "#FFCD00" }} />
 
-        <h1 className="mt-7 text-[30px] font-semibold leading-[1.15] tracking-[-0.02em] sm:text-[38px]">
-          Welcome to UCSDPlans
+        <h1 className="mt-7 text-[28px] font-semibold leading-[1.15] tracking-[-0.02em] sm:text-[34px]">
+          {destination.title}
         </h1>
 
         <p className="mt-4 text-[15px] leading-relaxed text-[#4A5670] sm:text-[16px]">
-          Explore courses and plan your UCSD schedule.
+          {destination.reason}
         </p>
+        {destination.detail && (
+          <p className="mt-2 text-[14px] leading-relaxed text-[#4A5670]">{destination.detail}</p>
+        )}
 
         {error && (
           <p
@@ -113,8 +137,10 @@ export default function LoginView({
               <SubmitButton />
             </form>
 
-            <p className="mt-4 text-[13px] leading-relaxed text-[#6B7488]">
-              Use your @ucsd.edu Google account to continue.
+            <p className="mt-4 text-[13px] leading-relaxed text-[#4A5670]">
+              Use your <span className="font-semibold">@ucsd.edu</span> Google account. Personal Gmail and other
+              addresses — including department ones like name@eng.ucsd.edu — are turned away. Signing in only
+              confirms that you hold a @ucsd.edu address; it does not verify anything else about you.
             </p>
           </>
         ) : (

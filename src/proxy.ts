@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth, LOGIN_ERROR } from "@/auth";
-import { decideAccess } from "@/lib/auth/routes";
+import { decideAccess, isPublicPath } from "@/lib/auth/routes";
 import { safeInternalPath } from "@/lib/auth/redirects";
 import { isEligibleEmail } from "@/lib/auth/eligibility";
 
@@ -38,8 +38,23 @@ export default auth((req) => {
   }
   // Signed in but on the wrong domain: say why, rather than looping silently.
   if (decision.ineligible) url.searchParams.set("error", LOGIN_ERROR.ineligible);
+  // The public page the student clicked from, for the login page's way back.
+  const from = refererPath(req.headers.get("referer"), req.nextUrl.origin);
+  if (from) url.searchParams.set("from", from);
   return NextResponse.redirect(url);
 });
+
+/** A same-site, public referring page as a path; null for anything else. */
+function refererPath(referer: string | null, origin: string): string | null {
+  if (!referer) return null;
+  try {
+    const u = new URL(referer);
+    if (u.origin !== origin || !isPublicPath(u.pathname) || u.pathname === "/login") return null;
+    return safeInternalPath(u.pathname + u.search, "") || null;
+  } catch {
+    return null;
+  }
+}
 
 export const config = {
   /**

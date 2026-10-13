@@ -40,7 +40,8 @@ export function useSignedIn(): boolean | null {
 const noSubscribe = () => () => {};
 const hereHref = () => {
   const here = window.location.pathname + window.location.search;
-  return here === "/" ? "/login" : `/login?next=${encodeURIComponent(here)}`;
+  // `from` is where "Back to browsing" on the login page returns.
+  return here === "/" ? "/login" : `/login?next=${encodeURIComponent(here)}&from=${encodeURIComponent(here)}`;
 };
 
 /**

@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { auth, LOGIN_ERROR } from "@/auth";
 import { AUTH_CONFIGURED, missingAuthEnv } from "@/lib/auth/config";
 import { INELIGIBLE_MESSAGE, isEligibleEmail } from "@/lib/auth/eligibility";
 import { safeInternalPath } from "@/lib/auth/redirects";
+import { browseBackHref, destinationFor, destinationFromCookie } from "@/lib/auth/destination";
 import LoginView from "@/components/auth/LoginView";
 
 export const metadata: Metadata = {
   title: "Sign in — UCSDPlans",
-  description: "Sign in with your @ucsd.edu Google account to use UCSDPlans.",
+  description: "Sign in with your @ucsd.edu Google account to use the Planner, Academic History and Housing.",
 };
 
 // The session and the error banner are per-request; nothing here may be cached.
@@ -29,7 +30,7 @@ function errorMessage(code: string | undefined): string | null {
       return INELIGIBLE_MESSAGE;
     case "access_denied":
     case LOGIN_ERROR.cancelled:
-      return "Sign-in was cancelled. You can try again below.";
+      return "Sign-in was cancelled, so nothing changed. You can try again below.";
     case "Configuration":
       return "Sign-in is not available right now. Please try again later.";
     default:
@@ -47,7 +48,20 @@ export default async function LoginPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const next = safeInternalPath(firstValue(params.next));
+  const host = (await headers()).get("host") ?? "localhost:3000";
+  const isLocalHost = host.startsWith("localhost") || host.startsWith("127.0.0.1");
+  const scheme = isLocalHost ? "http" : "https";
+  const error = firstValue(params.error);
+
+  // Auth.js's error redirect drops the destination from the URL, but keeps it
+  // in its callback cookie: a rejected or cancelled sign-in still knows where
+  // the student was going, so "try again" goes there and not to the home page.
+  let next = safeInternalPath(firstValue(params.next));
+  if (error && next === "/") {
+    const jar = await cookies();
+    const held = jar.get("__Secure-authjs.callback-url")?.value ?? jar.get("authjs.callback-url")?.value;
+    next = destinationFromCookie(held, `${scheme}://${host}`) ?? next;
+  }
 
   // Already signed in with an account we accept? Go straight into the app.
   if (AUTH_CONFIGURED) {
@@ -57,15 +71,14 @@ export default async function LoginPage({
 
   // Shown only when unconfigured, so the operator sees the exact URI to paste
   // into the Google console rather than having to guess the host.
-  const host = (await headers()).get("host") ?? "localhost:3000";
-  const isLocalHost = host.startsWith("localhost") || host.startsWith("127.0.0.1");
-  const scheme = isLocalHost ? "http" : "https";
   const callbackUrls = [`${scheme}://${host}/api/auth/callback/google`];
 
   return (
     <LoginView
       next={next}
-      error={errorMessage(firstValue(params.error))}
+      destination={destinationFor(next)}
+      backHref={browseBackHref(firstValue(params.from))}
+      error={errorMessage(error)}
       configured={AUTH_CONFIGURED}
       missingEnv={missingAuthEnv()}
       callbackUrls={callbackUrls}
