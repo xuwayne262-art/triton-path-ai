@@ -6,11 +6,11 @@ import { ChevronRight, ExternalLink, Star } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import { PAGE_GAP, PAGE_PAD, PAGE_TITLE, SECTION_TITLE } from "@/components/plat/typeScale";
 import TermGradesChart, { type TermPoint } from "@/components/plat/TermGradesChart";
-import { GradeBadge, LoadTag } from "@/components/plat/Grade";
+import { DifficultyTag, GradeBadge } from "@/components/plat/Grade";
 import { professorDepartment } from "@/components/plat/ProfessorShelf";
 import { useNoteVisit } from "@/components/plat/useRecent";
 import {
-  courseHref, loadIndex, loadProfessors, loadSubject, professorHref, professorSlug, ratingTone, termName, termOrder,
+  courseHref, loadIndex, loadProfessors, loadSubject, professorBySlug, professorHref, ratingTone, termName, termOrder,
   typicalGrade, type PlatIndex, type ProfessorRecord, type SubjectFile,
 } from "@/lib/plat";
 
@@ -36,10 +36,9 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
   }, []);
   useEffect(() => { loadIndex().then(setIndex).catch(() => {}); }, []);
 
-  const prof = useMemo(
-    () => profs?.find((p) => professorSlug(p.n) === slug) ?? null,
-    [profs, slug],
-  );
+  // A link built from another spelling of their name ("joe-politz") still
+  // finds them; their own name wins when both answer.
+  const prof = useMemo(() => (profs ? professorBySlug(profs, slug) : null), [profs, slug]);
 
   useNoteVisit(prof ? { kind: "professor", key: prof.n, label: prof.n, href: professorHref(prof.n) } : null);
 
@@ -139,22 +138,29 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
                     also listed as {prof.a.join(", ")}
                   </p>
                 ) : null}
-                <p className="mt-2 max-w-3xl text-sm leading-relaxed text-gray-600 dark:text-gray-300">
-                  {verdict
-                    ? `Students typically earn a ${verdict.letter} in their classes, across ${prof.terms} graded ${prof.terms === 1 ? "term" : "terms"} and ${prof.c.length} ${prof.c.length === 1 ? "course" : "courses"}.`
+                <p className="mt-2 max-w-3xl text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+                  {verdict && prof.gpa != null
+                    ? <>
+                        <span className="font-semibold">Historical average {prof.gpa.toFixed(2)} GPA ({verdict.letter})</span>{" "}
+                        across their classes: {prof.terms} graded {prof.terms === 1 ? "term" : "terms"} in {prof.c.length}{" "}
+                        {prof.c.length === 1 ? "course" : "courses"}. Past classes, not a prediction.
+                      </>
                     : "No published grade distribution for this instructor yet."}
                   {prof.cur === 1 && " They are teaching this term."}
                 </p>
 
                 <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-gray-600 dark:text-gray-300">
-                  {prof.q != null && prof.q > 0 && (
+                  {prof.q != null && prof.q > 0 ? (
                     <span className={`inline-flex items-center gap-1 font-semibold ${ratingTone(prof.q)}`}>
-                      <Star className="h-3.5 w-3.5 fill-current" />
+                      <span className="font-normal text-gray-600 dark:text-gray-300">RMP rating</span>
+                      <Star className="h-3.5 w-3.5 fill-current" aria-hidden />
                       {prof.q.toFixed(1)} / 5
-                      {prof.nr ? <span className="font-normal text-gray-500 dark:text-gray-400">({prof.nr} ratings)</span> : null}
+                      {prof.nr ? <span className="font-normal text-gray-600 dark:text-gray-400">({prof.nr} {prof.nr === 1 ? "rating" : "ratings"})</span> : null}
                     </span>
+                  ) : (
+                    <span>No RateMyProfessors rating</span>
                   )}
-                  <LoadTag difficulty={prof.d} />
+                  <DifficultyTag d={prof.d} name={prof.n} />
                   {prof.w != null && prof.w > 0 && <span>{prof.w}% would take again</span>}
                   {prof.id && (
                     <a
@@ -201,6 +207,7 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
                   <section className="rounded-2xl border border-gray-200 p-5 dark:border-white/10">
                     <h2 className={SECTION_TITLE}>Every term</h2>
                     <table className="mt-3 w-full text-sm">
+                      <caption className="sr-only">Class average and share of A grades for each term {prof.n} taught</caption>
                       <thead>
                         <tr className="text-left text-xs text-gray-500 dark:text-gray-400">
                           <th scope="col" className="pb-2 font-medium">Term</th>
@@ -212,7 +219,7 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
                       <tbody>
                         {shownTerms.map((t, i) => (
                           <tr key={`${t.term}-${t.code}-${i}`} className="border-t border-gray-100 dark:border-white/5">
-                            <td className="py-2 pr-2 whitespace-nowrap">{termName(t.term)}</td>
+                            <th scope="row" className="py-2 pr-2 text-left font-normal whitespace-nowrap">{termName(t.term)}</th>
                             <td className="py-2 pr-2">
                               <Link href={courseHref(t.code)} className="font-mono text-xs font-bold text-[#182B49] hover:underline dark:text-[#FFCD00]">{t.code}</Link>
                             </td>

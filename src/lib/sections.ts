@@ -29,7 +29,16 @@ export const AVAIL = 8, LIMIT = 9, CANCELLED = 10;
 // Appended when the schedule moved to UCSD's Class Planner. Older cached files
 // have no value at these positions, so every reader treats them as optional.
 export const WAITLIST = 11, ENROLLED = 12, SECTION_ID = 13, PACKAGE_IDS = 14;
-export const BUILDING_CODE = 17, STATUS = 18, TOPIC = 19;
+export const BUILDING_CODE = 17, STATUS = 18, TOPIC = 19, SEATS_AT = 20;
+
+/**
+ * When Class Planner counted this section's seats — "2026-10-12T21:31Z" — or
+ * null when it did not say, or the data predates per-section times. Each
+ * section is counted on its own clock, weeks apart within one course, so a
+ * section's count is dated by this and never by a sibling's or the course's.
+ */
+export const sectionSeatsAt = (s: SectionTuple): string | null =>
+  typeof s[SEATS_AT] === "string" && s[SEATS_AT] ? s[SEATS_AT] : null;
 
 /**
  * What a section of a topics course teaches — "Unsupervised Learning" for one

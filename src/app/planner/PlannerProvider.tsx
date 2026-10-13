@@ -202,6 +202,12 @@ interface PlannerValue {
   /** Adds a course straight from its code — the rail's quick-add box. */
   addCourseByCode: (code: string) => boolean;
   platByCode: Map<string, PlatRow>;
+  /**
+   * The plan and this page are the same term's, so a course may be added and
+   * its sections picked. Until then a term's picks may still be moving to
+   * pastTerms, and anything added would be filed under the old term.
+   */
+  termSettled: boolean;
   /** This term, "FA26", as the dataset names it. */
   term: string;
   /** "Fall 2026", or "" until the dataset has loaded. */
@@ -1112,7 +1118,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     platRows, savedCourses, toggleSaved,
     selectedCourses: shownSchedule, addToSchedule, removeFromSchedule, clearSchedule, restoreSchedule,
     sectionsByCode, tssByCode, selections, setSelection, clearSelection, chooseOption,
-    addCourseByCode, platByCode, term, termName, pastTerms, newerPlanTerm, buildings, optionEvents,
+    addCourseByCode, platByCode, termSettled, term, termName, pastTerms, newerPlanTerm, buildings, optionEvents,
     autoPickFor, autoPickAll, restoreSelections, retrySections,
     sectionStatus, events, conflictCodes, totalUnits,
     plannedCourses, addAICourseToPlan, removePlannedCourse, addToPlanner, movePlannedCourse,

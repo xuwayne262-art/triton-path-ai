@@ -67,25 +67,41 @@ export function tallyPlannerSections(sections: PlannerSection[]): SeatCount | nu
   return tally(parts);
 }
 
+/** One row per section that can hold seats: no finals, nothing cancelled, each section once. */
+function seatRows(sec: SectionTuple[]): SectionTuple[] {
+  const seen = new Set<string>();
+  const out: SectionTuple[] = [];
+  for (const s of sec) {
+    if (isOneOff(s) || s[CANCELLED] === 1) continue;
+    const id = s[SECTION_ID] || `${s[CODE]}|${s[TYPE]}`;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(s);
+  }
+  return out;
+}
+
 /**
  * Seats from the dataset's section rows. A section meeting in two weekly
  * patterns arrives as two rows carrying the same numbers, so each is counted
  * once; finals and midterms are not sections anyone enrols in.
  */
 export function tallySectionRows(sec: SectionTuple[]): SeatCount | null {
-  const seen = new Set<string>();
-  const parts: Part[] = [];
-  for (const s of sec) {
-    if (isOneOff(s) || s[CANCELLED] === 1) continue;
-    const id = s[SECTION_ID] || `${s[CODE]}|${s[TYPE]}`;
-    if (seen.has(id)) continue;
-    seen.add(id);
-    parts.push({
-      lecture: s[TYPE] === "LE",
-      enrolled: s[ENROLLED],
-      capacity: s[LIMIT],
-      waitlist: s[WAITLIST],
-    });
-  }
-  return tally(parts);
+  return tally(seatRows(sec).map((s) => ({
+    lecture: s[TYPE] === "LE",
+    enrolled: s[ENROLLED],
+    capacity: s[LIMIT],
+    waitlist: s[WAITLIST],
+  })));
+}
+
+/**
+ * The rows tallySectionRows adds up — the lectures when a course has them,
+ * every section otherwise, each with a published capacity — so the total can
+ * be dated by exactly the counts it is made of.
+ */
+export function talliedRows(sec: SectionTuple[]): SectionTuple[] {
+  const rows = seatRows(sec);
+  const counted = rows.some((s) => s[TYPE] === "LE") ? rows.filter((s) => s[TYPE] === "LE") : rows;
+  return counted.filter((s) => typeof s[LIMIT] === "number" && (s[LIMIT] as number) > 0);
 }

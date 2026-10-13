@@ -1,47 +1,68 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useId, useMemo, useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { BookMarked, ChevronDown, ChevronRight, ExternalLink, LogIn, MapPin, Star } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { BookMarked, ChevronRight, ExternalLink, LogIn, MapPin } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
-import { LABEL, PAGE_GAP, PAGE_PAD, PAGE_TITLE, SECTION_TITLE } from "@/components/plat/typeScale";
+import { PAGE_GAP, PAGE_PAD, PAGE_TITLE, SECTION_TITLE } from "@/components/plat/typeScale";
 import Disclosure from "@/components/plat/Disclosure";
 import CourseRow from "@/components/plat/CourseRow";
 import PrereqText from "@/components/plat/PrereqText";
 import TermGradesChart, { type TermPoint } from "@/components/plat/TermGradesChart";
 import SeatHistoryChart, { type SeatDay } from "@/components/plat/SeatHistoryChart";
-import { GradeBadge, LoadTag } from "@/components/plat/Grade";
-import GradeBars from "@/components/plat/GradeBars";
+import { GradeBadge } from "@/components/plat/Grade";
 import SectionPicker from "@/components/plat/SectionPicker";
-import RateProfessor from "@/components/plat/RateProfessor";
+import ChoiceSummary from "@/components/plat/ChoiceSummary";
+import InstructorRow from "@/components/plat/InstructorRow";
 import { useShortlist } from "@/components/plat/useShortlist";
-import { ratingKey, useTermRatings } from "@/components/plat/useTermRatings";
+import { usePlannerEntry } from "@/components/plat/usePlannerEntry";
 import { useSignedIn, useSignInHref } from "@/components/plat/useSignedIn";
 import { useNoteVisit } from "@/components/plat/useRecent";
 import { useTheme } from "@/components/plat/theme";
 import {
-  ENROLLMENT_PASSES, HttpError, courseHref, dayLabel, geLabel, levelBand, loadBuildings, loadIndex, loadSubject,
-  prettyRange, ratingTone, refreshedDay, refreshedLabel, sortCourses, termName, typicalGrade, universityRequirement,
-  type BuildingsFile, type CourseDetail, type PlatIndex, type ProfRecord, type SubjectFile,
+  ENROLLMENT_PASSES, HttpError, courseHref, dayLabel, levelBand, loadBuildings, loadIndex, loadProfessors, loadSubject,
+  prereqKnown, professorFor, sortCourses, termName, termOrder, typicalGrade,
+  type BuildingsFile, type CourseDetail, type PlatIndex, type ProfRecord, type ProfessorRecord, type SubjectFile,
 } from "@/lib/plat";
 import {
-  BUILDING_CODE, CODE, DAYS, END, START, TSS_HINT, TYPE, isChoosable, isOneOff,
+  BUILDING_CODE, CODE, INSTRUCTOR, TSS_HINT, TYPE,
+  forcedSelection, groupSections, isChoosable, isOneOff, typeLabel,
+  type LectureFamily, type SectionSelection,
 } from "@/lib/sections";
-import { tallySectionRows } from "@/lib/seats/tally";
+import { decodeChoice, encodeChoice, summarizeChoice } from "@/lib/sectionChoice";
+import { seatSpan, spanLabel, sumSeatsAt } from "@/lib/freshness";
+import { ADD_INTENT_KEY, addIntentHref, storedIntent } from "@/lib/planIntent";
+import { tallySectionRows, talliedRows } from "@/lib/seats/tally";
 import { quarterByKey } from "@/lib/housing/terms";
 import { collegeForSubject, departmentForSubject } from "@/data/ucsdStructure";
 import type { CoursePin } from "@/components/plat/CourseMap";
 
 const CourseMap = dynamic(() => import("@/components/plat/CourseMap"), {
   ssr: false,
-  loading: () => <div className="h-44 w-full animate-pulse rounded-xl bg-slate-100 dark:bg-white/5" />,
+  loading: () => <div className="h-40 w-full animate-pulse rounded-xl bg-slate-100 dark:bg-white/5" />,
 });
 
-/** How many "leads to" courses show before "Show all". */
-const LEADS_SHOWN = 12;
 /** How many past terms show before "Show all". */
 const TERMS_SHOWN = 8;
+
+// The choice in the address bar (`?pick=B,LA:B03`), read once per course so a
+// reload, a shared link or a return from sign-in comes back to it.
+const noSubscribe = () => () => {};
+const readPick = () => new URLSearchParams(window.location.search).get("pick");
+
+function writePick(sel: SectionSelection | undefined) {
+  const url = new URL(window.location.href);
+  if (sel) url.searchParams.set("pick", encodeChoice(sel));
+  else url.searchParams.delete("pick");
+  window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+}
+
+/** The choice a course makes for you: its only section, with any single-option parts. */
+function onlyChoice(families: LectureFamily[]): SectionSelection | undefined {
+  return families.length === 1 ? forcedSelection(families) ?? undefined : undefined;
+}
 
 export default function CourseDetailPage({
   params,
@@ -52,10 +73,12 @@ export default function CourseDetailPage({
   const sub = decodeURIComponent(raw.sub).toUpperCase();
   const num = decodeURIComponent(raw.num);
   const code = `${sub} ${num}`;
+  const router = useRouter();
 
   const [index, setIndex] = useState<PlatIndex | null>(null);
   const [subject, setSubject] = useState<SubjectFile | null>(null);
   const [buildings, setBuildings] = useState<BuildingsFile | null>(null);
+  const [profs, setProfs] = useState<ProfessorRecord[] | null>(null);
   const [history, setHistory] = useState<SeatDay[]>([]);
   /**
    * "missing" when the subject has no file at all; "error" when the file could
@@ -71,6 +94,7 @@ export default function CourseDetailPage({
 
   useEffect(() => { loadIndex().then(setIndex).catch(() => {}); }, [attempt]);
   useEffect(() => { loadBuildings().then(setBuildings).catch(() => {}); }, []);
+  useEffect(() => { loadProfessors().then((f) => setProfs(f.professors)).catch(() => setProfs([])); }, []);
   useEffect(() => {
     loadSubject(sub)
       .then(setSubject)
@@ -90,8 +114,47 @@ export default function CourseDetailPage({
   const row = index?.courses.find((c) => c.k === code);
   const title = detail?.t ?? row?.t;
   const term = index?.meta.term ?? null;
+  const termLabel = index?.meta.termName ?? "This term";
 
-  // The seat counts kept day by day, when the deployment keeps them.
+  // ── The section choice ─────────────────────────────────────────────────
+  const families = useMemo(() => groupSections(detail?.sec ?? []), [detail]);
+  const urlPick = useSyncExternalStore(noSubscribe, readPick, () => null);
+  const [selection, setSelectionState] = useState<SectionSelection | undefined>(undefined);
+  const [chosenFor, setChosenFor] = useState<string | null>(null);
+  if (detail && chosenFor !== code) {
+    setChosenFor(code);
+    setSelectionState(decodeChoice(urlPick, families) ?? onlyChoice(families));
+  }
+  const setSelection = (next: SectionSelection | undefined) => {
+    setSelectionState(next);
+    writePick(next);
+  };
+  const planner = usePlannerEntry(code, term);
+
+  /**
+   * Hands the choice to the Planner: the course, and its sections when the
+   * choice is complete. The intent rides in the Planner's URL, through sign-in
+   * when need be, with a nonce this tab keeps so the Planner knows it was a
+   * click here and not a link from somewhere (lib/planIntent.ts).
+   */
+  const addToPlanner = () => {
+    const summary = summarizeChoice(detail?.sec ?? [], families, selection);
+    const intent = {
+      code,
+      pick: summary?.complete && selection ? encodeChoice(selection) : null,
+      nonce: crypto.randomUUID(),
+    };
+    try { sessionStorage.setItem(ADD_INTENT_KEY, storedIntent(intent, Date.now())); } catch { /* the Planner will ask instead */ }
+    const target = addIntentHref(intent);
+    if (signedIn === false) {
+      const from = window.location.pathname + window.location.search;
+      router.push(`/login?next=${encodeURIComponent(target)}&from=${encodeURIComponent(from)}`);
+    } else {
+      router.push(target);
+    }
+  };
+
+  // ── Seats over time ────────────────────────────────────────────────────
   const [historyFor, setHistoryFor] = useState<string | null>(null);
   useEffect(() => {
     if (!term || !detail?.offered) return;
@@ -111,49 +174,84 @@ export default function CourseDetailPage({
     return (c: string) => codes.has(c);
   }, [index]);
 
-  /**
-   * This term's instructors, best grade history first, so the option the summary
-   * recommends is the one that leads the list and opens by default.
-   */
+  /** This term's instructors, best grade history first; then the rest. */
   const teaching = useMemo(
     () => [...(detail?.profs ?? [])].filter((p) => p.cur === 1).sort((a, b) => b.g - a.g),
     [detail],
   );
   const past = useMemo(() => detail?.profs.filter((p) => p.cur !== 1) ?? [], [detail]);
 
+  /** Each instructor's newest term in this course, "Fall 2021". */
+  const latestOf = useMemo(() => {
+    const out = new Map<string, string>();
+    for (const h of detail?.hist ?? []) {
+      const name = detail?.profs[h[1]]?.i;
+      if (!name) continue;
+      const had = out.get(name);
+      if (!had || termOrder(h[0]) > termOrder(had)) out.set(name, h[0]);
+    }
+    return out;
+  }, [detail]);
+
+  /** Who answers to which name: a course's "Joe Politz" is the archive's "Joseph Gibbs Politz". */
+  const profiles = useMemo(() => {
+    const m = new Map<string, ProfessorRecord | null>();
+    if (profs) for (const p of detail?.profs ?? []) m.set(p.i, professorFor(profs, p.i));
+    return m;
+  }, [profs, detail]);
+  const profileOf = (name: string) => profiles.get(name) ?? null;
+
+  /** "Lecture B" for each family a person's name heads this term. */
+  const teachesOf = (prof: ProfRecord) => {
+    const profile = profileOf(prof.i);
+    const names = new Set([prof.i, ...(profile ? [profile.n, ...(profile.a ?? [])] : [])]);
+    return families
+      .filter((f) => f.lecture && String(f.lecture[INSTRUCTOR] ?? "").split(/,\s*/).some((n) => names.has(n)))
+      .map((f) => `${typeLabel(f.lecture![TYPE])} ${f.key}`);
+  };
+
   const verdict = typicalGrade(detail?.gpa, detail?.terms);
   const saved = has(code);
-  // Sections a student can pick, counted once each.
   const sectionCount = useMemo(
     () => new Set((detail?.sec ?? []).filter(isChoosable).map((s) => s[CODE])).size,
     [detail],
   );
+
+  // Seats as the dataset counted them, dated by those same counts.
   const seatsNow = useMemo(() => (detail?.sec?.length ? tallySectionRows(detail.sec) : null), [detail]);
-  const finals = useMemo(() => (detail?.sec ?? []).filter((s) => isOneOff(s) && s[TYPE] === "FI"), [detail]);
-
-  // Where it meets: each building a weekly meeting uses, once.
-  const pins = useMemo((): CoursePin[] => {
-    if (!detail || !buildings) return [];
-    const out = new Map<string, CoursePin>();
-    for (const s of detail.sec) {
-      if (isOneOff(s)) continue;
-      const b = s[BUILDING_CODE] && buildings.buildings[s[BUILDING_CODE] as string];
-      if (b && !out.has(s[BUILDING_CODE] as string)) out.set(s[BUILDING_CODE] as string, { code: s[BUILDING_CODE] as string, name: b.n, ll: b.ll });
-    }
-    return [...out.values()].slice(0, 6);
-  }, [detail, buildings]);
-
-  // The dataset's own snapshot is one dated point; the kept history adds the rest.
-  // It is dated when Class Planner counted this course's seats, which can be
-  // days before the schedule was taken.
-  const seatsAt = detail?.seatsAt ?? index?.meta.refreshed;
-  const snapshotDay = refreshedDay(seatsAt);
+  const seatsAt = useMemo(() => {
+    const rows = talliedRows(detail?.sec ?? []);
+    const times = rows.map((s) => (typeof s[20] === "string" && s[20] ? s[20] : null));
+    return sumSeatsAt(times, times.some(Boolean) ? detail?.seatsAt ?? null : null);
+  }, [detail]);
+  const seatTimeSpan = useMemo(() => seatSpan(talliedRows(detail?.sec ?? []).map((s) => (typeof s[20] === "string" ? s[20] : null))), [detail]);
+  const snapshotDay = seatsAt
+    ? new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(seatsAt))
+    : null;
   const seatPoints = useMemo((): SeatDay[] => {
     const byDay = new Map<string, SeatDay>();
+    // An undated count gets no point: a chart cannot place it, and dating it
+    // by when the site read Class Planner would invent a measurement.
     if (seatsNow && snapshotDay) byDay.set(snapshotDay, { day: snapshotDay, ...seatsNow });
     if (historyFor === code) for (const p of history) byDay.set(p.day, p);
     return [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day));
   }, [seatsNow, snapshotDay, history, historyFor, code]);
+
+  // Where it meets: each building a weekly meeting uses, with what meets there.
+  const places = useMemo(() => {
+    const out = new Map<string, { code: string; name: string; ll: [number, number] | null; what: Set<string> }>();
+    for (const s of detail?.sec ?? []) {
+      if (isOneOff(s) || !isChoosable(s)) continue;
+      const bcode = typeof s[BUILDING_CODE] === "string" ? (s[BUILDING_CODE] as string) : "";
+      if (!bcode) continue;
+      const b = buildings?.buildings[bcode];
+      if (!out.has(bcode)) out.set(bcode, { code: bcode, name: b?.n ?? (s[5] || bcode), ll: b?.ll ?? null, what: new Set() });
+      out.get(bcode)!.what.add(typeLabel(s[TYPE]).toLowerCase());
+    }
+    return [...out.values()];
+  }, [detail, buildings]);
+  const pins = useMemo((): CoursePin[] =>
+    places.filter((p) => p.ll).slice(0, 8).map((p) => ({ code: p.code, name: p.name, ll: p.ll! })), [places]);
 
   const termPoints = useMemo((): TermPoint[] => (detail?.hist ?? [])
     .filter((h) => h[2] != null && detail?.profs[h[1]])
@@ -180,7 +278,7 @@ export default function CourseDetailPage({
       <PlatShell>
         <div className="mx-auto max-w-2xl px-4 py-24 text-center">
           <h1 className={PAGE_TITLE}>Couldn&apos;t load {code}</h1>
-          <p className="mt-2 text-sm text-gray-500">
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
             The course data did not arrive — check your connection and try again.
           </p>
           <button
@@ -200,7 +298,7 @@ export default function CourseDetailPage({
       <PlatShell>
         <div className="mx-auto max-w-2xl px-4 py-24 text-center">
           <h1 className={PAGE_TITLE}>{code} isn&apos;t in the dataset</h1>
-          <p className="mt-2 text-sm text-gray-500">
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
             It may be graduate-only or recently retired.
           </p>
           <Link href={`/courses/${sub}`} className="mt-6 inline-block text-sm font-semibold text-[#182B49] underline dark:text-[#FFCD00]">
@@ -211,47 +309,41 @@ export default function CourseDetailPage({
     );
   }
 
-  const termLabel = index?.meta.termName ?? "This term";
   const quarter = quarterByKey(term);
   const leads = detail?.unl ?? [];
-
-  // The newest count there is: a day's kept count when there is one after the
-  // dataset's own snapshot, so the card and the chart's last dot agree.
-  const latest = seatPoints[seatPoints.length - 1];
-  const facts = (
-    <FactsCard
-      detail={detail}
-      termLabel={termLabel}
-      seats={latest ?? seatsNow}
-      asOf={latest ? dayLabel(latest.day, { weekday: false, year: true }) : refreshedLabel(seatsAt)}
-      finals={finals}
-    />
-  );
+  const offered = detail?.offered === 1;
+  const ratingFor = index ? { term: index.meta.term, termName: index.meta.termName, code } : null;
+  const summaryProps = {
+    code, detail, families, selection, termLabel, signedIn, planner,
+    onAdd: addToPlanner,
+    onClear: () => setSelection(undefined),
+  };
 
   return (
     <PlatShell>
       <div className={`mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 ${PAGE_PAD}`}>
-        <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+        <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
           <Link href="/courses" className="hover:underline">Courses</Link>
           <ChevronRight className="h-3 w-3" aria-hidden />
           <Link href={`/courses/${dept?.id ?? sub}`} className="hover:underline">{dept?.name ?? subject?.name ?? sub}</Link>
           <ChevronRight className="h-3 w-3" aria-hidden />
-          <span className="text-gray-700 dark:text-gray-200">{code}</span>
+          <span className="text-gray-800 dark:text-gray-200" aria-current="page">{code}</span>
         </nav>
 
-        {/* ── The answer, up front ─────────────────────────────────────────── */}
-        {/* The grade badge stays large — it is the answer — while the title
-            is set at page-title size and the two actions sit to its right on
-            a laptop, rather than on a row of their own beneath it. */}
+        {/* ── What it is, how it has graded, and the two actions ──────────── */}
         <header className="mt-5 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
           <div className="flex min-w-0 items-start gap-4">
             <GradeBadge gpa={detail?.gpa} terms={detail?.terms ?? 0} size="lg" />
             <div className="min-w-0">
-              <p className="font-mono text-sm font-bold text-[#182B49] dark:text-[#FFCD00]">{code}</p>
-              <h1 className={`mt-0.5 ${PAGE_TITLE}`}>{title ?? "…"}</h1>
-              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-gray-600 dark:text-gray-300">
-                {detail ? summary(detail, verdict?.letter, teaching) : "Loading grade history…"}
+              <p className="font-mono text-sm font-bold text-[#182B49] dark:text-[#FFCD00]">
+                {code}
+                {detail?.u && <span className="ml-2 font-sans text-xs font-medium text-gray-600 dark:text-gray-400">{parseFloat(detail.u)} units</span>}
               </p>
+              <h1 className={`mt-0.5 ${PAGE_TITLE}`}>{title ?? "…"}</h1>
+              <p className="mt-2 max-w-3xl text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+                {detail ? <HistoryLine detail={detail} letter={verdict?.letter} /> : "Loading grade history…"}
+              </p>
+              {detail?.desc && <Description text={detail.desc} />}
             </div>
           </div>
 
@@ -261,21 +353,23 @@ export default function CourseDetailPage({
                 href={signInHref}
                 className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:border-white/15 dark:hover:bg-white/10"
               >
-                <LogIn className="h-4 w-4" />
-                Sign in to save to your planner
+                <LogIn className="h-4 w-4" aria-hidden />
+                Sign in to save
               </Link>
             ) : (
               <button
                 type="button"
                 onClick={() => toggle(code)}
+                aria-pressed={saved}
+                title="Saved courses are listed under “Saved from Courses” in your Planner"
                 className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
                   saved
                     ? "bg-[#182B49] text-white dark:bg-[#FFCD00] dark:text-[#182B49]"
                     : "border border-gray-300 hover:bg-gray-50 dark:border-white/15 dark:hover:bg-white/10"
                 }`}
               >
-                <BookMarked className="h-4 w-4" />
-                {saved ? "Saved" : "Save to planner"}
+                <BookMarked className="h-4 w-4" aria-hidden />
+                {saved ? "Saved" : "Save course"}
               </button>
             )}
             {/*
@@ -292,79 +386,110 @@ export default function CourseDetailPage({
                 title={TSS_HINT}
                 className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:border-white/15 dark:hover:bg-white/10"
               >
-                Book on <abbr title="Triton Student System" className="no-underline">TSS</abbr>
-                <ExternalLink className="h-3.5 w-3.5" />
+                Open in <abbr title="Triton Student System" className="no-underline">TSS</abbr>
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                <span className="sr-only">(opens in a new tab; it does not enroll you)</span>
               </a>
             )}
           </div>
         </header>
 
+        {/* ── Can I take it? Before anything else on the page ───────────── */}
+        {detail && <Eligibility detail={detail} offered={offered} known={known} catalogued={row ? prereqKnown(row) : offered} />}
+
         <div className={`${PAGE_GAP} grid grid-cols-1 gap-12 lg:grid-cols-12 lg:gap-14`}>
           {/* ── Main column ─────────────────────────────────────────────────── */}
           <div className="min-w-0 space-y-12 lg:col-span-7">
-            {/* On a phone the facts lead; on a laptop they sit in the rail. */}
-            <div className="lg:hidden">{facts}</div>
-
-            <section>
-              <h2 className={SECTION_TITLE}>About this course</h2>
-              {detail?.desc ? (
-                <p className="mt-3 text-sm leading-relaxed text-gray-700 dark:text-gray-200">{detail.desc}</p>
-              ) : (
-                <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-                  {detail ? "The UCSD General Catalog has no description for this course." : "Loading…"}
-                </p>
-              )}
-              {detail?.pre && (
-                <p className="mt-5 rounded-lg bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-950 dark:bg-amber-500/10 dark:text-amber-100">
-                  <span className="font-semibold">Prerequisites: </span>
-                  <PrereqText text={detail.pre} known={known} />
-                </p>
-              )}
-              {detail?.res && (
-                <p className="mt-3 rounded-lg bg-rose-50 px-4 py-3 text-sm leading-relaxed text-rose-950 dark:bg-rose-500/10 dark:text-rose-100">
-                  <span className="font-semibold">Enrolment restrictions: </span>{detail.res}
-                </p>
-              )}
-            </section>
-
-            {leads.length > 0 && <LeadsTo code={code} leads={leads} />}
-
             {/* ── Who to take it with ──────────────────────────────────────── */}
             {teaching.length > 0 && (
-              <section>
-                <h2 className={SECTION_TITLE}>
-                  {teaching.length} {teaching.length === 1 ? "instructor" : "instructors"} teaching this term
+              <section aria-labelledby="teaching-title">
+                <h2 id="teaching-title" className={SECTION_TITLE}>
+                  {termLabel}: {teaching.length} {teaching.length === 1 ? "instructor" : "instructors"}
                 </h2>
-                {teaching.length > 1 && (
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Best grade history first.</p>
-                )}
+                <TeachingNote code={code} teaching={teaching} latestOf={latestOf} term={term} />
                 <div className="mt-4 rounded-xl border border-gray-200 dark:border-white/10">
                   {teaching.map((p, i) => (
-                    <ProfLine
+                    <InstructorRow
                       key={p.i}
                       prof={p}
+                      code={code}
+                      profile={profileOf(p.i)}
+                      teaches={teachesOf(p)}
+                      latest={latestOf.has(p.i) ? termName(latestOf.get(p.i)!) : null}
                       first={i === 0}
-                      defaultOpen={i === 0}
                       canRate={signedIn !== false}
-                      // Rating is per-term, so it needs the loaded term. Past
-                      // instructors below get none — rating someone for a term they
-                      // are not teaching would be meaningless.
-                      rating={index ? { term: index.meta.term, termName: index.meta.termName, code } : null}
+                      rating={ratingFor}
                     />
                   ))}
                 </div>
+                <p className="mt-2 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
+                  Letters and averages are past classes from UCSD&rsquo;s grade archive, not a prediction. RMP scores are
+                  students&rsquo; ratings of the person across all their courses.{" "}
+                  <Link href="/about#letter" className="underline underline-offset-2">How these are worked out</Link>
+                </p>
+              </section>
+            )}
+
+            {/* ── Which sections ──────────────────────────────────────────── */}
+            {detail && detail.sec.length > 0 && (
+              <section aria-labelledby="sections-title">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <h2 id="sections-title" className={SECTION_TITLE}>{termLabel} sections</h2>
+                  <span className="text-xs text-gray-600 dark:text-gray-400">
+                    {sectionCount} {sectionCount === 1 ? "section" : "sections"}
+                  </span>
+                </div>
+                <div className="mt-3">
+                  <SectionPicker sec={detail.sec} value={selection} onChange={setSelection} />
+                </div>
+              </section>
+            )}
+
+            {/* On a phone the summary follows the choice it describes. */}
+            <div className="lg:hidden">
+              <ChoiceSummary {...summaryProps} />
+            </div>
+
+            {places.length > 0 && (
+              <section aria-labelledby="where-title">
+                <h2 id="where-title" className={SECTION_TITLE}>Where it meets</h2>
+                {pins.length > 0 && (
+                  <div className="mt-3">
+                    <CourseMap pins={pins} dark={theme === "dark"} />
+                  </div>
+                )}
+                <ul className="mt-3 divide-y divide-gray-100 rounded-xl border border-gray-200 dark:divide-white/5 dark:border-white/10">
+                  {places.map((p) => (
+                    <li key={p.code} className="flex items-start gap-2 px-3 py-2.5 text-sm text-gray-800 dark:text-gray-200">
+                      <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#182B49] dark:text-[#FFCD00]" aria-hidden />
+                      <span className="min-w-0 flex-1">
+                        <span className="font-medium">{p.name}</span>
+                        <span className="ml-1.5 font-mono text-xs text-gray-600 dark:text-gray-400">{p.code}</span>
+                        <span className="block text-xs text-gray-600 dark:text-gray-400">{[...p.what].join(", ")}</span>
+                      </span>
+                      {p.ll ? (
+                        <a
+                          href={`https://www.google.com/maps/dir/?api=1&destination=${p.ll[0]},${p.ll[1]}&travelmode=walking`}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="shrink-0 text-xs font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]"
+                        >
+                          Directions<span className="sr-only"> to {p.name} (Google Maps, new tab)</span>
+                        </a>
+                      ) : (
+                        <span className="shrink-0 text-xs text-gray-600 dark:text-gray-400">No map location published</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               </section>
             )}
 
             {/* ── Everything else, one click away ──────────────────────────── */}
             <div>
-              {detail && detail.sec.length > 0 && (
-                <Disclosure
-                  title={`${termLabel} sections`}
-                  hint={`${sectionCount} ${sectionCount === 1 ? "section" : "sections"}`}
-                  defaultOpen
-                >
-                  <SectionPicker sec={detail.sec} tss={detail.tss} />
+              {leads.length > 0 && (
+                <Disclosure title="Leads to" hint={`${leads.length} ${leads.length === 1 ? "course" : "courses"}`}>
+                  <LeadsTo code={code} leads={leads} />
                 </Disclosure>
               )}
 
@@ -377,84 +502,58 @@ export default function CourseDetailPage({
               {past.length > 0 && (
                 <Disclosure title="Past instructors" hint={`${past.length}`}>
                   <div className="rounded-xl border border-gray-200 dark:border-white/10">
-                    {past.map((p) => <ProfLine key={p.i} prof={p} rating={null} canRate={false} />)}
+                    {past.map((p, i) => (
+                      <InstructorRow
+                        key={p.i}
+                        prof={p}
+                        code={code}
+                        profile={profileOf(p.i)}
+                        teaches={[]}
+                        latest={latestOf.has(p.i) ? termName(latestOf.get(p.i)!) : null}
+                        first={i === 0}
+                        rating={null}
+                        canRate={false}
+                      />
+                    ))}
                   </div>
                 </Disclosure>
               )}
             </div>
 
-            {related.length > 0 && row && (
-              <section>
-                <h2 className={SECTION_TITLE}>
-                  More {["lower-division", "upper-division", "graduate"][levelBand(row)]} {dept?.name ?? sub} courses this term
-                </h2>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  On the {termLabel} schedule, best grades first.
-                </p>
-                <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 dark:border-white/10">
-                  {related.map((c) => <CourseRow key={c.k} row={c} />)}
-                </div>
-              </section>
-            )}
-          </div>
-
-          {/* ── Rail: the term at a glance, then the pictures ──────────────── */}
-          <aside className="min-w-0 space-y-6 lg:col-span-5">
-            <div className="hidden lg:block">{facts}</div>
-
-            {pins.length > 0 && (
-              <section className="rounded-2xl border border-gray-200 p-5 dark:border-white/10">
-                <h2 className={SECTION_TITLE}>Where it meets</h2>
-                <div className="mt-3">
-                  <CourseMap pins={pins} dark={theme === "dark"} />
-                </div>
-                <ul className="mt-4 space-y-2">
-                  {pins.map((p) => (
-                    <li key={p.code} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
-                      <MapPin className="h-3.5 w-3.5 shrink-0 text-[#182B49] dark:text-[#FFCD00]" aria-hidden />
-                      <span className="min-w-0 flex-1 truncate">{p.name}</span>
-                      <a
-                        href={`https://www.google.com/maps/dir/?api=1&destination=${p.ll[0]},${p.ll[1]}&travelmode=walking`}
-                        target="_blank"
-                        rel="noreferrer noopener"
-                        className="shrink-0 text-xs font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]"
-                      >
-                        Directions
-                      </a>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            {detail?.offered === 1 && seatPoints.length > 0 && (
-              <section className="rounded-2xl border border-gray-200 p-5 dark:border-white/10">
-                <h2 className={SECTION_TITLE}>Seats over time</h2>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  {termLabel}, all lectures together, against the enrollment passes.
-                </p>
-                <div className="mt-3">
-                  <SeatHistoryChart
-                    points={seatPoints}
-                    passes={ENROLLMENT_PASSES}
-                    classesStart={quarter?.classes ?? null}
-                    title={`${code} seats taken over time`}
-                  />
-                </div>
-                {seatPoints.length < 3 && (
-                  <p className="mt-3 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-                    Each dot is a day UCSD&rsquo;s Class Planner counted the seats, the first on{" "}
-                    {dayLabel(seatPoints[0].day, { weekday: false })}. A new one is added each day it counts them
-                    again, so the next enrollment passes will be the first measured from start to finish.
+            {offered && seatPoints.length > 0 && (
+              <section aria-labelledby="seats-title">
+                <h2 id="seats-title" className={SECTION_TITLE}>Seats over time</h2>
+                {seatPoints.length === 1 && seatsNow ? (
+                  <p className="mt-2 rounded-xl bg-slate-50 px-4 py-3 text-sm leading-relaxed text-gray-700 dark:bg-white/5 dark:text-gray-200">
+                    One count so far: {seatsNow.enrolled.toLocaleString()} of {seatsNow.capacity.toLocaleString()} seats
+                    taken{seatsNow.waitlist ? `, ${seatsNow.waitlist} waitlisted` : ""}, across{" "}
+                    {talliedRows(detail?.sec ?? []).some((s) => s[TYPE] === "LE") ? "all lectures" : "all sections"},
+                    counted {seatTimeSpan ? spanLabel(seatTimeSpan) : dayLabel(seatPoints[0].day, { weekday: false })}.
+                    A trend needs more than one count, so none is drawn.
                   </p>
+                ) : (
+                  <>
+                    <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                      {termLabel}, all lectures together, against the enrollment passes. Each dot is a day UCSD&rsquo;s
+                      Class Planner counted the seats.
+                    </p>
+                    <div className="mt-3">
+                      <SeatHistoryChart
+                        points={seatPoints}
+                        passes={ENROLLMENT_PASSES}
+                        classesStart={quarter?.classes ?? null}
+                        title={`${code} seats taken over time`}
+                      />
+                    </div>
+                  </>
                 )}
               </section>
             )}
 
             {termPoints.length > 1 && (
-              <section className="rounded-2xl border border-gray-200 p-5 dark:border-white/10">
-                <h2 className={SECTION_TITLE}>Grades by term</h2>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              <section aria-labelledby="grades-title">
+                <h2 id="grades-title" className={SECTION_TITLE}>Grades by term</h2>
+                <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
                   Each dot is one instructor&rsquo;s class average for one term. Every value is listed under
                   &ldquo;Every term&rsquo;s grades&rdquo;.
                 </p>
@@ -468,6 +567,27 @@ export default function CourseDetailPage({
                 </div>
               </section>
             )}
+
+            {related.length > 0 && row && (
+              <section aria-labelledby="related-title">
+                <h2 id="related-title" className={SECTION_TITLE}>
+                  More {["lower-division", "upper-division", "graduate"][levelBand(row)]} {dept?.name ?? sub} courses this term
+                </h2>
+                <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                  On the {termLabel} schedule, highest historical average first.
+                </p>
+                <div className="mt-4 overflow-hidden rounded-xl border border-gray-200 dark:border-white/10">
+                  {related.map((c) => <CourseRow key={c.k} row={c} />)}
+                </div>
+              </section>
+            )}
+          </div>
+
+          {/* ── Rail: the choice, in view while it is being made ─────────── */}
+          <aside className="hidden min-w-0 lg:col-span-5 lg:block" aria-label={`${code} at a glance`}>
+            <div className="sticky top-24">
+              <ChoiceSummary {...summaryProps} />
+            </div>
           </aside>
         </div>
       </div>
@@ -475,87 +595,123 @@ export default function CourseDetailPage({
   );
 }
 
-/** Units, seats, finals and requirements: the facts a student checks before anything else. */
-function FactsCard({
-  detail, termLabel, seats, asOf, finals,
-}: {
-  detail: CourseDetail | undefined;
-  termLabel: string;
-  seats: { enrolled: number; capacity: number; waitlist: number } | null;
-  asOf: string | null;
-  finals: CourseDetail["sec"];
-}) {
-  const ges = (detail?.ge ?? []).filter((g) => !universityRequirement(g));
-  const reqs = (detail?.ge ?? []).filter((g) => universityRequirement(g));
-  const [allGe, setAllGe] = useState(false);
+/** The course's own history in one sentence: the average, its letter, and how much stands behind it. */
+function HistoryLine({ detail, letter }: { detail: CourseDetail; letter: string | undefined }) {
+  if (!letter || detail.gpa == null) return <>No grade distribution has been published for this course.</>;
+  const terms = [...(detail.hist ?? [])].map((h) => h[0]).sort((a, b) => termOrder(a) - termOrder(b));
+  const years = terms.length ? `${termName(terms[0]).slice(-4)}–${termName(terms[terms.length - 1]).slice(-4)}` : "";
   return (
-    <section className="rounded-2xl border border-gray-200 p-5 dark:border-white/10">
-      <h2 className={SECTION_TITLE}>{termLabel} at a glance</h2>
-      <dl className="mt-4 grid grid-cols-2 gap-3">
-        <Fact label="Units" value={detail?.u ? String(parseFloat(detail.u)) : "—"} />
-        <Fact
-          label="Seats taken"
-          value={seats ? `${seats.enrolled.toLocaleString()} / ${seats.capacity.toLocaleString()}` : detail?.offered ? "Not published" : "Not offered"}
-          note={seats ? `${seats.waitlist ? `${seats.waitlist} waitlisted · ` : ""}as of ${asOf ?? "the last refresh"}` : undefined}
-        />
-        {finals.length > 0 && (
-          <Fact
-            label="Final exam"
-            value={dayLabel(finals[0][DAYS])}
-            note={prettyRange(finals[0][START], finals[0][END])}
-          />
-        )}
-        <Fact label="On the schedule" value={detail?.offered ? "Yes" : "No"} note={detail?.offered ? termLabel : `Not in ${termLabel}`} />
-      </dl>
-
-      {(ges.length > 0 || reqs.length > 0) && (
-        <div className="mt-5 border-t border-gray-100 pt-4 dark:border-white/5">
-          <p className={LABEL}>Satisfies</p>
-          <ul className="mt-2 flex flex-wrap gap-1.5">
-            {reqs.map((g) => (
-              <li key={g} className="rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-200">
-                {geLabel(g)}
-              </li>
-            ))}
-            {(allGe ? ges : ges.slice(0, 4)).map((g) => (
-              <li key={g} className="rounded-md bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-800 dark:bg-indigo-500/15 dark:text-indigo-200">
-                {geLabel(g)}
-              </li>
-            ))}
-          </ul>
-          {ges.length > 4 && (
-            <button type="button" onClick={() => setAllGe((v) => !v)} className="mt-2 text-xs font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]">
-              {allGe ? "Show fewer" : `Show all ${ges.length} college GE areas`}
-            </button>
-          )}
-        </div>
-      )}
-    </section>
+    <>
+      <span className="font-semibold">Historical average {detail.gpa.toFixed(2)} GPA ({letter})</span>
+      {" "}over {detail.terms} graded {detail.terms === 1 ? "term" : "terms"}{years ? `, ${years}` : ""}, all instructors.
+      {detail.terms === 1 && <span className="font-semibold text-amber-800 dark:text-amber-300"> Limited history.</span>}
+      {" "}
+      <Link href="/about#letter" className="whitespace-nowrap text-gray-600 underline underline-offset-2 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+        How it&rsquo;s worked out
+      </Link>
+    </>
   );
 }
 
-function Fact({ label, value, note }: { label: string; value: string; note?: string }) {
+/** The catalog's description, two lines until asked for the rest. */
+function Description({ text }: { text: string }) {
+  const id = useId();
+  const [open, setOpen] = useState(false);
   return (
-    <div className="rounded-xl bg-slate-50 px-3 py-2 dark:bg-white/5">
-      <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">{label}</dt>
-      <dd className="mt-0.5 text-sm font-semibold tabular-nums">{value}</dd>
-      {note && <dd className="text-xs text-gray-500 dark:text-gray-400">{note}</dd>}
+    <div className="mt-2 max-w-3xl">
+      <p id={id} className={`text-sm leading-relaxed text-gray-600 dark:text-gray-400 ${open ? "" : "line-clamp-2"}`}>{text}</p>
+      {text.length > 160 && (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-controls={id}
+          className="mt-1 text-xs font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]"
+        >
+          {open ? "Show less" : "Full description"}
+        </button>
+      )}
     </div>
   );
 }
 
+/**
+ * Prerequisites and restrictions, where they are seen before a section is
+ * chosen. "None listed" and "not on record" are different answers: a retired
+ * course the current catalog does not list has no prerequisite record at all,
+ * which is not a promise that it has none.
+ */
+function Eligibility({
+  detail, offered, known, catalogued,
+}: { detail: CourseDetail; offered: boolean; known: (code: string) => boolean; catalogued: boolean }) {
+  return (
+    <div className="mt-6 grid max-w-4xl gap-2">
+      <p className="rounded-lg bg-amber-50 px-4 py-2.5 text-sm leading-relaxed text-amber-950 dark:bg-amber-500/10 dark:text-amber-100">
+        <span className="font-semibold">Prerequisites: </span>
+        {detail.pre ? (
+          <PrereqText text={detail.pre} known={known} />
+        ) : catalogued ? (
+          `none listed in the UCSD General Catalog${offered ? " or on this term's schedule" : ""}.`
+        ) : (
+          "not on record — this course is not in the current catalog, so check with the department."
+        )}
+      </p>
+      {detail.res && (
+        <p className="rounded-lg bg-rose-50 px-4 py-2.5 text-sm leading-relaxed text-rose-950 dark:bg-rose-500/10 dark:text-rose-100">
+          <span className="font-semibold">Enrollment restrictions: </span>{detail.res}
+        </p>
+      )}
+    </div>
+  );
+}
+
+const surname = (name: string) => name.split(" ").slice(-1)[0];
+
+/**
+ * How this term's instructors compare here, with how recent each record is.
+ * Only instructors with a published history in this course are compared;
+ * one with none is named as such rather than counted as grading alike, and a
+ * record from years ago says so — CSE 11's Politz history ends in Fall 2021.
+ */
+function TeachingNote({
+  code, teaching, latestOf, term,
+}: { code: string; teaching: ProfRecord[]; latestOf: Map<string, string>; term: string | null }) {
+  const known = teaching.filter((p) => p.g > 0 && p.n > 0).sort((a, b) => b.g - a.g);
+  const unknown = teaching.filter((p) => !(p.g > 0 && p.n > 0));
+  const when = (p: ProfRecord) => (latestOf.has(p.i) ? `, latest ${termName(latestOf.get(p.i)!)}` : "");
+  const lines: string[] = [];
+  if (known.length > 1) {
+    const best = known[0];
+    const worst = known[known.length - 1];
+    lines.push(best.g - worst.g >= 0.3
+      ? `Their past ${code} averages differ: ${surname(best.i)} ${best.g.toFixed(2)} (${best.n} ${best.n === 1 ? "term" : "terms"}${when(best)}) and ${surname(worst.i)} ${worst.g.toFixed(2)} (${worst.n} ${worst.n === 1 ? "term" : "terms"}${when(worst)}).`
+      : `Their past ${code} averages are within 0.3 of each other.`);
+  }
+  // A record whose newest term is three or more years before this one is old
+  // enough to say so: it may not be how they teach it now.
+  const oldest = term
+    ? known
+      .map((p) => ({ p, t: latestOf.get(p.i) }))
+      .filter((x): x is { p: ProfRecord; t: string } => Boolean(x.t))
+      .filter((x) => termOrder(x.t) <= termOrder(term) - 30)
+    : [];
+  for (const { p, t } of oldest) lines.push(`${surname(p.i)}'s ${code} record ends in ${termName(t)}.`);
+  if (unknown.length) {
+    lines.push(`${unknown.map((p) => p.i).join(", ")} ${unknown.length === 1 ? "has" : "have"} no published ${code} record yet.`);
+  }
+  if (!lines.length) return null;
+  return <p className="mt-1 text-xs leading-relaxed text-gray-600 dark:text-gray-400">{lines.join(" ")}</p>;
+}
+
 /** The courses whose prerequisites name this one: where it leads. */
 function LeadsTo({ code, leads }: { code: string; leads: string[] }) {
-  const [all, setAll] = useState(false);
-  const shown = all ? leads : leads.slice(0, LEADS_SHOWN);
   return (
-    <section>
-      <h2 className={SECTION_TITLE}>Leads to</h2>
-      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+    <div>
+      <p className="text-xs text-gray-600 dark:text-gray-400">
         {leads.length} {leads.length === 1 ? "course lists" : "courses list"} {code} among their prerequisites — alone, or as one of several options.
       </p>
-      <ul className="mt-4 flex flex-wrap gap-2">
-        {shown.map((c) => (
+      <ul className="mt-3 flex flex-wrap gap-2">
+        {leads.map((c) => (
           <li key={c}>
             <Link
               href={courseHref(c)}
@@ -566,12 +722,7 @@ function LeadsTo({ code, leads }: { code: string; leads: string[] }) {
           </li>
         ))}
       </ul>
-      {leads.length > LEADS_SHOWN && (
-        <button type="button" onClick={() => setAll((v) => !v)} className="mt-2 text-xs font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]">
-          {all ? "Show fewer" : `Show all ${leads.length}`}
-        </button>
-      )}
-    </section>
+    </div>
   );
 }
 
@@ -583,18 +734,19 @@ function PastTerms({ detail }: { detail: CourseDetail }) {
   return (
     <div>
       <table className="w-full text-sm">
+        <caption className="sr-only">Average GPA and share of A grades for each published term and instructor</caption>
         <thead>
-          <tr className="text-left text-xs text-gray-500 dark:text-gray-400">
+          <tr className="text-left text-xs text-gray-600 dark:text-gray-400">
             <th scope="col" className="pb-2 font-medium">Term</th>
             <th scope="col" className="pb-2 font-medium">Instructor</th>
-            <th scope="col" className="pb-2 text-right font-medium">Average</th>
+            <th scope="col" className="pb-2 text-right font-medium">Class average</th>
             <th scope="col" className="pb-2 text-right font-medium">A&rsquo;s</th>
           </tr>
         </thead>
         <tbody>
           {shown.map((h, i) => (
             <tr key={`${h[0]}-${h[1]}-${i}`} className="border-t border-gray-100 dark:border-white/5">
-              <td className="py-2 pr-3 whitespace-nowrap">{termName(h[0])}</td>
+              <th scope="row" className="py-2 pr-3 text-left font-normal whitespace-nowrap">{termName(h[0])}</th>
               <td className="py-2 pr-3">{detail.profs[h[1]]?.i ?? "—"}</td>
               <td className="py-2 text-right tabular-nums">
                 {h[2] != null ? (
@@ -603,7 +755,7 @@ function PastTerms({ detail }: { detail: CourseDetail }) {
                     {h[2].toFixed(2)}
                   </span>
                 ) : (
-                  <span className="text-gray-500 dark:text-gray-400" title="Pass/no pass, or too small to publish">no GPA</span>
+                  <span className="text-gray-600 dark:text-gray-400" title="Pass/no pass, or too small to publish">no GPA published</span>
                 )}
               </td>
               <td className="py-2 pl-3 text-right tabular-nums">{Math.round(h[3])}%</td>
@@ -616,166 +768,10 @@ function PastTerms({ detail }: { detail: CourseDetail }) {
           {all ? "Show fewer" : `Show all ${rows.length} terms`}
         </button>
       )}
-      <p className="mt-3 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+      <p className="mt-3 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
         From the UCSD Associated Students Instructor Grade Archive, which publishes each class&rsquo;s
         average GPA and the share of each letter, not how many students took it.
       </p>
-    </div>
-  );
-}
-
-const surname = (name: string) => name.split(" ").slice(-1)[0];
-
-/**
- * One plain-English sentence instead of a strip of four competing numbers.
- *
- * Only instructors who actually have a published history for this course get
- * compared. This sentence used to end "the instructors teaching it grade
- * similarly" whenever it could not find a spread — including when the person
- * teaching had never taught it and so had no number to spread. Saying two
- * people grade alike when one of them has no record is a claim the data does
- * not support, and it is the sentence a student reads first.
- */
-function summary(detail: CourseDetail, letter: string | undefined, teaching: ProfRecord[]): string {
-  if (!letter) return "No grade distribution has been published for this course yet.";
-  const base = `Students typically earn a ${letter} here, across ${detail.terms} graded ${detail.terms === 1 ? "term" : "terms"}.`;
-
-  const known = teaching.filter((p) => p.g > 0 && p.n > 0).sort((a, b) => b.g - a.g);
-  const unknown = teaching.filter((p) => !(p.g > 0 && p.n > 0));
-
-  // Nobody teaching it has taught it before — the history above is somebody
-  // else's, and the sentence has to say so.
-  if (!known.length) {
-    if (!unknown.length) return base;
-    const who = unknown.length === 1
-      ? `${unknown[0].i} is`
-      : `The ${unknown.length} instructors listed are`;
-    return `${base} That history is from past instructors: ${who} teaching it this term with no published record for this course yet.`;
-  }
-
-  const best = known[0];
-  const worst = known[known.length - 1];
-  const spread = known.length > 1 && best.g - worst.g >= 0.3
-    ? ` Who you pick matters: ${surname(best.i)} averages ${best.g.toFixed(2)} against ${surname(worst.i)}'s ${worst.g.toFixed(2)}.`
-    : known.length > 1
-      ? " The instructors with a record here grade similarly."
-      : "";
-
-  const caveat = unknown.length
-    ? ` ${unknown.length === 1 ? `${surname(unknown[0].i)} has` : `${unknown.length} of them have`} no published record for this course.`
-    : "";
-
-  return base + spread + caveat;
-}
-
-/**
- * Collapsed to a single line; the distribution opens from the chevron and the
- * name opens the rating panel.
- *
- * The row used to be one big <button>. It cannot be any more: the name is now
- * interactive too, and a button inside a button is invalid HTML that browsers
- * silently reparent. So the row is a plain div holding two sibling controls.
- */
-function ProfLine({
-  prof, first = false, defaultOpen = false, rating, canRate,
-}: {
-  prof: ProfRecord;
-  first?: boolean;
-  defaultOpen?: boolean;
-  /** null for past instructors — rating is scoped to the current term. */
-  rating: { term: string; termName: string; code: string } | null;
-  /** Ratings are saved to an account, so a visitor who is not signed in gets the name alone. */
-  canRate: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  const [rateOpen, setRateOpen] = useState(false);
-  const { ratings } = useTermRatings();
-
-  const mine = rating ? ratings[ratingKey(rating.term, rating.code, prof.i)] : undefined;
-  const meta = (
-    <span className="flex flex-wrap items-center gap-x-2 text-xs text-gray-500 dark:text-gray-400">
-      <span>{prof.n > 0 ? `${prof.n} term${prof.n === 1 ? "" : "s"}` : "no grade history"}</span>
-      <LoadTag difficulty={prof.rd} />
-      {mine && (
-        <span className="inline-flex items-center gap-0.5 font-semibold text-[#1B2C4F] dark:text-[#FFC72C]">
-          <Star className="h-3 w-3 fill-current" />
-          you rated {mine.quality}/5
-        </span>
-      )}
-    </span>
-  );
-
-  return (
-    <div className={first ? "" : "border-t border-gray-100 dark:border-white/5"}>
-      <div className="flex w-full items-center gap-3 px-3 py-3">
-        <GradeBadge gpa={prof.g} terms={prof.n} size="sm" />
-
-        <span className="min-w-0 flex-1">
-          {rating && canRate ? (
-            <button
-              type="button"
-              onClick={() => setRateOpen((v) => !v)}
-              aria-expanded={rateOpen}
-              title={`Rate ${prof.i} for ${rating.termName}`}
-              className="block max-w-full truncate text-left text-sm font-medium underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B2C4F] dark:focus-visible:ring-[#FFC72C]"
-            >
-              {prof.i}
-            </button>
-          ) : (
-            <span className="block truncate text-sm font-medium">{prof.i}</span>
-          )}
-          {meta}
-        </span>
-
-        {prof.rq != null && prof.rq > 0 && (
-          <span
-            className={`flex shrink-0 items-center gap-0.5 text-xs font-semibold ${ratingTone(prof.rq)}`}
-            title={prof.rn ? `${prof.rn} RateMyProfessors ratings` : undefined}
-          >
-            <Star className="h-3 w-3 fill-current" />
-            {prof.rq.toFixed(1)}
-          </span>
-        )}
-
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          aria-label={`${open ? "Hide" : "Show"} grade distribution for ${prof.i}`}
-          className="shrink-0 rounded p-1 text-gray-500 transition hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B2C4F] dark:text-gray-400 dark:hover:bg-white/10 dark:focus-visible:ring-[#FFC72C]"
-        >
-          <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
-        </button>
-      </div>
-
-      {rating && canRate && rateOpen && (
-        <RateProfessor
-          key={`${rating.term}:${rating.code}:${prof.i}`}
-          term={rating.term}
-          termName={rating.termName}
-          code={rating.code}
-          instructor={prof.i}
-          onClose={() => setRateOpen(false)}
-        />
-      )}
-
-      {open && (
-        <div className="px-3 pb-5 pl-14">
-          <GradeBars prof={prof} />
-          {prof.rid && (
-            <a
-              href={`https://www.ratemyprofessors.com/professor/${prof.rid}`}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="mt-3 inline-flex items-center gap-1 text-xs text-gray-500 hover:underline dark:text-gray-400"
-            >
-              {prof.rn ?? 0} RateMyProfessors ratings
-              {prof.rw != null && prof.rw > 0 ? ` · ${prof.rw}% would retake` : ""}
-              <ExternalLink className="h-3 w-3" />
-            </a>
-          )}
-        </div>
-      )}
     </div>
   );
 }

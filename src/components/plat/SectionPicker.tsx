@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useId } from "react";
 import { dayLabel, prettyRange, type SectionTuple } from "@/lib/plat";
 import {
-  CODE, INSTRUCTOR, TYPE, DAYS, START, END, TSS_HINT,
-  groupSections, isChoosable, isDated, sectionSeats, sectionTssUrl, sectionWaitlist,
-  sectionWhen, sectionWhere, selectionRule, typeLabel,
+  CODE, INSTRUCTOR, TYPE, DAYS, START, END,
+  groupSections, sectionSeats, sectionSeatsAt, sectionWaitlist, sectionWhen, sectionWhere, selectionRule, typeLabel,
   type LectureFamily, type SectionSelection,
 } from "@/lib/sections";
+import { finalOverview, type FinalOverview } from "@/lib/sectionChoice";
+import { seatAge } from "@/lib/freshness";
+import { SeatAgeNote } from "./SeatAge";
+import { useNow } from "./useNow";
 
 /**
  * Sections, grouped the way enrolment actually works.
@@ -15,89 +18,115 @@ import {
  * A flat list of eleven rows hides the one rule that matters: a discussion
  * belongs to a particular lecture, so picking A01 commits you to lecture A00.
  * Lecture families are therefore the outer choice, and a family's discussions
- * only appear once that family is the one you are taking.
+ * only appear once that family is the one you are taking — choosing another
+ * lecture clears them, since they cannot go with it.
  *
- * Uncontrolled on the course page, where picking is a way of reading the
- * timetable; controlled by the planner, which owns the choice and draws it on
- * the calendar.
+ * Each choice is a native radio, so arrow keys move through a group and a
+ * screen reader hears it as one. The page owns the choice: its summary, its
+ * final and its TSS link all follow it.
+ *
+ * Every final is shown with the lecture it belongs to. When the lectures sit
+ * different finals, a course has no one final until a lecture is chosen, and
+ * the page used to print the first lecture's date as if it were everyone's.
  */
 
-function Seats({ s }: { s: SectionTuple }) {
+/** "Lecture", "Independent study", or "Section" when a course mixes kinds. */
+function familyNoun(families: LectureFamily[]): string {
+  const kinds = new Set(families.map((f) => (f.lecture ? typeLabel(f.lecture[TYPE]) : "Section")));
+  return kinds.size === 1 ? [...kinds][0] : "Section";
+}
+
+function Seats({ s, now }: { s: SectionTuple; now: number | null }) {
   const seats = sectionSeats(s);
   const waitlist = sectionWaitlist(s);
-  if (!seats.known) return null;
+  if (!seats.known) {
+    // Unknown is not full: Class Planner published no seat count for it.
+    return <span className="shrink-0 text-right text-[11px] leading-tight text-gray-500 dark:text-gray-400">Seats not published</span>;
+  }
   const tone = seats.full
-    ? "text-red-600 dark:text-red-400"
+    ? "text-red-700 dark:text-red-400"
     : seats.tight
-      ? "text-amber-600 dark:text-amber-400"
-      : "text-emerald-600 dark:text-emerald-400";
+      ? "text-amber-700 dark:text-amber-400"
+      : "text-emerald-700 dark:text-emerald-400";
   return (
-    <span className="flex shrink-0 flex-col items-end leading-tight">
+    <span className="flex shrink-0 flex-col items-end text-right leading-tight">
       <span className={`text-[11px] font-semibold tabular-nums ${tone}`}>
-        {seats.full ? "Full" : `${seats.open} open`}
+        {seats.full ? "Full" : `${seats.open} of ${seats.limit} open`}
       </span>
       {/*
         A full section with nobody queued and a full section with forty people
         queued are different decisions, and "Full" alone cannot tell them apart.
       */}
       {waitlist != null && waitlist > 0 && (
-        <span className="text-[11px] tabular-nums text-gray-500">{waitlist} waitlisted</span>
+        <span className="text-[11px] tabular-nums text-gray-500 dark:text-gray-400">{waitlist} waitlisted</span>
       )}
+      <SeatAgeNote at={sectionSeatsAt(s)} now={now} />
     </span>
   );
 }
 
-/** Shared radio-row chrome for both a family header and a sub-section. */
+/** One choice: a native radio, its circle drawn to match, the whole row its label. */
 function PickRow({
-  selected, onPick, title, meta, trailing, ariaLabel, compact,
+  name, checked, onPick, title, meta, extra, trailing, compact,
 }: {
-  selected: boolean;
+  name: string;
+  checked: boolean;
   onPick: () => void;
   title: React.ReactNode;
   meta: string;
+  extra?: React.ReactNode;
   trailing?: React.ReactNode;
-  ariaLabel: string;
   compact: boolean;
 }) {
   return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      aria-label={ariaLabel}
-      onClick={onPick}
-      className={`flex w-full items-start gap-2.5 rounded-lg border px-2.5 text-left transition ${
+    <label
+      className={`flex w-full cursor-pointer items-start gap-2.5 rounded-lg border px-2.5 text-left transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#182B49] has-[:focus-visible]:ring-offset-1 dark:has-[:focus-visible]:ring-[#FFCD00] dark:has-[:focus-visible]:ring-offset-[#0d1420] ${
         compact ? "py-1.5" : "py-2"
       } ${
-        selected
+        checked
           ? "border-[#182B49] bg-[#182B49]/[0.05] dark:border-[#FFCD00] dark:bg-[#FFCD00]/10"
           : "border-gray-200 hover:border-gray-300 hover:bg-gray-50 dark:border-white/10 dark:hover:border-white/20 dark:hover:bg-white/5"
       }`}
     >
+      <input type="radio" name={name} checked={checked} onChange={onPick} className="peer sr-only" />
       <span
         aria-hidden
         className={`mt-0.5 h-3.5 w-3.5 shrink-0 rounded-full border-2 transition ${
-          selected
+          checked
             ? "border-[#182B49] bg-[#182B49] ring-2 ring-inset ring-white dark:border-[#FFCD00] dark:bg-[#FFCD00] dark:ring-[#0d1420]"
-            : "border-gray-300 dark:border-white/25"
+            : "border-gray-400 dark:border-white/30"
         }`}
       />
       <span className="min-w-0 flex-1">
         <span className="flex flex-wrap items-baseline gap-x-2">{title}</span>
-        <span className="mt-0.5 block text-[11px] leading-snug text-gray-500 dark:text-gray-400">
-          {meta}
-        </span>
+        <span className="mt-0.5 block text-[11px] leading-snug text-gray-600 dark:text-gray-400">{meta}</span>
+        {extra}
       </span>
       {trailing}
-    </button>
+    </label>
   );
+}
+
+/** "Thu, Dec 10 · 7:00 PM – 9:59 PM · PCYNH 109" */
+export function examLine(s: SectionTuple): string {
+  return [dayLabel(s[DAYS]), prettyRange(s[START], s[END]), sectionWhere(s)].filter(Boolean).join(" · ");
 }
 
 function familyMeta(f: LectureFamily): string {
   if (!f.lecture) return "Meeting time TBA";
-  return [sectionWhen(f.lecture), sectionWhere(f.lecture), f.lecture[INSTRUCTOR]]
-    .filter(Boolean)
-    .join(" · ");
+  return [sectionWhen(f.lecture), sectionWhere(f.lecture)].filter(Boolean).join(" · ");
+}
+
+/** The final for one lecture, under it — only when finals differ by lecture. */
+function FamilyFinal({ overview, family }: { overview: FinalOverview; family: string }) {
+  if (overview.kind !== "varies") return null;
+  const finals = overview.byFamily.find((f) => f.key === family)?.finals ?? [];
+  return (
+    <span className="mt-1 block text-[11px] leading-snug text-gray-700 dark:text-gray-300">
+      <span className="font-semibold">Final:</span>{" "}
+      {finals.length ? finals.map(examLine).join("; ") : "not listed on the schedule"}
+    </span>
+  );
 }
 
 export default function SectionPicker({
@@ -105,182 +134,121 @@ export default function SectionPicker({
   value,
   onChange,
   compact = false,
-  tss = null,
 }: {
   sec: SectionTuple[];
-  /** Controlled selection. Omit to let the component hold its own. */
-  value?: SectionSelection;
-  onChange?: (next: SectionSelection) => void;
-  /** Denser padding, for the planner rail. */
+  value: SectionSelection | undefined;
+  onChange: (next: SectionSelection) => void;
+  /** Denser padding, for a narrow column. */
   compact?: boolean;
-  /** The course's TSS booking URL, so a picked section can deep-link to it. */
-  tss?: string | null;
 }) {
+  const id = useId();
+  const now = useNow();
   const families = groupSections(sec);
-  const rule = selectionRule(families);
-  // Exams are not a choice, but dropping them entirely would hide the one date
-  // a student cannot move, so they are listed apart from the pickable sections.
-  const exams = sec.filter((s) => !isChoosable(s));
-
-  // A parent that passes onChange owns the selection outright. Falling back to
-  // internal state when its `value` was merely empty drew a lecture as chosen
-  // while the parent — and so the calendar — still had nothing.
-  const controlled = onChange !== undefined;
-  const [own, setOwn] = useState<SectionSelection | undefined>(() =>
-    !controlled && families.length === 1 ? { family: families[0].key, parts: {} } : undefined,
-  );
-  const selection = controlled ? value : own;
-  const commit = (next: SectionSelection) => (onChange ? onChange(next) : setOwn(next));
+  const overview = finalOverview(sec, families);
+  const noun = familyNoun(families);
+  const single = families.length === 1 && families[0].parts.length === 0;
+  const rule = single ? `One ${noun.toLowerCase()} is offered.` : selectionRule(families);
 
   if (!families.length) {
-    return exams.length ? <ExamList exams={exams} /> : null;
+    return <p className="text-sm text-gray-600 dark:text-gray-400">No section can be chosen on this term&rsquo;s schedule.</p>;
   }
+
+  // Seat counts that are over a day old or undated, which earn the TSS reminder.
+  const doubtful = now != null && sec.some((s) => seatAge(sectionSeatsAt(s), now).kind !== "recent" && sectionSeats(s).known);
 
   const chooseFamily = (key: string) => {
     // Parts belong to their family, so switching lecture clears the discussion
     // that was tied to the old one rather than leaving an impossible pairing.
-    if (selection?.family === key) return;
-    commit({ family: key, parts: {} });
+    // A sub-section with a single option is not a second decision.
+    if (value?.family === key) return;
+    const family = families.find((f) => f.key === key);
+    const parts: Record<string, string> = {};
+    for (const p of family?.parts ?? []) if (p.sections.length === 1) parts[p.type] = p.sections[0][CODE];
+    onChange({ family: key, parts });
   };
 
   const choosePart = (type: string, code: string) => {
-    if (!selection) return;
-    const already = selection.parts[type] === code;
-    const parts = { ...selection.parts };
-    if (already) delete parts[type];
-    else parts[type] = code;
-    commit({ ...selection, parts });
+    if (!value) return;
+    onChange({ ...value, parts: { ...value.parts, [type]: code } });
   };
 
   return (
     <div>
-      {rule && (
-        <p className={`text-xs text-gray-500 dark:text-gray-400 ${compact ? "mb-1.5" : "mb-2"}`}>
-          {rule}
+      {rule && <p className={`text-sm text-gray-700 dark:text-gray-200 ${compact ? "mb-1.5" : "mb-1"}`}>{rule}</p>}
+      <p className="mb-3 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
+        Times are Pacific (San Diego) time. Seats are UCSD Class Planner&rsquo;s last count for each section, not a live
+        number{doubtful ? "; counts marked “old” are more than a day old, so check TSS before you enroll" : ""}.
+      </p>
+      {overview.kind === "same" && (
+        <p className="mb-3 text-xs text-gray-700 dark:text-gray-300">
+          <span className="font-semibold">Final{families.length > 1 ? ` for every ${noun.toLowerCase()}` : ""}:</span>{" "}
+          {overview.finals.map(examLine).join("; ")}
         </p>
       )}
+      {overview.kind === "none" && (
+        <p className="mb-3 text-xs text-gray-600 dark:text-gray-400">No final exam is listed on the schedule for this course.</p>
+      )}
 
-      <div className="space-y-1.5" role="radiogroup" aria-label="Lecture">
+      <div className="space-y-1.5" role="radiogroup" aria-label={noun}>
         {families.map((f) => {
-          const chosen = selection?.family === f.key;
+          const chosen = value?.family === f.key;
           const subCount = f.parts.reduce((n, p) => n + p.sections.length, 0);
+          const label = `${f.lecture ? typeLabel(f.lecture[TYPE]) : "Section"} ${f.key}`;
 
           return (
             <div key={f.key}>
               <PickRow
+                name={`${id}-family`}
                 compact={compact}
-                selected={chosen}
+                checked={chosen}
                 onPick={() => chooseFamily(f.key)}
-                ariaLabel={`${f.lecture ? typeLabel(f.lecture[TYPE]) : "Sections"} ${f.key}`}
                 title={
                   <>
-                    <span className="text-[13px] font-semibold">
-                      {f.lecture ? typeLabel(f.lecture[TYPE]) : "Sections"} {f.key}
-                    </span>
+                    <span className="text-[13px] font-semibold">{label}</span>
+                    {f.lecture?.[INSTRUCTOR] && (
+                      <span className="text-[12px] text-gray-700 dark:text-gray-300">{f.lecture[INSTRUCTOR]}</span>
+                    )}
                     {!chosen && subCount > 0 && (
-                      <span className="text-[11px] text-gray-500">
-                        {subCount} to choose from
+                      <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                        {subCount} {f.parts.map((p) => p.label.toLowerCase()).join(" / ")} option{subCount === 1 ? "" : "s"}
                       </span>
                     )}
                   </>
                 }
                 meta={familyMeta(f)}
-                trailing={f.lecture ? <Seats s={f.lecture} /> : undefined}
+                extra={<FamilyFinal overview={overview} family={f.key} />}
+                trailing={f.lecture ? <Seats s={f.lecture} now={now} /> : undefined}
               />
 
               {chosen && f.parts.length > 0 && (
                 <div className="mt-1.5 space-y-2 border-l-2 border-gray-200 pl-2.5 dark:border-white/10">
                   {f.parts.map((p) => (
-                    <div key={p.type} role="radiogroup" aria-label={p.label}>
-                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                    <div key={p.type} role="radiogroup" aria-label={`${p.label} for ${label}`}>
+                      <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
                         {p.label} · {p.sections.length} option{p.sections.length === 1 ? "" : "s"}
                       </p>
                       <div className="space-y-1">
                         {p.sections.map((s) => (
                           <PickRow
                             key={s[CODE]}
+                            name={`${id}-${f.key}-${p.type}`}
                             compact={compact}
-                            selected={selection?.parts[p.type] === s[CODE]}
+                            checked={value?.parts[p.type] === s[CODE]}
                             onPick={() => choosePart(p.type, s[CODE])}
-                            ariaLabel={`${p.label} ${s[CODE]}`}
-                            title={<span className="font-mono text-xs font-bold">{s[CODE]}</span>}
+                            title={<span className="font-mono text-xs font-bold">{p.label} {s[CODE]}</span>}
                             meta={[sectionWhen(s), sectionWhere(s)].filter(Boolean).join(" · ")}
-                            trailing={<Seats s={s} />}
+                            trailing={<Seats s={s} now={now} />}
                           />
                         ))}
                       </div>
                     </div>
                   ))}
-
-                  {/*
-                    TSS enrols a package — the lecture and the discussion you
-                    picked, together — so the link only appears once that pair
-                    exists. Offering it earlier would send a student to a page
-                    that cannot book what they are looking at.
-                  */}
-                  <BookSelected sec={sec} selection={selection} tss={tss} />
                 </div>
               )}
             </div>
           );
         })}
       </div>
-
-      {exams.length > 0 && <ExamList exams={exams} />}
     </div>
-  );
-}
-
-/**
- * "Book on TSS" for the exact pairing the student has selected.
- *
- * Rendered only when a sub-section is chosen and that section carries a single
- * enrolment package: a lecture's package list spans every discussion under it,
- * so linking from the lecture alone would book an arbitrary one.
- */
-function BookSelected({
-  sec, selection, tss,
-}: {
-  sec: SectionTuple[];
-  selection: SectionSelection | undefined;
-  tss: string | null;
-}) {
-  if (!tss || !selection) return null;
-  const codes = Object.values(selection.parts);
-  if (codes.length !== 1) return null;
-  const picked = sec.find((s) => s[CODE] === codes[0]);
-  if (!picked) return null;
-  const url = sectionTssUrl(picked, tss);
-  if (!url) return null;
-
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noreferrer noopener"
-      title={TSS_HINT}
-      className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-[#182B49] underline-offset-2 hover:underline dark:text-[#FFCD00]"
-    >
-      Book {selection.family}
-      {codes[0] === selection.family ? "" : ` + ${codes[0]}`} on TSS ↗
-    </a>
-  );
-}
-
-function ExamList({ exams }: { exams: SectionTuple[] }) {
-  return (
-    <ul className="mt-2.5 list-none space-y-1 p-0">
-      {exams.map((s, i) => (
-        <li
-          key={`${s[CODE]}-${i}`}
-          className="flex flex-wrap items-baseline gap-x-2 text-[11px] text-gray-500 dark:text-gray-400"
-        >
-          <span className="font-semibold">{typeLabel(s[TYPE])}</span>
-          {/* A one-off row keeps its date in the days column: "2026-12-11" reads as "Fri, Dec 11". */}
-          <span>{isDated(s) ? dayLabel(s[DAYS]) : s[DAYS]}</span>
-          <span>{prettyRange(s[START], s[END])}</span>
-        </li>
-      ))}
-    </ul>
   );
 }

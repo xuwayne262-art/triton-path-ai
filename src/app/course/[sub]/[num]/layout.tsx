@@ -20,7 +20,7 @@ export async function generateMetadata({
   const letter = typicalGrade(detail.gpa, detail.terms)?.letter;
   const teaching = detail.profs.filter((p) => p.cur === 1).map((p) => p.i);
   const description = [
-    letter ? `Students typically earn a ${letter} in ${code}, across ${detail.terms} graded terms.` : null,
+    letter && detail.gpa != null ? `Historical average ${letter} (GPA ${detail.gpa.toFixed(2)}) in ${code} across ${detail.terms} graded terms.` : null,
     teaching.length && termName ? `${termName}: ${teaching.slice(0, 2).join(" and ")}${teaching.length > 2 ? " and others" : ""}.` : null,
     detail.desc ? detail.desc.slice(0, 180) + (detail.desc.length > 180 ? "…" : "") : null,
   ].filter(Boolean).join(" ");

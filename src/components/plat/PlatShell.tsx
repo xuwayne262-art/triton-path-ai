@@ -10,6 +10,7 @@ import TridentMark from "./TridentMark";
 import { useTheme } from "./theme";
 import { useSignedIn, useSignInHref } from "./useSignedIn";
 import { loadIndex, refreshedLabel, type IndexMeta } from "@/lib/plat";
+import { seatSpan, spanLabel } from "@/lib/freshness";
 
 /**
  * The site's frame: one bar with the search and the Planner, and the four
@@ -43,9 +44,12 @@ export default function PlatShell({
 
   useEffect(() => { loadIndex().then((d) => setMeta(d.meta)).catch(() => {}); }, []);
   const refreshed = refreshedLabel(meta?.refreshed);
-  // Class Planner can hold seat counts days older than its schedule; the
-  // footer gives the older date when the dataset knows it.
-  const seatsAsOf = refreshedLabel(meta?.seatsAsOf);
+  // Class Planner counts each section's seats on its own clock, so one dataset
+  // holds counts weeks apart: the footer gives the span, never one date.
+  const span = meta?.seatsNewest ? seatSpan([meta.seatsAsOf, meta.seatsNewest]) : null;
+  const seats = span
+    ? `seat counts taken ${spanLabel(span)}, ${new Date(span.newest).getUTCFullYear()} (each section shows its own)`
+    : `seat counts dated where Class Planner gives a time${refreshed ? `; listings refreshed ${refreshed}` : ""}`;
 
   const tab = (active: boolean) =>
     `inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
@@ -147,7 +151,7 @@ export default function PlatShell({
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 text-xs leading-relaxed text-gray-500 dark:text-gray-400 sm:px-6 lg:flex-row lg:items-start lg:justify-between lg:px-8">
           <p className="max-w-3xl">
             {meta
-              ? `${meta.gradeRecords.toLocaleString()} course–instructor grade distributions (${meta.years}) from the UCSD Associated Students Instructor Grade Archive; descriptions and prerequisites from the UCSD General Catalog; ${meta.termName} sections and seats from UCSD’s Class Planner${seatsAsOf ? `, seats as of ${seatsAsOf}` : refreshed ? `, as of ${refreshed}` : ""}. `
+              ? `${meta.gradeRecords.toLocaleString()} course–instructor grade distributions (${meta.years}) from the UCSD Associated Students Instructor Grade Archive; descriptions and prerequisites from the UCSD General Catalog; ${meta.termName} sections and seats from UCSD’s Class Planner, ${seats} — not live, so check TSS before you enroll. `
               : ""}
             Historical grades describe the past, not your quarter — confirm requirements with your college advisor.
           </p>

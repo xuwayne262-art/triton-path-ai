@@ -24,6 +24,8 @@ export interface CourseRow {
   ge?: string[];      // GE area keys, "revelle:Mathematics"
   sa: number | null;  // seats available
   sl: number | null;  // seat limit
+  /** When the oldest count behind sa/sl was taken, "2026-09-21T13:01Z"; absent when Class Planner gave no time. */
+  sat?: string;
   d: string | null;   // meeting days "TuTh"
   st: string | null;  // start        "9:30a"
   en: string | null;  // end          "10:50a"
@@ -48,10 +50,14 @@ export interface IndexMeta {
   termName: string;
   /** When the grade archive was retrieved, "2026-08-23". */
   generated: string;
-  /** When this term's schedule was last taken from Class Planner, "2026-09-25 15:53:24+00". */
+  /** When UCSD last refreshed this term's listings in Class Planner, "2026-09-25 15:53:24+00". */
   refreshed?: string | null;
-  /** The oldest seat count on the schedule, ISO-8601: what "seats as of" can claim for the term. */
+  /** When this dataset read Class Planner, ISO-8601. Never a seat time: re-reading an old count does not renew it. */
+  retrieved?: string | null;
+  /** The oldest seat count on the schedule, ISO-8601. */
   seatsAsOf?: string | null;
+  /** The newest seat count on the schedule; with seatsAsOf, the span the term's counts were taken over. */
+  seatsNewest?: string | null;
   /** Class Planner's own count of the term's listings when it was taken. */
   counts?: { courses: number | null; sections: number | null; meetings: number | null } | null;
   years: string;
@@ -159,7 +165,8 @@ export type SectionTuple = [
   number, number | null, string, string[], number | null, number | null,
   // 17 building code, "" when TBA or remote · 18 Class Planner status
   // 19 topic, for a topics course listed once per topic ("" otherwise)
-  string?, string?, string?,
+  // 20 when Class Planner counted this section's seats, "" when it did not say
+  string?, string?, string?, string?,
 ];
 
 /**
@@ -194,9 +201,11 @@ export interface CourseDetail {
   res: string | null;
   fa: string[];
   /**
-   * When Class Planner last counted this course's seats, ISO-8601. Can be days
-   * older than the term's refresh: Class Planner recounts from TSS on its own
-   * schedule. Absent on a course it gave no time for.
+   * The oldest seat count among this course's sections, ISO-8601: the most a
+   * course-wide "seats as of" can claim. Each section's own time is in its
+   * tuple (position 20). Absent when Class Planner gave no time. In data built
+   * before sections were dated it was one lecture's time, not the course's,
+   * so it is only read alongside per-section times (see lib/freshness.ts).
    */
   seatsAt?: string;
   profs: ProfRecord[];
@@ -480,17 +489,6 @@ export function ratingTone(q: number | null | undefined): string {
   return "text-red-500 dark:text-red-400";
 }
 
-export type Load = { label: string; text: string } | null;
-
-/** RateMyProfessors difficulty (1-5) -> plain-language workload. */
-export function workload(difficulty: number | null | undefined): Load {
-  if (difficulty == null || difficulty <= 0) return null;
-  if (difficulty <= 2.2) return { label: "Light", text: "text-emerald-600 dark:text-emerald-400" };
-  if (difficulty <= 3.2) return { label: "Moderate", text: "text-amber-600 dark:text-amber-400" };
-  if (difficulty <= 4.0) return { label: "Heavy", text: "text-orange-600 dark:text-orange-400" };
-  return { label: "Brutal", text: "text-red-600 dark:text-red-400" };
-}
-
 /**
  * Seats only earn screen space when they change a decision. "402 of 410 open"
  * is noise; "8 left" is not.
@@ -547,7 +545,7 @@ export function prettyRange(start: string | null, end: string | null): string {
 export const SECTION_TYPES: Record<string, string> = {
   LE: "Lecture", DI: "Discussion", LA: "Lab", SE: "Seminar", ST: "Studio",
   FI: "Final Exam", MI: "Midterm", TU: "Tutorial", PR: "Practicum",
-  FW: "Fieldwork", CL: "Clinical", IN: "Independent", OT: "Other",
+  FW: "Fieldwork", CL: "Clinical", IN: "Independent study", OT: "Other",
 };
 
 /**
@@ -789,6 +787,29 @@ export const professorSlug = (name: string) =>
   name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 export const professorHref = (name: string) => `/professor/${professorSlug(name)}`;
+
+/**
+ * The professor a name on a page belongs to: their own archive name first,
+ * then a spelling they are also known by — a course page says "Joe Politz",
+ * the archive "Joseph Gibbs Politz". Null when nobody on file answers to it,
+ * so a page can show the name without a link rather than a link to nothing.
+ */
+export function professorFor(profs: ProfessorRecord[], name: string): ProfessorRecord | null {
+  const n = name.trim();
+  if (!n) return null;
+  return profs.find((p) => p.n === n) ?? profs.find((p) => p.a?.includes(n)) ?? null;
+}
+
+/**
+ * A professor page's record from its URL: the page's own slug, or — for a
+ * link built from a spelling on someone's schedule — a slug of one of their
+ * other names. Their own name wins when both answer.
+ */
+export function professorBySlug(profs: ProfessorRecord[], slug: string): ProfessorRecord | null {
+  return profs.find((p) => professorSlug(p.n) === slug)
+    ?? profs.find((p) => p.a?.some((a) => professorSlug(a) === slug))
+    ?? null;
+}
 
 export interface ProfHit {
   prof: ProfessorRecord;

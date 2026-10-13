@@ -68,12 +68,21 @@ export default function CourseMap({ pins, dark }: { pins: CoursePin[]; dark: boo
     return () => map.remove();
   }, [pins, dark]);
 
+  // No WebGL, no map — but the buildings and their directions are listed right
+  // under it, so the fallback is a line saying so, not a large empty panel.
   if (failed) {
     return (
-      <div className="flex h-44 items-center justify-center rounded-xl bg-slate-100 px-4 text-center text-xs text-gray-500 dark:bg-white/5 dark:text-gray-400">
-        This browser cannot draw the map.
-      </div>
+      <p role="note" className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-gray-600 dark:bg-white/5 dark:text-gray-400">
+        The map can&rsquo;t be drawn in this browser (it needs WebGL). Each building is listed below with walking directions.
+      </p>
     );
   }
-  return <div ref={el} className="h-44 w-full overflow-hidden rounded-xl bg-slate-100 dark:bg-white/5" />;
+  return (
+    <div
+      ref={el}
+      role="img"
+      aria-label={`Map of ${pins.map((p) => p.name).join(", ")}`}
+      className="h-40 w-full overflow-hidden rounded-xl bg-slate-100 dark:bg-white/5"
+    />
+  );
 }

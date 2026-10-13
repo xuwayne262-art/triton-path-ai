@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   AlertTriangle, CalendarClock, CalendarDays, CalendarPlus, Footprints, ImageDown, ListChecks, Map as MapIcon,
   PanelLeftClose, PanelLeftOpen, Search, Wand2, X,
@@ -29,6 +29,8 @@ import {
   CODE, eventsForRow, findFamily, groupSections, oneOffsFor, rowsFor, selectedSections,
   type CalEvent,
 } from "@/lib/sections";
+import { choiceText, decodeChoice, encodeChoice } from "@/lib/sectionChoice";
+import { ADD_INTENT_KEY, madeHere, parseAddIntent, type AddIntent } from "@/lib/planIntent";
 import { usePlanner } from "./PlannerProvider";
 
 /**
@@ -71,6 +73,18 @@ interface Toast {
 
 /** Discussions a course still needs are drawn on the calendar when there are few enough to scan. */
 const MAX_PENDING_OPTIONS = 8;
+
+// A choice handed over from a course page rides in the address bar
+// (lib/planIntent.ts); it is read once and then taken back out of it.
+const noSubscribe = () => () => {};
+const readSearch = () => window.location.search;
+
+function dropIntentFromUrl() {
+  try { sessionStorage.removeItem(ADD_INTENT_KEY); } catch { /* nothing kept */ }
+  const url = new URL(window.location.href);
+  for (const k of ["add", "pick", "n"]) url.searchParams.delete(k);
+  window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+}
 
 const isTyping = (t: EventTarget | null) =>
   t instanceof HTMLElement &&
@@ -133,7 +147,7 @@ export default function TermWorkspacePage() {
     restoreSelections, retrySections,
     sectionStatus, events, optionEvents, conflictCodes, totalUnits,
     plannedCourses, addAICourseToPlan, removePlannedCourse,
-    platRows, platByCode, savedCourses, toggleSaved, addCourseByCode,
+    platRows, platByCode, savedCourses, toggleSaved, addCourseByCode, termSettled,
     selectedMajor, selectedMinor, selectedCollege,
     roleOf, getColorForCourse, activeRequirements,
     term, termName, pastTerms, newerPlanTerm, buildings,
@@ -195,6 +209,72 @@ export default function TermWorkspacePage() {
     const t = window.setTimeout(() => setToast(null), 8000);
     return () => window.clearTimeout(t);
   }, [toast]);
+
+  // ── A choice handed over from a course page ────────────────────────────────
+  // Applied at once when this tab made it (the course page left its nonce
+  // here, through sign-in if need be); a link from anywhere else is asked
+  // about first, so it cannot quietly change the schedule. Its sections wait
+  // for the course's section file, and are checked against it: a section the
+  // term no longer has is dropped and the student is told, never guessed.
+  const search = useSyncExternalStore(noSubscribe, readSearch, () => "");
+  const intent = useMemo(() => parseAddIntent(new URLSearchParams(search)), [search]);
+  const [askAbout, setAskAbout] = useState<AddIntent | null>(null);
+  const [pendingPick, setPendingPick] = useState<{ code: string; pick: string | null } | null>(null);
+  const handledIntent = useRef<string | null>(null);
+
+  const applyIntent = useCallback((i: AddIntent) => {
+    setAskAbout(null);
+    dropIntentFromUrl();
+    if (!addCourseByCode(i.code)) {
+      setToast({ text: `${i.code} isn’t on the ${termName || "current"} schedule, so it wasn’t added.` });
+      return;
+    }
+    setPendingPick({ code: i.code, pick: i.pick });
+  }, [addCourseByCode, termName]);
+
+  // Both steps run a tick after the render that makes them possible, as the
+  // rest of the page's effect-driven state does; the guard is set inside the
+  // tick, so Strict Mode's second run in development cannot swallow it.
+  useEffect(() => {
+    if (!intent || !termSettled || !platByCode.size) return;
+    const key = `${intent.code}|${intent.pick}|${intent.nonce}`;
+    if (handledIntent.current === key) return;
+    const t = window.setTimeout(() => {
+      handledIntent.current = key;
+      let stored: string | null = null;
+      try { stored = sessionStorage.getItem(ADD_INTENT_KEY); } catch { /* treated as not made here */ }
+      if (madeHere(stored, intent, Date.now())) applyIntent(intent);
+      else setAskAbout(intent);
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [intent, termSettled, platByCode, applyIntent]);
+
+  useEffect(() => {
+    if (!pendingPick) return;
+    const { code, pick } = pendingPick;
+    // Every offered course has sections, so a pick waits for them — or for the
+    // file to fail. "Not loading" is no sign: the load starts a render later.
+    const sec = sectionsByCode[code];
+    const failed = sectionStatus(code).failed;
+    if (pick && !sec?.length && !failed) return;
+    const t = window.setTimeout(() => {
+      const families = groupSections(sec ?? []);
+      const sel = pick ? decodeChoice(pick, families) : null;
+      if (sel) setSelection(code, sel);
+      const whole = sel && pick === encodeChoice(sel);
+      setToast({
+        text: sel && whole
+          ? `Added ${code} with ${choiceText(families, sel)}, as chosen on its page.`
+          : pick && failed
+            ? `Added ${code}, but its sections could not be loaded — try again in Sections.`
+            : pick
+              ? `Added ${code}. Its sections changed since you chose them — pick again in Sections.`
+              : `Added ${code}. Choose its sections in Sections.`,
+      });
+      setPendingPick(null);
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [pendingPick, sectionsByCode, sectionStatus, setSelection]);
 
   const courseByCode = useMemo(() => {
     const m = new Map<string, Course>();
@@ -736,6 +816,34 @@ export default function TermWorkspacePage() {
             pastTerms={pastTerms}
             scheduleEmpty={!selectedCourses.length}
           />
+
+          {askAbout && (
+            <div
+              role="region"
+              aria-label="Add a course from a link"
+              className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-950 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100 md:px-4"
+            >
+              <span className="min-w-0 flex-1">
+                Add <span className="font-semibold">{askAbout.code}</span>
+                {askAbout.pick ? ` (${askAbout.pick.split(",").map((t) => t.replace(":", " ")).join(", ")})` : ""} to {termName || "this term"}?
+                {" "}It came from a link, so nothing changes until you say so.
+              </span>
+              <button
+                type="button"
+                onClick={() => applyIntent(askAbout)}
+                className="rounded-md bg-[#182B49] px-2.5 py-1 text-xs font-semibold text-white hover:bg-[#1e3a63] dark:bg-[#FFCD00] dark:text-[#182B49]"
+              >
+                Add it
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAskAbout(null); dropIntentFromUrl(); }}
+                className="rounded-md px-2.5 py-1 text-xs font-semibold text-amber-900 hover:bg-amber-100 dark:text-amber-100 dark:hover:bg-white/10"
+              >
+                Not now
+              </button>
+            </div>
+          )}
 
           {/* A phone's week is five narrow columns; a day is one wide one. */}
           <div role="tablist" aria-label="Day" className="flex shrink-0 gap-1 border-b border-gray-200 px-2 py-1.5 dark:border-white/10 md:hidden">
