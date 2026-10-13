@@ -297,7 +297,7 @@ export default function WeekCalendar({
         <p className="text-sm font-semibold text-gray-700 dark:text-gray-200">
           Your week will appear here
         </p>
-        <p className="mt-1 max-w-xs px-4 text-xs text-gray-500 dark:text-gray-400">{emptyHint}</p>
+        <p className="mt-1 max-w-xs px-4 text-xs text-gray-600 dark:text-gray-400">{emptyHint}</p>
       </div>
     );
   }

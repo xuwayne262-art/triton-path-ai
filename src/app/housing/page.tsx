@@ -362,7 +362,7 @@ export default function HousingPage() {
                 onSelect={onSelect}
               />
             </div>
-            <p className="mt-3 text-[10px] leading-snug text-gray-400">
+            <p className="mt-3 text-[10px] leading-snug text-gray-500 dark:text-gray-400">
               Gold-ringed dots are the buildings your classes meet in. Hover a place to see the trip to each
               morning&rsquo;s first class. Map data © OpenStreetMap contributors, tiles by OpenFreeMap.
             </p>
@@ -389,7 +389,7 @@ function ScheduleBanner({
       <div className="flex min-w-0 items-start gap-2.5">
         <CalendarCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#182B49] dark:text-[#FFCD00]" />
         {schedule.status === "loading" ? (
-          <p className="text-xs text-gray-500">Reading your schedule…</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Reading your schedule…</p>
         ) : placedCount ? (
           <div className="min-w-0">
             <p className="text-sm font-semibold">
@@ -504,7 +504,7 @@ function CheckAddress({
       {error && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
       {choices && (
         <div className="mt-2 space-y-1">
-          <p className="text-[11px] font-semibold text-gray-500">Which one?</p>
+          <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400">Which one?</p>
           {choices.map((c) => (
             <button
               key={c.address}
@@ -512,7 +512,7 @@ function CheckAddress({
               onClick={() => { onAdd(c); setChoices(null); setQ(""); }}
               className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-left text-xs hover:border-[#182B49] dark:border-white/10 dark:bg-white/5"
             >
-              {c.address} <span className="text-gray-400">· {c.area}</span>
+              {c.address} <span className="text-gray-500 dark:text-gray-400">· {c.area}</span>
             </button>
           ))}
         </div>
@@ -541,7 +541,7 @@ function CheckAddress({
                 type="button"
                 onClick={() => onRemove(p.id)}
                 aria-label={`Remove ${p.address}`}
-                className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-white/10"
+                className="rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -549,7 +549,7 @@ function CheckAddress({
           ))}
         </ul>
       )}
-      <p className="mt-4 text-[11px] leading-snug text-gray-400 dark:text-gray-500">
+      <p className="mt-4 text-[11px] leading-snug text-gray-500 dark:text-gray-400">
         Up to {MAX_CHECKED} addresses, kept in this browser only. Looked up with the U.S. Census Bureau&rsquo;s
         geocoder; nothing else is sent.
       </p>
@@ -561,8 +561,8 @@ const STATE_LABEL: Record<ListingState, { text: string; tone: string }> = {
   live: { text: "Listed", tone: "text-emerald-700 dark:text-emerald-300" },
   stale: { text: "Listed · confirm it is still available", tone: "text-amber-700 dark:text-amber-300" },
   expired: { text: "Hidden · not confirmed in 30 days", tone: "text-rose-700 dark:text-rose-300" },
-  ended: { text: "Ended · its dates are over", tone: "text-gray-500" },
-  taken: { text: "Taken · not shown", tone: "text-gray-500" },
+  ended: { text: "Ended · its dates are over", tone: "text-gray-500 dark:text-gray-400" },
+  taken: { text: "Taken · not shown", tone: "text-gray-500 dark:text-gray-400" },
   hidden: { text: "Hidden after reports from students", tone: "text-rose-700 dark:text-rose-300" },
 };
 

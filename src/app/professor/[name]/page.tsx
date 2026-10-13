@@ -95,7 +95,7 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
       <PlatShell>
         <div className="mx-auto max-w-2xl px-4 py-24 text-center">
           <h1 className={PAGE_TITLE}>No instructor by that name</h1>
-          <p className="mt-2 text-sm text-gray-500">
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
             They may not appear in UCSD&apos;s published grade distributions.
           </p>
           <Link href="/" className="mt-6 inline-block text-sm font-semibold underline">
@@ -126,7 +126,7 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
         </nav>
 
         {!prof ? (
-          <p className="py-24 text-center text-sm text-gray-500">Loading…</p>
+          <p className="py-24 text-center text-sm text-gray-500 dark:text-gray-400">Loading…</p>
         ) : (
           <>
             <header className="mt-5 flex items-start gap-5">

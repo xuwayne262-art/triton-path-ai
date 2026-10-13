@@ -348,7 +348,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center gap-2 py-24 text-sm text-gray-500">
+      <div className="flex items-center justify-center gap-2 py-24 text-sm text-gray-500 dark:text-gray-400">
         <Loader2 className="h-4 w-4 animate-spin" /> Loading your listing…
       </div>
     );
@@ -484,7 +484,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
                   <div className="space-y-1">
                     {choices.map((c) => (
                       <button key={c.address} type="button" onClick={() => { touch(); setPlace(c); setChoices(null); }} className="block w-full rounded-lg border border-gray-200 px-3 py-1.5 text-left text-xs hover:border-[#182B49] dark:border-white/10">
-                        {c.address} <span className="text-gray-400">· {c.area}</span>
+                        {c.address} <span className="text-gray-500 dark:text-gray-400">· {c.area}</span>
                       </button>
                     ))}
                   </div>
@@ -526,7 +526,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
               <label id="f-rent">
                 <span className={labelText}>Rent a month{room === "shared" ? " (for one bed)" : ""}</span>
                 <span className="relative block">
-                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400">$</span>
                   <input inputMode="numeric" value={rent} onChange={(e) => setRent(e.target.value.replace(/\D/g, "").slice(0, 5))} placeholder="1150" className={`${input} pl-6`} />
                 </span>
               </label>
@@ -540,7 +540,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
                   </select>
                   {utilityMode === "amount" && (
                     <span className="relative block w-32 shrink-0">
-                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-400">$</span>
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400">$</span>
                       <input inputMode="numeric" value={utilities} onChange={(e) => setUtilities(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="80" aria-label="Utilities a month" className={`${input} pl-6`} />
                     </span>
                   )}
@@ -565,7 +565,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
               </select>
             </div>
             <label id="f-title" className="block">
-              <span className={labelText}>Headline <span className="font-normal text-gray-400">(optional)</span></span>
+              <span className={labelText}>Headline <span className="font-normal text-gray-500 dark:text-gray-400">(optional)</span></span>
               <input value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} placeholder="Sunny room, five minutes from the trolley" className={input} />
             </label>
             <label id="f-about" className="block">
@@ -578,13 +578,13 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
                 placeholder="Who you live with, what is included, the unit number, move-in details, anything a student would ask."
                 className={input}
               />
-              <span className="mt-1 block text-right text-[10px] text-gray-400">{about.length}/2000</span>
+              <span className="mt-1 block text-right text-[10px] text-gray-500 dark:text-gray-400">{about.length}/2000</span>
             </label>
           </fieldset>
 
           {/* ── Photos ── */}
           <fieldset id="f-photos" className="space-y-3">
-            <legend className={SECTION_TITLE}>Photos <span className="font-normal text-gray-400">(up to {MAX_PHOTOS})</span></legend>
+            <legend className={SECTION_TITLE}>Photos <span className="font-normal text-gray-500 dark:text-gray-400">(up to {MAX_PHOTOS})</span></legend>
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
               {photos.map((p, i) => (
                 <div key={p.ref} className="space-y-1">
@@ -644,11 +644,11 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
             </label>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label id="f-phone">
-                <span className={labelText}>Phone <span className="font-normal text-gray-400">(optional)</span></span>
+                <span className={labelText}>Phone <span className="font-normal text-gray-500 dark:text-gray-400">(optional)</span></span>
                 <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(858) 555-0123" className={input} />
               </label>
               <label id="f-other">
-                <span className={labelText}>Anything else <span className="font-normal text-gray-400">(optional)</span></span>
+                <span className={labelText}>Anything else <span className="font-normal text-gray-500 dark:text-gray-400">(optional)</span></span>
                 <input value={other} maxLength={60} onChange={(e) => setOther(e.target.value)} placeholder="Instagram @name, WeChat…" className={input} />
               </label>
             </div>
@@ -689,7 +689,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
                 </p>
               </>
             ) : (
-              <div className="rounded-2xl border border-dashed border-gray-200 px-4 py-10 text-center text-xs text-gray-400 dark:border-white/10">
+              <div className="rounded-2xl border border-dashed border-gray-200 px-4 py-10 text-center text-xs text-gray-500 dark:text-gray-400 dark:border-white/10">
                 Find the address to see your listing as students will.
               </div>
             )}

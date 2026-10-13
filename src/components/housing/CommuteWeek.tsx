@@ -77,7 +77,7 @@ export default function CommuteWeek({
                   </span>
                 </p>
                 {d.unplaced.length > 0 && (
-                  <p className="mt-0.5 pl-5 text-[11px] text-gray-400">
+                  <p className="mt-0.5 pl-5 text-[11px] text-gray-500 dark:text-gray-400">
                     Also {d.unplaced.map((e) => e.code).join(", ")} — no room on the map yet.
                   </p>
                 )}
@@ -95,7 +95,7 @@ export default function CommuteWeek({
             ))}
           </ol>
           {measure.week.unmapped.length > 0 && (
-            <p className="mt-2 text-[11px] text-gray-400">
+            <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">
               {measure.week.unmapped.join(", ")}: your classes those days have no room on the map yet.
             </p>
           )}
@@ -134,7 +134,7 @@ export default function CommuteWeek({
         </>
       )}
 
-      <p className="mt-4 border-t border-gray-100 pt-3 text-[10px] leading-snug text-gray-400 dark:border-white/5">
+      <p className="mt-4 border-t border-gray-100 pt-3 text-[10px] leading-snug text-gray-500 dark:text-gray-400 dark:border-white/5">
         Estimates: straight-line distance × {DETOUR}, walked at {WALK_M_PER_MIN} m a minute (the pace of
         UCSD&rsquo;s own campus routes) or cycled at {MODES.bike.mPerMin} (15 km/h). Hills, traffic lights and
         the bike rack are not in it; bus and trolley times are one click away in Google Maps.

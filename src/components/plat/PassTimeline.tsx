@@ -32,7 +32,7 @@ export default function PassTimeline({ termName }: { termName?: string }) {
               {countdown.days} {countdown.days === 1 ? "day" : "days"}
             </span>
             until {countdown.pass.label}
-            {termName && <span className="text-gray-500"> · {termName}</span>}
+            {termName && <span className="text-gray-500 dark:text-gray-400"> · {termName}</span>}
           </>
         ) : (
           <>All {termName ?? "enrollment"} passes have opened</>
@@ -47,7 +47,7 @@ export default function PassTimeline({ termName }: { termName?: string }) {
               next
                 ? "text-[#182B49] dark:text-[#FFCD00]"
                 : done
-                  ? "text-gray-500 dark:text-gray-500"
+                  ? "text-gray-500 dark:text-gray-400"
                   : "text-gray-500 dark:text-gray-400"
             }`}
           >

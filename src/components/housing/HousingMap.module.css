@@ -49,9 +49,10 @@
   border-style: dashed;
 }
 
-/* Not reconfirmed lately: still listed, but quieter. */
+/* Not reconfirmed lately: still listed, but quieter — and its price still
+   readable (at 0.6 the navy price fell to 4:1 against its white pill). */
 .dim {
-  opacity: 0.6;
+  opacity: 0.75;
 }
 
 .focus {

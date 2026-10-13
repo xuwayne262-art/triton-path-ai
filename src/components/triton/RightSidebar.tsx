@@ -131,7 +131,7 @@ export default function RightSidebar({
               {/* Wraps rather than truncates: "Eleanor Roosevelt College GE requirements" is the whole name. */}
               <span
                 className={`min-w-0 text-[9px] font-bold uppercase leading-snug tracking-widest ${
-                  darkMode ? "text-gray-500" : "text-gray-400"
+                  darkMode ? "text-gray-400" : "text-gray-500"
                 }`}
               >
                 {group.groupLabel}
@@ -162,7 +162,7 @@ export default function RightSidebar({
                       <span
                         className={`text-[10px] tabular-nums ml-2 flex-shrink-0 ${
                           complete
-                            ? "text-green-600 font-semibold dark:text-green-400"
+                            ? "text-green-700 font-semibold dark:text-green-400"
                             : darkMode
                             ? "text-gray-400"
                             : "text-gray-600"
@@ -203,7 +203,7 @@ export default function RightSidebar({
         {degreeProgress.length === 0 && (
           <p
             className={`text-xs text-center py-4 ${
-              darkMode ? "text-gray-600" : "text-gray-400"
+              darkMode ? "text-gray-400" : "text-gray-500"
             }`}
           >
             No requirements loaded
@@ -228,7 +228,7 @@ export default function RightSidebar({
           <span className="font-semibold">{totalUnits}</span>
         </div>
         {/* Says exactly what the two numbers above count, and what they leave out. */}
-        <p className={`mt-1.5 text-[10px] leading-snug ${darkMode ? "text-gray-500" : "text-gray-400"}`}>
+        <p className={`mt-1.5 text-[10px] leading-snug ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
           {historyStatus === "saved"
             ? `Counted: the ${completedCount} ${completedCount === 1 ? "course" : "courses"} you’ve completed on your saved Academic History, every course in your 4-year plan, and every course on your ${termName ? `${termName} schedule` : "schedule for this term"}. A course in more than one counts once. Transfer and AP credit isn’t counted.`
             : `Counted: every course in your 4-year plan and every course on your ${termName ? `${termName} schedule` : "schedule for this term"}. A course in both counts once.${historyStatus === "none" ? " Courses you’ve already taken count once you import your Academic History." : ""}`}

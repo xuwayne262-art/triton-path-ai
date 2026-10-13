@@ -117,7 +117,7 @@ export default function ContactMenu({
               onClick={copy}
               aria-label={copied ? "Email address copied" : "Copy the email address"}
               title={copied ? "Copied" : "Copy the address"}
-              className="mr-1 shrink-0 rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFCD00] dark:hover:bg-white/10 dark:hover:text-white"
+              className="mr-1 shrink-0 rounded-lg p-2 text-gray-500 dark:text-gray-400 transition hover:bg-gray-100 hover:text-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FFCD00] dark:hover:bg-white/10 dark:hover:text-white"
             >
               {copied ? <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> : <Copy className="h-4 w-4" />}
             </button>

@@ -66,7 +66,7 @@ export default function SavedCourses({
                 onClick={() => onRemoveSaved(course.code)}
                 aria-label={`Remove ${course.code} from saved`}
                 title="Remove from saved"
-                className="shrink-0 rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10"
+                className="shrink-0 rounded-md p-1.5 text-gray-500 dark:text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10"
               >
                 <X className="h-3.5 w-3.5" />
               </button>

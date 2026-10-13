@@ -108,7 +108,7 @@ function PassStrip() {
     <div className="hidden items-center gap-2.5 2xl:flex">
       {/* A first-year student has never heard of a pass, so the strip says what one is. */}
       <span
-        className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400"
+        className="flex items-center gap-1 text-[11px] text-gray-600 dark:text-gray-400"
         title={countdown
           ? `Enrollment opens in passes: the dates each group of students may start enrolling. ${countdown.pass.label} opens in ${countdown.days} ${countdown.days === 1 ? "day" : "days"}.`
           : "Enrollment opens in passes: the dates each group of students may start enrolling. Every pass has opened, so you can enroll in any section with a seat now."}
@@ -134,8 +134,8 @@ function PassStrip() {
               next
                 ? "font-bold text-[#182B49] dark:text-[#FFCD00]"
                 : done
-                  ? "text-gray-300 line-through dark:text-gray-600"
-                  : "text-gray-400"
+                  ? "text-gray-600 line-through dark:text-gray-400"
+                  : "text-gray-700 dark:text-gray-300"
             }`}
           >
             {pass.label} {passDate(pass)}
@@ -729,7 +729,7 @@ export default function TermWorkspacePage() {
             }`}
           >
             <h1 className="text-sm font-bold">{termName || "This term"}</h1>
-            <span className="text-xs tabular-nums text-gray-500 dark:text-gray-400">
+            <span className="text-xs tabular-nums text-gray-600 dark:text-gray-400">
               {selectedCourses.length} {selectedCourses.length === 1 ? "course" : "courses"} ·{" "}
               {totalUnits} units
             </span>
@@ -872,7 +872,7 @@ export default function TermWorkspacePage() {
                     active
                       ? "bg-[#182B49] text-white dark:bg-[#FFCD00] dark:text-[#182B49]"
                       : empty
-                        ? "text-gray-400 dark:text-gray-500"
+                        ? "text-gray-500 dark:text-gray-400"
                         : "text-gray-700 dark:text-gray-200"
                   }`}
                 >

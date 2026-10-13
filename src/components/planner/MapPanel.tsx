@@ -46,11 +46,11 @@ const DAY_SHORT: Record<DayOfWeek, string> = { Mon: "M", Tue: "Tu", Wed: "W", Th
 
 const LEG_TONE: Record<LegStatus, string> = {
   ok: "text-gray-500 dark:text-gray-400",
-  same: "text-gray-400",
-  tight: "text-amber-600 dark:text-amber-400",
+  same: "text-gray-500 dark:text-gray-400",
+  tight: "text-amber-700 dark:text-amber-400",
   late: "text-red-600 dark:text-red-400",
   clash: "text-red-600 dark:text-red-400",
-  unknown: "text-gray-400",
+  unknown: "text-gray-500 dark:text-gray-400",
 };
 
 const roleHex = (e: CalEvent) => ROLE_STYLES[e.role].hex;
@@ -114,7 +114,7 @@ function StopRow({
           rel="noreferrer noopener"
           title={`Walking directions to ${building.n} in Google Maps`}
           aria-label={`Walking directions to ${building.n}`}
-          className="mt-0.5 shrink-0 rounded p-1 text-gray-400 transition hover:bg-slate-100 hover:text-[#182B49] dark:hover:bg-white/10 dark:hover:text-[#FFCD00]"
+          className="mt-0.5 shrink-0 rounded p-1 text-gray-500 dark:text-gray-400 transition hover:bg-slate-100 hover:text-[#182B49] dark:hover:bg-white/10 dark:hover:text-[#FFCD00]"
         >
           <ExternalLink className="h-3.5 w-3.5" />
         </a>
@@ -240,7 +240,7 @@ export default function MapPanel({
                 active
                   ? "bg-[#182B49] text-white dark:bg-[#FFCD00] dark:text-[#182B49]"
                   : empty
-                    ? "text-gray-300 hover:bg-gray-50 dark:text-gray-600 dark:hover:bg-white/5"
+                    ? "text-gray-500 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-white/5"
                     : "text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/10"
               }`}
             >
@@ -334,7 +334,7 @@ export default function MapPanel({
                         )}
                         {legLine(leg)}
                         {leg.source === "estimate" && leg.walk && leg.status !== "same" && (
-                          <span className="text-gray-400">(est.)</span>
+                          <span className="text-gray-500 dark:text-gray-400">(est.)</span>
                         )}
                       </p>
                     )}
@@ -371,7 +371,7 @@ export default function MapPanel({
                       <span className="truncate text-[11px] text-gray-500 dark:text-gray-400">{p.building.n}</span>
                     </p>
                     {p.building.m && (
-                      <p className="truncate text-[10px] text-gray-400">in {p.building.m}</p>
+                      <p className="truncate text-[10px] text-gray-500 dark:text-gray-400">in {p.building.m}</p>
                     )}
                   </button>
                   <a
@@ -402,7 +402,7 @@ export default function MapPanel({
 
         {unplaced.length > 0 && (
           <div className="mt-2 rounded-lg bg-slate-50 px-2.5 py-2 dark:bg-white/5">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Not on the map</p>
+            <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">Not on the map</p>
             {dedupeMeetings(unplaced).map((m) => (
               <p key={m.key} className="text-[11px] text-gray-600 dark:text-gray-300">
                 <span className="font-semibold">{m.event.code}</span> {m.event.kindLabel} {m.event.sectionCode ?? ""}
@@ -416,7 +416,7 @@ export default function MapPanel({
         )}
       </div>
 
-      <p className="shrink-0 border-t border-gray-200 px-3 py-1.5 text-[10px] leading-snug text-gray-400 dark:border-white/10">
+      <p className="shrink-0 border-t border-gray-200 px-3 py-1.5 text-[10px] leading-snug text-gray-500 dark:text-gray-400 dark:border-white/10">
         Building locations and walking routes from UCSD&rsquo;s Class Planner; building outlines from
         OpenStreetMap. Walking times are estimates — leave extra time for elevators, crowds and the
         first week.{" "}

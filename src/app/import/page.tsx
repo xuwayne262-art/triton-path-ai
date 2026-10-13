@@ -161,7 +161,7 @@ export default function ImportPage() {
         />
 
         {savedState === "loading" && (
-          <p className="mt-6 flex items-center gap-2 text-sm text-gray-500">
+          <p className="mt-6 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
             <Loader2 className="h-4 w-4 animate-spin" /> Checking for a saved Academic History…
           </p>
         )}
@@ -295,7 +295,7 @@ function Review({
           {preview ? "What came through" : "Your saved Academic History"}
         </h2>
         {!preview && phase === "saved" && (
-          <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+          <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
             <Check className="h-3.5 w-3.5" /> Saved
           </span>
         )}
@@ -353,7 +353,7 @@ function Review({
                     {c.code}
                   </Link>
                   <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-300">{c.title}</span>
-                  <span className="shrink-0 tabular-nums text-xs text-gray-400">{c.units}u</span>
+                  <span className="shrink-0 tabular-nums text-xs text-gray-500 dark:text-gray-400">{c.units}u</span>
                   <span className="w-8 shrink-0 text-right text-xs font-semibold tabular-nums">
                     {c.grade ?? "—"}
                   </span>
@@ -373,12 +373,12 @@ function Review({
                 <li key={i} className="flex items-baseline gap-2 text-sm">
                   <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-300">
                     {x.title}
-                    <span className="text-gray-400"> · {x.from}</span>
+                    <span className="text-gray-500 dark:text-gray-400"> · {x.from}</span>
                   </span>
-                  <span className="shrink-0 text-xs text-gray-400">
+                  <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">
                     {x.equivalents.join(", ") || "—"}
                   </span>
-                  <span className="shrink-0 tabular-nums text-xs text-gray-400">{x.units}u</span>
+                  <span className="shrink-0 tabular-nums text-xs text-gray-500 dark:text-gray-400">{x.units}u</span>
                 </li>
               ))}
             </ul>
@@ -424,7 +424,7 @@ function Review({
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-gray-200 px-3 py-2 dark:border-white/10">
-      <dt className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">{label}</dt>
+      <dt className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</dt>
       <dd className="mt-0.5 text-lg font-black tabular-nums">{value}</dd>
     </div>
   );

@@ -194,9 +194,9 @@ function Department({ params }: { params: Promise<{ sub: string }> }) {
             </p>
             <ul className="mt-4 overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10">
               {faculty === null ? (
-                <li className="py-10 text-center text-sm text-gray-500">Loading…</li>
+                <li className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">Loading…</li>
               ) : faculty.length === 0 ? (
-                <li className="py-10 text-center text-sm text-gray-500">No professors on record.</li>
+                <li className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">No professors on record.</li>
               ) : visible.map(({ p, here, now }) => (
                 <li key={p.n} className="border-b border-gray-100 last:border-0 dark:border-white/5">
                   <Link href={professorHref(p.n)} className="group flex items-center gap-3 px-3 py-3 transition hover:bg-gray-50 dark:hover:bg-white/5">

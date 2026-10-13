@@ -155,13 +155,13 @@ export default function CoursesPage() {
                           </span>
                         ))}
                         {dept.subjects.length > 8 && (
-                          <span className="text-[11px] text-gray-500">
+                          <span className="text-[11px] text-gray-500 dark:text-gray-400">
                             +{dept.subjects.length - 8}
                           </span>
                         )}
                       </span>
                     </span>
-                    <span className="shrink-0 text-right text-xs text-gray-500">
+                    <span className="shrink-0 text-right text-xs text-gray-500 dark:text-gray-400">
                       {data && <span className="block">{courses} courses</span>}
                       {offered > 0 && (
                         <span className="block text-emerald-700 dark:text-emerald-400">
@@ -208,7 +208,7 @@ export default function CoursesPage() {
                         ))}
                       </span>
                     </span>
-                    <span className="shrink-0 text-right text-xs text-gray-500">
+                    <span className="shrink-0 text-right text-xs text-gray-500 dark:text-gray-400">
                       {data && <span className="block">{courses} courses</span>}
                       {offered > 0 && (
                         <span className="block text-emerald-700 dark:text-emerald-400">

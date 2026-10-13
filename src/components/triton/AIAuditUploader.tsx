@@ -129,7 +129,7 @@ function AICourseCard({
             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${badgeCls}`}>
               {course.code}
             </span>
-            <span className={`text-[10px] ${darkMode ? "text-gray-500" : "text-gray-400"}`}>
+            <span className={`text-[10px] ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
               {course.units}u
             </span>
           </div>
@@ -140,7 +140,7 @@ function AICourseCard({
             <div className="flex flex-wrap gap-1 mt-1">
               {course.categories.slice(0, 2).map((cat) => (
                 <span key={cat} className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
-                  darkMode ? "bg-gray-700 text-gray-400" : "bg-gray-100 text-gray-500"
+                  darkMode ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-600"
                 }`}>
                   {cat}
                 </span>
@@ -284,7 +284,7 @@ export default function AIAuditUploader({
       <div className={`px-3 pt-3 pb-2 border-b flex-shrink-0 ${darkMode ? "border-gray-700" : "border-gray-200"}`}>
 
         {/* Profile pill */}
-        <div className={`flex items-center gap-1.5 mb-2 text-[10px] px-2 py-1 rounded-full w-fit ${darkMode ? "bg-gray-700 text-gray-400" : "bg-gray-100 text-gray-500"}`}>
+        <div className={`flex items-center gap-1.5 mb-2 text-[10px] px-2 py-1 rounded-full w-fit ${darkMode ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-600"}`}>
           <Bot className="w-3 h-3" />
           <span>{selectedMajor || "No major"} · {selectedCollege ?? "No college"}</span>
         </div>
@@ -299,9 +299,9 @@ export default function AIAuditUploader({
             onDrop={handleDrop}
           >
             <div className="flex flex-col items-center justify-center gap-1.5 py-5 px-3 text-center">
-              <UploadCloud className={`w-7 h-7 ${isDragging ? (darkMode ? "text-blue-400" : "text-blue-500") : (darkMode ? "text-gray-500" : "text-gray-400")}`} />
+              <UploadCloud className={`w-7 h-7 ${isDragging ? (darkMode ? "text-blue-400" : "text-blue-500") : (darkMode ? "text-gray-400" : "text-gray-500")}`} />
               <p className={`text-xs font-semibold ${darkMode ? "text-gray-300" : "text-gray-600"}`}>Click to upload your DARS PDF</p>
-              <p className={`text-[10px] ${darkMode ? "text-gray-500" : "text-gray-400"}`}>or drag and drop · PDF only</p>
+              <p className={`text-[10px] ${darkMode ? "text-gray-400" : "text-gray-500"}`}>or drag and drop · PDF only</p>
             </div>
             <input ref={fileInputRef} type="file" accept="application/pdf" className="hidden" onChange={handleInputChange} />
           </div>
@@ -312,7 +312,7 @@ export default function AIAuditUploader({
             </div>
             <div className="flex-1 min-w-0">
               <p className={`text-xs font-medium truncate ${darkMode ? "text-gray-200" : "text-gray-700"}`}>{pdfFile.name}</p>
-              <p className={`text-[10px] ${darkMode ? "text-gray-500" : "text-gray-400"}`}>{(pdfFile.size / 1024).toFixed(0)} KB · Ready to analyze</p>
+              <p className={`text-[10px] ${darkMode ? "text-gray-400" : "text-gray-500"}`}>{(pdfFile.size / 1024).toFixed(0)} KB · Ready to analyze</p>
             </div>
             <button onClick={clearFile} className={`p-1 rounded-md transition-colors flex-shrink-0 ${darkMode ? "hover:bg-gray-600 text-gray-400" : "hover:bg-gray-200 text-gray-400"}`}>
               <X className="w-3.5 h-3.5" />
@@ -381,7 +381,7 @@ export default function AIAuditUploader({
               </select>
             </div>
 
-            <p className={`text-[10px] font-bold uppercase tracking-widest mb-2 ${darkMode ? "text-gray-500" : "text-gray-400"}`}>
+            <p className={`text-[10px] font-bold uppercase tracking-widest mb-2 ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
               Recommended courses
             </p>
             <div className="space-y-1.5">
@@ -408,7 +408,7 @@ export default function AIAuditUploader({
               <Bot className={`w-5 h-5 ${darkMode ? "text-gray-400" : "text-gray-400"}`} />
             </div>
             <p className={`text-xs font-medium mb-1 ${darkMode ? "text-gray-300" : "text-gray-600"}`}>Your AI Academic Advisor</p>
-            <p className={`text-[10px] leading-relaxed ${darkMode ? "text-gray-500" : "text-gray-400"}`}>
+            <p className={`text-[10px] leading-relaxed ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
               Upload your DARS PDF above, then click the button to get personalized course recommendations powered by Google Gemini.
             </p>
           </div>

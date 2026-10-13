@@ -180,7 +180,7 @@ function SearchList({
           className="absolute inset-x-0 top-full z-10 mt-1 max-h-56 list-none overflow-y-auto rounded-lg border border-gray-200 bg-white p-1 shadow-lg dark:border-white/10 dark:bg-gray-800"
         >
           {hits.length === 0 ? (
-            <li className="px-2 py-2 text-center text-xs text-gray-500">No matches</li>
+            <li className="px-2 py-2 text-center text-xs text-gray-500 dark:text-gray-400">No matches</li>
           ) : (
             hits.map((o, i) => (
               <li

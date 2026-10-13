@@ -91,12 +91,12 @@ export default function ListingCard({
               {covers ? (
                 <>
                   {covers}{" "}
-                  <span className="whitespace-nowrap tabular-nums text-gray-400 dark:text-gray-500">({dates})</span>
+                  <span className="whitespace-nowrap tabular-nums text-gray-500 dark:text-gray-400">({dates})</span>
                 </>
               ) : dates ? (
                 <span className="tabular-nums">{dates}</span>
               ) : (
-                <span className="text-gray-400 dark:text-gray-500">Dates to come</span>
+                <span className="text-gray-500 dark:text-gray-400">Dates to come</span>
               )}
             </p>
           </div>
@@ -115,7 +115,7 @@ export default function ListingCard({
         <div className="flex flex-wrap items-center gap-x-2 border-t border-gray-100 px-4 py-2 text-[11px] font-semibold dark:border-white/5 sm:px-5">
           {l.mine && <span className="text-[#182B49] dark:text-[#FFCD00]">Your listing</span>}
           {l.state === "stale" && (
-            <span className="text-amber-600 dark:text-amber-400">Not reconfirmed in over two weeks — ask before you visit</span>
+            <span className="text-amber-700 dark:text-amber-400">Not reconfirmed in over two weeks — ask before you visit</span>
           )}
         </div>
       )}

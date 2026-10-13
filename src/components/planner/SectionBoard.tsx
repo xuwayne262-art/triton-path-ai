@@ -460,7 +460,7 @@ function CourseSections({
           {teacher && (
             <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-gray-600 dark:text-gray-400">
               <span className="truncate">{teacher}</span>
-              {family?.lecture && <span className="shrink-0 text-gray-500">· {typeLabel(family.lecture[TYPE])} {family.key}</span>}
+              {family?.lecture && <span className="shrink-0 text-gray-500 dark:text-gray-400">· {typeLabel(family.lecture[TYPE])} {family.key}</span>}
               {teacherRating != null && teacherRating > 0 && (
                 <span
                   className="flex shrink-0 items-center gap-0.5 text-amber-700 dark:text-amber-400"
@@ -758,7 +758,7 @@ function QuickAdd({
                 ) : row.o ? (
                   <Plus className="h-3.5 w-3.5 shrink-0 text-gray-400" />
                 ) : (
-                  <span className="shrink-0 text-[9px] text-gray-400">not this term</span>
+                  <span className="shrink-0 text-[9px] text-gray-500 dark:text-gray-400">not this term</span>
                 )}
               </li>
             );

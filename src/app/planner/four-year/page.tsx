@@ -203,7 +203,7 @@ export default function FourYearPlanPage() {
                       <p className={`font-semibold ${darkMode ? "text-white" : "text-gray-900"}`}>
                         Year {year}
                       </p>
-                      <p className={`text-xs ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
+                      <p className={`text-xs ${darkMode ? "text-gray-300" : "text-gray-500"}`}>
                         {YEAR_LABELS[year]}
                       </p>
                     </div>
@@ -230,15 +230,15 @@ export default function FourYearPlanPage() {
                               }`}
                             >
                               <div className="flex items-baseline justify-between mb-1">
-                                <p className="text-[10px] font-medium text-gray-400">{quarter}</p>
+                                <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400">{quarter}</p>
                                 {units > 0 && (
-                                  <p className="text-[10px] tabular-nums text-gray-400">{units}u</p>
+                                  <p className="text-[10px] tabular-nums text-gray-500 dark:text-gray-400">{units}u</p>
                                 )}
                               </div>
                               {courses.length === 0 && !snapshot.isDraggingOver && (
                                 <p
                                   className={`text-[10px] ${
-                                    darkMode ? "text-gray-600" : "text-gray-300"
+                                    darkMode ? "text-gray-400" : "text-gray-500"
                                   }`}
                                 >
                                   No courses

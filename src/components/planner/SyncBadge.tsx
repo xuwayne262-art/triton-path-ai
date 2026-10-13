@@ -69,7 +69,7 @@ export default function SyncBadge({ status }: { status: SyncStatus }) {
       role={copy.warn ? "status" : undefined}
       title={copy.detail}
       className={`flex shrink-0 items-center gap-1.5 px-1 text-xs font-medium ${
-        copy.warn ? "text-amber-700 dark:text-amber-400" : "text-gray-400 dark:text-gray-500"
+        copy.warn ? "text-amber-700 dark:text-amber-400" : "text-gray-500 dark:text-gray-400"
       }`}
     >
       <Icon className="h-4 w-4" aria-hidden />
