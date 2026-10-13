@@ -130,7 +130,8 @@ describe("rating colours", () => {
     assert.match(ratingTone(3.9), /amber/);
     assert.match(ratingTone(3), /amber/);
     assert.match(ratingTone(2.9), /red/);
-    assert.equal(ratingTone(null), "text-gray-400");
+    // No rating is grey, at a shade that still reads at 12px (4.5:1).
+    assert.equal(ratingTone(null), "text-gray-600 dark:text-gray-400");
   });
 });
 
