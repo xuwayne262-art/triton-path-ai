@@ -205,17 +205,32 @@ describe("calendar dates", () => {
 });
 
 describe("course titles", () => {
-  test("space their em dashes", () => {
-    assert.equal(tidyTitle("Introductory Ecology—Organisms and Habitat"), "Introductory Ecology — Organisms and Habitat");
-    assert.equal(tidyTitle("Already — Spaced"), "Already — Spaced");
-    assert.equal(tidyTitle("One side —closed"), "One side — closed");
+  test("read the catalog's em dash as a colon before the subtitle", () => {
+    assert.equal(tidyTitle("Introductory Ecology—Organisms and Habitat"), "Introductory Ecology: Organisms and Habitat");
+    assert.equal(tidyTitle("Already — Spaced"), "Already: Spaced");
+    assert.equal(tidyTitle("One side —closed"), "One side: closed");
+  });
+
+  test("use a comma where the title already has a colon", () => {
+    assert.equal(tidyTitle("Remote—Introduction to Ethnic Studies: Land and Labor"), "Remote, Introduction to Ethnic Studies: Land and Labor");
+    assert.equal(
+      tidyTitle("Global Health: Indigenous Medicines in Latin America—Study Abroad"),
+      "Global Health: Indigenous Medicines in Latin America, Study Abroad",
+    );
+  });
+
+  test("write a dash between numbers as a range", () => {
+    assert.equal(
+      tidyTitle("Special Topics in Earth, Oceans, and Atmosphere—Lab (4—6)"),
+      "Special Topics in Earth, Oceans, and Atmosphere: Lab (4–6)",
+    );
   });
 
   test("keep en-dash ranges closed", () => {
     assert.equal(tidyTitle("The Struggle for K–12 Ethnic Studies"), "The Struggle for K–12 Ethnic Studies");
   });
 
-  test("arrive spaced from the loaders, so every page shows them that way", async () => {
+  test("arrive tidied from the loaders, so every page shows them that way", async () => {
     const real = globalThis.fetch;
     globalThis.fetch = (async (url: string) => {
       const body = String(url).includes("/subject/")
@@ -224,16 +239,16 @@ describe("course titles", () => {
       return new Response(JSON.stringify(body), { status: 200 });
     }) as typeof fetch;
     try {
-      assert.equal((await loadIndex()).courses[0].t, "Introductory Ecology — Organisms and Habitat");
-      assert.equal((await loadSubject("BIEB")).courses["BIEB 102"].t, "Introductory Ecology — Organisms and Habitat");
+      assert.equal((await loadIndex()).courses[0].t, "Introductory Ecology: Organisms and Habitat");
+      assert.equal((await loadSubject("BIEB")).courses["BIEB 102"].t, "Introductory Ecology: Organisms and Habitat");
     } finally {
       globalThis.fetch = real;
     }
   });
 
-  test("no title in the dataset keeps a closed-up em dash once tidied", () => {
-    const closed = index.courses.filter((c) => /\S—|—\S/.test(tidyTitle(c.t)));
-    assert.deepEqual(closed.map((c) => c.k), []);
+  test("no title in the dataset shows an em dash once tidied", () => {
+    const dashed = index.courses.filter((c) => tidyTitle(c.t).includes("—"));
+    assert.deepEqual(dashed.map((c) => c.k), []);
   });
 });
 

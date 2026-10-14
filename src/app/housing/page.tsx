@@ -147,7 +147,7 @@ export default function HousingPage() {
   const homes = useMemo((): HomePin[] => [
     ...shown.map(({ l }) => ({
       id: l.id, ll: l.ll, label: dollars(l.rent), kind: "listing" as const, mine: l.mine, dim: l.state === "stale",
-      title: `${dollars(l.rent)} a month — ${headline(l)}, ${street(l.address)}`,
+      title: `${dollars(l.rent)} a month: ${headline(l)}, ${street(l.address)}`,
     })),
     ...checkedRows.map(({ p, letter }) => ({
       id: p.id, ll: p.ll, label: letter, kind: "checked" as const, title: `${letter}: ${p.address}`,
@@ -488,7 +488,7 @@ function CheckAddress({
         <span
           className="inline-flex shrink-0"
           title={q.trim().length < 5
-            ? "Type a street address first — at least 5 characters, e.g. 3990 Nobel Dr"
+            ? "Type a street address first (at least 5 characters, e.g. 3990 Nobel Dr)"
             : "See the trip to your classes from this address"}
         >
           <button
@@ -635,7 +635,7 @@ function MyListings({ rows, onChanged }: { rows: PublicListing[]; onChanged: () 
               </div>
               {confirmed?.id === l.id && (
                 <p role="status" className="mt-1.5 text-xs text-emerald-700 dark:text-emerald-300">
-                  Confirmed — it stays listed until {confirmed.until}.
+                  Confirmed. It stays listed until {confirmed.until}.
                 </p>
               )}
             </li>
@@ -719,7 +719,7 @@ function EmptyBoard({ filtered, onClear }: { filtered: boolean; onClear: () => v
       <p className="text-sm font-bold">{filtered ? "No places match your filters" : "No places posted yet"}</p>
       <p className="mx-auto mt-1.5 max-w-sm text-xs leading-relaxed text-gray-500 dark:text-gray-400">
         {filtered
-          ? "Try another quarter, a higher max rent or any kind of space — or clear the filters to see every place posted."
+          ? "Try another quarter, a higher max rent or any kind of space, or clear the filters to see every place posted."
           : "Studying abroad next quarter, or leaving a lease early? Post it here, and every student looking sees exactly how far it is from their own classes."}
       </p>
       <div className="mt-4 flex flex-wrap items-center justify-center gap-2">

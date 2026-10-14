@@ -204,7 +204,7 @@ export default function CourseCatalog({
           type="button"
           onClick={() => (scheduled ? removeFromSchedule(scheduled.id) : addToSchedule(course))}
           aria-label={scheduled ? `Remove ${row.k} from this term` : `Add ${row.k} to this term`}
-          title={scheduled ? "On this term — click to remove" : "Add to this term"}
+          title={scheduled ? "On this term. Click to remove." : "Add to this term"}
           className={`shrink-0 rounded-md p-1.5 transition ${
             scheduled
               ? "text-emerald-600 hover:bg-red-50 hover:text-red-600 dark:text-emerald-400 dark:hover:bg-red-500/10"
@@ -345,7 +345,7 @@ export default function CourseCatalog({
               <p className="mb-3 rounded-lg bg-slate-50 px-2.5 py-2 text-[11px] leading-snug text-gray-600 dark:bg-white/5 dark:text-gray-300">
                 <Sparkles className="mr-1 inline h-3.5 w-3.5 text-[#182B49] dark:text-[#FFCD00]" />
                 {Object.keys(activeRequirements).length || myDepts.size
-                  ? "Nothing left to recommend — your schedule already covers what this term offers toward your program."
+                  ? "Nothing left to recommend. Your schedule already covers what this term offers toward your program."
                   : "Choose your major and college (top right) to see courses that count toward them."}
               </p>
             )}

@@ -9,7 +9,7 @@ import { browseBackHref, destinationFor, destinationFromCookie } from "@/lib/aut
 import LoginView from "@/components/auth/LoginView";
 
 export const metadata: Metadata = {
-  title: "Sign in — UCSDPlans",
+  title: "Sign in · UCSDPlans",
   description: "Sign in with your @ucsd.edu Google account to use the Planner, Academic History and Housing.",
 };
 
@@ -34,7 +34,7 @@ function errorMessage(code: string | undefined): string | null {
     // What Auth.js reports when Google sends back an error instead of an
     // account — most often the student cancelling on Google's page.
     case "OAuthCallbackError":
-      return "Sign-in didn’t finish — it was cancelled on Google’s page, or Google turned it down. Nothing changed; you can try again below.";
+      return "Sign-in didn’t finish. It was cancelled on Google’s page, or Google turned it down. Nothing changed; you can try again below.";
     case "Configuration":
       return "Sign-in is not available right now. Please try again later.";
     default:

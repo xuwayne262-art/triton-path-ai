@@ -56,12 +56,12 @@ const LEG_TONE: Record<LegStatus, string> = {
 const roleHex = (e: CalEvent) => ROLE_STYLES[e.role].hex;
 
 function legLine(l: Leg): string {
-  if (l.status === "clash") return "These two overlap — there is no break to walk in";
+  if (l.status === "clash") return "These two overlap, so there is no break to walk in";
   if (l.status === "same") return `Same building · ${l.gap} min break`;
   if (!l.walk) return `${l.gap} min break · walk unknown (no room yet)`;
   const base = `${l.walk.minutes} min walk · ${formatDistance(l.walk.meters)} · ${l.gap} min break`;
-  if (l.status === "late") return `${base} — about ${l.walk.minutes - l.gap} min late`;
-  if (l.status === "tight") return `${base} — tight`;
+  if (l.status === "late") return `${base} · about ${l.walk.minutes - l.gap} min late`;
+  if (l.status === "tight") return `${base} · tight`;
   return base;
 }
 
@@ -294,7 +294,7 @@ export default function MapPanel({
                   {" · "}{o.where || "Room TBA"}
                   {w.before && (
                     <span className={LEG_TONE[w.before.status]}>
-                      {" — "}
+                      {" · "}
                       {w.before.walk
                         ? `${w.before.walk.minutes} min from ${w.before.event.code} (${w.before.gap} min break)`
                         : `after ${w.before.event.code}`}
@@ -406,7 +406,7 @@ export default function MapPanel({
             {dedupeMeetings(unplaced).map((m) => (
               <p key={m.key} className="text-[11px] text-gray-600 dark:text-gray-300">
                 <span className="font-semibold">{m.event.code}</span> {m.event.kindLabel} {m.event.sectionCode ?? ""}
-                {" — "}
+                {" · "}
                 {m.event.where
                   ? `${m.event.where}: UCSD's map has no location for this building`
                   : "room not assigned yet"}
@@ -418,7 +418,7 @@ export default function MapPanel({
 
       <p className="shrink-0 border-t border-gray-200 px-3 py-1.5 text-[10px] leading-snug text-gray-500 dark:text-gray-400 dark:border-white/10">
         Building locations and walking routes from UCSD&rsquo;s Class Planner; building outlines from
-        OpenStreetMap. Walking times are estimates — leave extra time for elevators, crowds and the
+        OpenStreetMap. Walking times are estimates. Leave extra time for elevators, crowds and the
         first week.{" "}
         <Link href="/housing" className="font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]">
           Find housing near these classes →

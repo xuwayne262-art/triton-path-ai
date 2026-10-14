@@ -81,7 +81,7 @@ export default function ListingCard({
             <p className="mt-3 text-[13px] text-gray-600 dark:text-gray-300">
               <span className="text-[15px] font-bold tabular-nums tracking-tight text-gray-900 dark:text-white">
                 {/* No real listing is free; a zero is the form's preview before the rent is typed. */}
-                {l.rent > 0 ? dollars(l.rent) : "$—"}
+                {l.rent > 0 ? dollars(l.rent) : "Rent not set"}
               </span>
               <span className="text-gray-500 dark:text-gray-400">/mo</span>
               <span aria-hidden className="mx-1.5 text-gray-300 dark:text-gray-600">·</span>
@@ -115,7 +115,7 @@ export default function ListingCard({
         <div className="flex flex-wrap items-center gap-x-2 border-t border-gray-100 px-4 py-2 text-[11px] font-semibold dark:border-white/5 sm:px-5">
           {l.mine && <span className="text-[#182B49] dark:text-[#FFCD00]">Your listing</span>}
           {l.state === "stale" && (
-            <span className="text-amber-700 dark:text-amber-400">Not reconfirmed in over two weeks — ask before you visit</span>
+            <span className="text-amber-700 dark:text-amber-400">Not reconfirmed in over two weeks. Ask before you visit.</span>
           )}
         </div>
       )}

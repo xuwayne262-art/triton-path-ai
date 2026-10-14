@@ -116,7 +116,7 @@ export default function ScheduleImageDialog({
     } catch (err) {
       // Closing the share sheet is a choice, not a failure.
       if (err instanceof DOMException && err.name === "AbortError") return;
-      setNote({ text: "Could not open the share sheet — use Download instead.", ok: false });
+      setNote({ text: "Could not open the share sheet. Use Download instead.", ok: false });
     }
   };
 
@@ -124,9 +124,9 @@ export default function ScheduleImageDialog({
     if (!ready) return;
     try {
       await navigator.clipboard.write([new ClipboardItem({ "image/png": ready.blob })]);
-      setNote({ text: "Copied — paste it into a message or a note.", ok: true });
+      setNote({ text: "Copied. Paste it into a message or a note.", ok: true });
     } catch {
-      setNote({ text: "This browser would not copy the picture — use Download instead.", ok: false });
+      setNote({ text: "This browser would not copy the picture. Use Download instead.", ok: false });
     }
   };
 
@@ -152,7 +152,7 @@ export default function ScheduleImageDialog({
           <div className="min-w-0 flex-1">
             <h2 id="schedule-image-title" className="text-base font-bold">Your week as a picture</h2>
             <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-              Every class Monday to Friday with its time and room, plus your finals — easy to keep on your phone.
+              Every class Monday to Friday with its time and room, plus your finals. Easy to keep on your phone.
             </p>
           </div>
           <button
@@ -230,7 +230,7 @@ export default function ScheduleImageDialog({
           </div>
           <p className="mt-2 hidden text-[11px] text-gray-500 pointer-coarse:block dark:text-gray-400">
             On an iPhone, tap <span className="font-semibold">Share or save to Photos</span>, then{" "}
-            <span className="font-semibold">Save Image</span> — or press and hold the picture.
+            <span className="font-semibold">Save Image</span>, or press and hold the picture.
           </p>
         </div>
       </div>

@@ -28,7 +28,7 @@ export function GradeBadge({
         role="img"
         aria-label="No published grade history"
         className={`${box} flex shrink-0 items-center justify-center rounded-xl bg-gray-100 font-bold text-gray-400 dark:bg-white/5 dark:text-white/30`}
-        title="No published grade history — not the same as low grades"
+        title="No published grade history, which is not the same as low grades"
       >
         –
       </span>

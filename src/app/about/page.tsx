@@ -36,8 +36,8 @@ export default function AboutPage() {
           UCSDPlans puts what UC San Diego publishes about its courses in one place: how every class has
           actually graded since 2015, who is teaching it this term and how students rate them, where and
           when each section meets, how full it is, and which requirements it counts toward. Anyone can
-          browse it. Signing in with a UCSD Google account adds the Planner — this term&rsquo;s week and all
-          four years — your Academic History, and student housing.
+          browse it. Signing in with a UCSD Google account adds the Planner (this term&rsquo;s week and all
+          four years), your Academic History, and student housing.
         </p>
 
         <section className="mt-12">
@@ -67,7 +67,7 @@ export default function AboutPage() {
               name="UCSD Associated Students Instructor Grade Archive"
               url="https://asmain.ucsd.edu/Home/InstructorGradeArchive"
               what={meta
-                ? `${meta.gradeRecords.toLocaleString()} course–instructor grade distributions, ${meta.years}, one per instructor per term — the average GPA and the share of each letter. Retrieved ${dayLabel(meta.generated, { weekday: false, year: true })}.`
+                ? `${meta.gradeRecords.toLocaleString()} course–instructor grade distributions, ${meta.years}, one per instructor per term, with the average GPA and the share of each letter. Retrieved ${dayLabel(meta.generated, { weekday: false, year: true })}.`
                 : "Grade distributions, one per instructor per term."}
             />
             <Source
@@ -79,18 +79,18 @@ export default function AboutPage() {
               name="UC San Diego Class Planner"
               url="https://classplanner.apps.ucsd.edu"
               what={meta
-                ? `${meta.termName}'s sections, rooms, instructors, seats and waitlists. UCSD last refreshed these listings${takenOn ? ` on ${takenOn}` : ""}${readOn ? `, and this site last read them on ${readOn}` : ""}. Seat counts are Class Planner's own counts from TSS, taken section by section${span ? ` between ${spanLabel(span)}` : ""} — see "How fresh the seat counts are" below.`
+                ? `${meta.termName}'s sections, rooms, instructors, seats and waitlists. UCSD last refreshed these listings${takenOn ? ` on ${takenOn}` : ""}${readOn ? `, and this site last read them on ${readOn}` : ""}. Seat counts are Class Planner's own counts from TSS, taken section by section${span ? ` between ${spanLabel(span)}` : ""}. See "How fresh the seat counts are" below.`
                 : "This term's sections, rooms, seats and waitlists."}
             />
             <Source
-              name="UCSD Academic Senate — Diversity, Equity & Inclusion approved courses"
+              name="UCSD Academic Senate: Diversity, Equity & Inclusion approved courses"
               url={campus?.dei.url ?? "https://senate.ucsd.edu/media/513521/dei-list-of-courses.pdf"}
               what={`Which courses count for the campus DEI requirement${campus?.dei.termName ? `, with ${campus.dei.termName}'s offerings from the Undergraduate Education list as of ${campus.dei.asOf}` : ""}.`}
             />
             <Source
               name="College GE lists (community-compiled)"
               url="https://github.com/Edwardwang66/ucsd-easy-a-radar"
-              what={`Each college's approved GE courses for some of its areas, as compiled by the ucsd-easy-a-radar project${ge?.meta.date ? ` (${dayLabel(ge.meta.date, { weekday: false, year: true })})` : ""} rather than taken from the colleges directly. Your college's own list is the authority — see "What the GE lists cover" below.`}
+              what={`Each college's approved GE courses for some of its areas, as compiled by the ucsd-easy-a-radar project${ge?.meta.date ? ` (${dayLabel(ge.meta.date, { weekday: false, year: true })})` : ""} rather than taken from the colleges directly. Your college's own list is the authority. See "What the GE lists cover" below.`}
             />
             <Source
               name="RateMyProfessors (via the same project)"
@@ -105,7 +105,7 @@ export default function AboutPage() {
           <div className="mt-3 space-y-4 text-sm leading-relaxed text-gray-700 dark:text-gray-200">
             <p>
               Seats are never live here. UCSD&rsquo;s Class Planner counts each section&rsquo;s seats from TSS on
-              its own schedule, so one course can hold counts taken weeks apart — on Oct 12, 2026, BILD 4&rsquo;s
+              its own schedule, so one course can hold counts taken weeks apart. On Oct 12, 2026, BILD 4&rsquo;s
               lecture B had been counted that afternoon and lecture A on Sep 21. Every section therefore shows
               the day its own count was taken, and a list or a course total shows its oldest.
             </p>
@@ -114,7 +114,7 @@ export default function AboutPage() {
               Class Planner recounts about once a day when its refresh is working, so an older count has missed
               at least one recount. A count Class Planner gave no time for says &ldquo;count time unknown&rdquo;,
               which is not the same as no seats. When this site reads Class Planner again and nothing was
-              recounted, the counts keep their old times — reading them again does not make them newer.
+              recounted, the counts keep their old times. Reading them again does not make them newer.
             </p>
             <p>Before you enroll, check the section in TSS, which has the live numbers.</p>
           </div>
@@ -133,8 +133,8 @@ export default function AboutPage() {
               1.85+ C, 1.50+ C−, and D or F below that.
             </p>
             <p>
-              Terms the archive publishes without a GPA — fully pass/no-pass offerings, sections too small to
-              report — are left out of an instructor&rsquo;s average rather than counted as zeros, though they still
+              Terms the archive publishes without a GPA (fully pass/no-pass offerings, sections too small to
+              report) are left out of an instructor&rsquo;s average rather than counted as zeros, though they still
               count toward how many terms that instructor taught. The archive does not say how many students
               were in each class, so nothing is weighted by enrollment: an instructor with many small sections
               pulls the average further than one with a couple of large lectures. A professor&rsquo;s own letter
@@ -144,7 +144,7 @@ export default function AboutPage() {
               Each letter always has the same colour: A dark green, A− green, B+ amber, B and B− orange, C+ and
               below red. Sorting by best grades orders courses by that same average, highest first. A single
               term of history is marked &ldquo;limited history&rdquo; (and an amber dot on the badge), and a dash
-              means no published history at all — not low grades.
+              means no published history at all, not low grades.
             </p>
           </div>
         </section>
@@ -155,7 +155,7 @@ export default function AboutPage() {
             <p>
               The star is an instructor&rsquo;s RateMyProfessors overall rating, out of 5, and &ldquo;RMP difficulty&rdquo;
               is the difficulty students gave them there, also out of 5. Both describe the person across all of
-              their courses, self-reported by whoever chose to rate them — they are not a measure of one
+              their courses, self-reported by whoever chose to rate them. They are not a measure of one
               course&rsquo;s workload, and the site does not turn them into hours or a &ldquo;load&rdquo;. An instructor
               with no rating shows none, which is not a zero.
             </p>
@@ -173,8 +173,8 @@ export default function AboutPage() {
           <div className="mt-3 space-y-4 text-sm leading-relaxed text-gray-700 dark:text-gray-200">
             <p>
               The college GE lists are community-compiled, not published by the colleges, and they cover only
-              the areas that have a fixed list of approved courses. Areas defined by a rule — a writing program,
-              a department&rsquo;s courses, a sequence — are left out, so a college&rsquo;s page here is not every
+              the areas that have a fixed list of approved courses. Areas defined by a rule (a writing program,
+              a department&rsquo;s courses, a sequence) are left out, so a college&rsquo;s page here is not every
               requirement it has. Being on a list is not a degree audit: double-counting, transfer credit, AP and
               when you entered all depend on your college&rsquo;s rules. The Diversity, Equity &amp; Inclusion and
               American History &amp; Institutions lists come from UCSD&rsquo;s own publications.

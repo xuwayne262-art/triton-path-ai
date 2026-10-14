@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "UCSDPlans — UCSD course radar & planner",
+  title: "UCSDPlans · UCSD course radar & planner",
   description:
     "Grade distributions, professor ratings and this quarter's seats for every UCSD course, plus a planner for this term and all four years.",
   // "Add to Home Screen" on an iPhone opens it like an app, titled briefly.

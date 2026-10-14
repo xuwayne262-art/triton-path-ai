@@ -62,7 +62,7 @@ export default function InstructorRow({
               className="text-sm font-semibold text-[#182B49] underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#182B49] dark:text-[#FFCD00] dark:focus-visible:ring-[#FFCD00]"
             >
               {prof.i}
-              <span className="sr-only"> — professor page</span>
+              <span className="sr-only">, professor page</span>
             </Link>
           ) : (
             <span className="text-sm font-semibold">{prof.i}</span>

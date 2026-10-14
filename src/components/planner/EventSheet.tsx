@@ -104,7 +104,7 @@ export default function EventSheet({
         {event.conflict && (
           <p className="mt-3 flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:bg-red-500/10 dark:text-red-300">
             <AlertTriangle className="h-4 w-4 shrink-0" />
-            Overlaps another course — change a section to fix it.
+            Overlaps another course. Change a section to fix it.
           </p>
         )}
 

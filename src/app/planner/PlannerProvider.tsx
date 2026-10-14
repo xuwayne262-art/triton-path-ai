@@ -39,6 +39,7 @@ import {
   noteLocalChange, PLANNER_EVENT, PLANNER_KEY, useAccountSync, type SyncStatus,
 } from "@/lib/plan/sync";
 import { currentPlanSlot } from "@/lib/planSlot";
+import { programLabel } from "@/data/ucsdMajorsMinors";
 import type { ParsedHistory } from "@/lib/history/parse";
 
 /**
@@ -1090,7 +1091,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     const majorReqs = MAJOR_REQUIREMENTS[selectedMajor] ?? {};
     const groups: DegreeProgressGroup[] = [{
       id: "major",
-      groupLabel: `Major — ${selectedMajor}`,
+      groupLabel: `Major: ${programLabel(selectedMajor)}`,
       color: "bg-blue-500",
       requirements: Object.entries(majorReqs).map(([cat, target]) => ({
         category: cat, label: cat, targetUnits: target, current: tally[cat] ?? 0, done: doneTally[cat] ?? 0,
@@ -1109,7 +1110,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       const minorReqs = MINOR_REQUIREMENTS[selectedMinor] ?? {};
       groups.push({
         id: "minor",
-        groupLabel: `Minor — ${selectedMinor}`,
+        groupLabel: `Minor: ${programLabel(selectedMinor)}`,
         color: "bg-teal-500",
         requirements: Object.entries(minorReqs).map(([cat, target]) => ({
           category: cat, label: cat, targetUnits: target, current: tally[cat] ?? 0, done: doneTally[cat] ?? 0,

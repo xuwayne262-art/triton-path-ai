@@ -6,7 +6,7 @@ import type { Metadata } from "next";
  * loaded; the form names itself.
  */
 export const metadata: Metadata = {
-  title: "Housing — UCSDPlans",
+  title: "Housing · UCSDPlans",
   description:
     "Sublets and rooms posted by students signed in with @ucsd.edu, each one measured by the trip to the classes on your schedule.",
 };

@@ -288,7 +288,7 @@ export function checkListing(body: unknown, today: string): Checked {
     !ll.every((x) => typeof x === "number" && Number.isFinite(x)) ||
     !inSanDiego(ll as LatLng)
   ) {
-    return bad("address", "Find the address on the map first — it has to be in the San Diego area.");
+    return bad("address", "Find the address on the map first. It has to be in the San Diego area.");
   }
 
   const from = b.from;

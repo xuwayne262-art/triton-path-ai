@@ -407,7 +407,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
               <label id="f-bedrooms">
                 <span className={labelText}>Bedrooms</span>
                 <select value={bedrooms} onChange={(e) => setBedrooms(e.target.value)} className={input}>
-                  <option value="">—</option>
+                  <option value="">Not stated</option>
                   <option value="0">Studio</option>
                   {[1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
@@ -415,7 +415,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
               <label id="f-housemates">
                 <span className={labelText}>Housemates</span>
                 <select value={housemates} onChange={(e) => setHousemates(e.target.value)} className={input}>
-                  <option value="">—</option>
+                  <option value="">Not stated</option>
                   {[0, 1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n}</option>)}
                 </select>
               </label>
@@ -467,7 +467,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
                   <span
                     className="inline-flex shrink-0"
                     title={query.trim().length < 5
-                      ? "Type the street address first — at least 5 characters, e.g. 3990 Nobel Dr"
+                      ? "Type the street address first (at least 5 characters, e.g. 3990 Nobel Dr)"
                       : "Find this address on the map"}
                   >
                     <button
@@ -490,7 +490,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
                   </div>
                 )}
                 <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                  The building&rsquo;s street address — leave the unit number for the description. Looked up with the U.S. Census Bureau&rsquo;s geocoder.
+                  The building&rsquo;s street address. Leave the unit number for the description. Looked up with the U.S. Census Bureau&rsquo;s geocoder.
                 </p>
               </>
             )}
@@ -665,7 +665,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
               {editId ? "Save changes" : "Post listing"}
             </button>
             <p className="text-[11px] text-gray-500 dark:text-gray-400">
-              It stays up for 30 days at a time — one click from you keeps it there.
+              It stays up for 30 days at a time. One click from you keeps it there.
             </p>
             {error?.field === "form" && (
               <p role="alert" className="w-full text-sm font-medium text-rose-600 dark:text-rose-400">{error.text}</p>
@@ -684,7 +684,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
                   <ListingCard listing={preview} measure={previewMeasure} mode={mode} focused={false} onFocus={() => {}} />
                 </div>
                 <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">
-                  The commute line is worked out for whoever is looking — this one is from your own schedule. A
+                  The commute line is worked out for whoever is looking. This one is from your own schedule. A
                   student with an 8am in Pepper Canyon sees something different from one with a noon class at Scripps.
                 </p>
               </>

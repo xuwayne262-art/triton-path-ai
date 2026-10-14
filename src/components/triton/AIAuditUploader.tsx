@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { Sparkles, Loader2, AlertCircle, Bot, FileText, UploadCloud, X, Plus, Minus } from "lucide-react";
 import { COURSE_COLORS_STRING } from "./types";
 import type { Course } from "./types";
+import { programLabel } from "@/data/ucsdMajorsMinors";
 
 interface ScheduleCourse {
   course: Course;
@@ -14,7 +15,7 @@ interface ScheduleCourse {
 const QUARTER_OPTIONS = ([1, 2, 3, 4] as const).flatMap((year) =>
   (["Fall", "Winter", "Spring"] as const).map((q) => ({
     value: `${q}-${year}`,
-    label: `${q} — Year ${year}`,
+    label: `Year ${year}, ${q}`,
   }))
 );
 
@@ -286,7 +287,7 @@ export default function AIAuditUploader({
         {/* Profile pill */}
         <div className={`flex items-center gap-1.5 mb-2 text-[10px] px-2 py-1 rounded-full w-fit ${darkMode ? "bg-gray-700 text-gray-300" : "bg-gray-100 text-gray-600"}`}>
           <Bot className="w-3 h-3" />
-          <span>{selectedMajor || "No major"} · {selectedCollege ?? "No college"}</span>
+          <span>{selectedMajor ? programLabel(selectedMajor) : "No major"} · {selectedCollege ?? "No college"}</span>
         </div>
 
         {/* Dropzone or file pill */}

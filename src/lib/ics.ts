@@ -193,7 +193,7 @@ export function buildIcs({
       ...(skipped.length ? [`EXDATE;TZID=${TZ}:${skipped.map((h) => `${ymd(h)}T${hm(p.startMin)}`).join(",")}`] : []),
       `SUMMARY:${escapeText(p.label)}`,
       ...(p.where ? [`LOCATION:${escapeText(p.where)}`] : []),
-      `DESCRIPTION:${escapeText([p.title, p.instructor].filter(Boolean).join(" — "))}`,
+      `DESCRIPTION:${escapeText([p.title, p.instructor].filter(Boolean).join(" · "))}`,
       "END:VEVENT",
     );
   }

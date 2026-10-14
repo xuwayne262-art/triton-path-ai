@@ -72,7 +72,7 @@ export default function RateProfessor({
               type="button"
               onClick={() => setQuality(n)}
               aria-pressed={quality === n}
-              aria-label={`${n} out of 5 — ${QUALITY_WORD[n]}`}
+              aria-label={`${n} out of 5, ${QUALITY_WORD[n]}`}
               className="rounded p-0.5 transition hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#1B2C4F] dark:focus-visible:ring-[#FFC72C]"
             >
               <Star
@@ -166,7 +166,7 @@ export default function RateProfessor({
       </div>
 
       <p className="mt-3 text-[11px] leading-relaxed text-gray-600 dark:text-gray-400">
-        Saved to your account for you alone — your ratings are not published or
+        Saved to your account for you alone. Your ratings are not published or
         shared, and they do not affect the RateMyProfessors score shown above.
       </p>
     </div>

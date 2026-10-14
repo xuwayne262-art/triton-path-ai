@@ -153,8 +153,8 @@ function GESearch() {
           <div>
             <p>
               <span className="font-semibold">College GE lists are community-compiled. Confirm eligibility with your college.</span>{" "}
-              They cover only areas with a fixed course list — writing programs, sequences and department-based
-              areas aren&rsquo;t here — so this is not every requirement, and not a degree audit.
+              They cover only areas with a fixed course list. Writing programs, sequences and department-based
+              areas aren&rsquo;t here, so this is not every requirement, and not a degree audit.
             </p>
             <p className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs">
               {source && (
@@ -293,16 +293,16 @@ function GESearch() {
                     <>
                       From the Academic Senate&rsquo;s list of approved courses
                       {campus.dei.termName && campus.dei.asOf ? `, with ${campus.dei.termName}'s offerings as of ${campus.dei.asOf}` : ""}. A course
-                      counts only if taken in or after the quarter its approval began — check the
+                      counts only if taken in or after the quarter its approval began. Check the
                       <a href={campus.dei.url} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-0.5 font-semibold underline underline-offset-2">
                         Senate list <ExternalLink className="h-3 w-3" aria-hidden />
                       </a>.
                     </>
                   ) : (
                     <>
-                      From the UCSD General Catalog. {campus.ahi.note} AP, IB and high-school credit can satisfy it too —
+                      From the UCSD General Catalog. {campus.ahi.note} AP, IB and high-school credit can satisfy it too. See
                       <a href={campus.ahi.url} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-0.5 font-semibold underline underline-offset-2">
-                        see the catalog <ExternalLink className="h-3 w-3" aria-hidden />
+                        the catalog <ExternalLink className="h-3 w-3" aria-hidden />
                       </a>.
                     </>
                   )}
@@ -455,7 +455,7 @@ function GELoading() {
 function GEFailed() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-24 text-center">
-      <p className="text-sm text-gray-700 dark:text-gray-300">The GE lists did not arrive — check your connection.</p>
+      <p className="text-sm text-gray-700 dark:text-gray-300">The GE lists did not arrive. Check your connection.</p>
       <button
         type="button"
         onClick={() => window.location.reload()}

@@ -82,7 +82,7 @@ export default function ChoiceSummary({
       return finals.length ? finals.map(examLine).join("; ") : `Not listed on the schedule for ${choice.split(" + ")[0]}`;
     }
     if (overview.kind === "same") return overview.finals.map(examLine).join("; ");
-    if (overview.kind === "varies") return "Varies by section — choose a lecture to see yours";
+    if (overview.kind === "varies") return "Varies by section. Choose a lecture to see yours.";
     return detail ? "Not listed on the schedule" : "…";
   })();
   const midterms = summary?.exams.filter((e) => e[TYPE] !== "FI") ?? [];
@@ -111,7 +111,7 @@ export default function ChoiceSummary({
       <h2 id="glance-title" className={SECTION_TITLE}>{termLabel} at a glance</h2>
 
       <dl className="mt-4 grid grid-cols-2 gap-3">
-        <Fact label="Units" value={detail?.u ? String(parseFloat(detail.u)) : "—"} />
+        <Fact label="Units" value={detail?.u ? String(parseFloat(detail.u)) : "Not listed"} />
         <Fact
           label="Seats taken"
           value={seats ? `${seats.enrolled.toLocaleString()} / ${seats.capacity.toLocaleString()}` : offered ? "Not published" : "Not offered"}
@@ -183,7 +183,7 @@ export default function ChoiceSummary({
                 <span>
                   {summary.full.map((s) => `${typeLabel(s[TYPE])} ${s[CODE]}`).join(" and ")}{" "}
                   {summary.full.length === 1 ? "was" : "were"} full at the last count. You can still plan it, but
-                  enrolling may mean a waitlist — TSS has the live count.
+                  enrolling may mean a waitlist. TSS has the live count.
                 </span>
               </p>
             )}

@@ -182,7 +182,7 @@ export default function CoursesPage() {
               <h2 className={LABEL}>The eight colleges</h2>
               <p className="mt-1.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
                 Colleges are a separate thing from departments. Every undergraduate belongs to one,
-                and it sets your general-education and writing requirements — but colleges own no
+                and it sets your general-education and writing requirements, but colleges own no
                 majors and no academic departments. The only courses they run are their own core
                 sequences, listed together here.
               </p>

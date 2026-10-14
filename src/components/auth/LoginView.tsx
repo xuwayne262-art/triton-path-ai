@@ -95,7 +95,7 @@ export default function LoginView({
           className="inline-flex items-center gap-1.5 rounded-md text-[13px] font-semibold text-[#4A5670] underline-offset-2 hover:text-[#182B49] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#182B49] focus-visible:ring-offset-2 focus-visible:ring-offset-[#FCFBF9]"
         >
           <ArrowLeft aria-hidden className="h-4 w-4" />
-          Back to browsing — no sign-in needed
+          Back to browsing, no sign-in needed
         </Link>
 
         {/* Brand lockup — the same mark and wordmark the app header uses */}
@@ -139,7 +139,7 @@ export default function LoginView({
 
             <p className="mt-4 text-[13px] leading-relaxed text-[#4A5670]">
               Use your <span className="font-semibold">@ucsd.edu</span> Google account. Personal Gmail and other
-              addresses — including department ones like name@eng.ucsd.edu — are turned away. Signing in only
+              addresses, including department ones like name@eng.ucsd.edu, are turned away. Signing in only
               confirms that you hold a @ucsd.edu address; it does not verify anything else about you.
             </p>
           </>
@@ -184,7 +184,7 @@ function SetupNotice({
         <p className="mt-2 text-[13px] leading-relaxed text-[#6B7488]">
           This is a deployed server, so it does not read{" "}
           <code className="font-mono text-[12px]">.env.local</code>. Set these in the hosting
-          project&rsquo;s environment variables, then <strong>redeploy</strong> — variables added
+          project&rsquo;s environment variables, then <strong>redeploy</strong>. Variables added
           after a deployment only apply to the next one:
         </p>
       )}

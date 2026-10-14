@@ -56,7 +56,7 @@ function fullNote(s: SectionTuple): { text: string; title: string } | null {
   if (!isWaitlistOnly(s) && !(seats.known && seats.full)) return null;
   return {
     text: "Full",
-    title: `Full when UCSD last counted${queued > 0 ? ` — ${queued} on the waitlist` : ""}. Enrolling would put you on the waitlist.`,
+    title: `Full when UCSD last counted${queued > 0 ? `, with ${queued} on the waitlist` : ""}. Enrolling would put you on the waitlist.`,
   };
 }
 
@@ -478,7 +478,7 @@ function CourseSections({
           {conflicted && (
             <p className="mt-1 flex items-center gap-1 text-xs font-medium text-red-700 dark:text-red-400">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-              Overlaps another course — pick a different section below
+              Overlaps another course. Pick a different section below.
             </p>
           )}
           {untimed.length > 0 && (
@@ -546,7 +546,7 @@ function CourseSections({
 
               {multiLecture && !family && (
                 <p className="rounded-lg bg-amber-50 px-2 py-1.5 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
-                  Each lecture has its own discussions — choose one above, or click a
+                  Each lecture has its own discussions. Choose one above, or click a
                   striped block on the calendar.
                 </p>
               )}
@@ -596,7 +596,7 @@ function CourseSections({
                     ))}
                     {hidden > 0 && (
                       <p className="col-span-2 text-[11px] text-gray-500 dark:text-gray-400">
-                        {hidden} hidden — they clash or leave a walk you cannot make.
+                        {hidden} hidden because they clash or leave a walk you cannot make.
                       </p>
                     )}
                   </PartGroup>
@@ -715,7 +715,7 @@ function QuickAdd({
           aria-expanded={open && hits.length > 0}
           aria-controls="quick-add-list"
           aria-label="Add a course"
-          placeholder="Add a course — try “CSE 12”"
+          placeholder="Add a course, like “CSE 12”"
           value={q}
           onChange={(e) => { setQ(e.target.value); setActive(0); setOpen(true); }}
           onFocus={() => setOpen(true)}
@@ -818,7 +818,7 @@ export default function SectionBoard({
             <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">No courses this term yet</p>
             <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
               Type a course above, or find one under <span className="font-semibold">Browse</span>.
-              Its lectures and discussions appear here to choose from — and on the map, where they meet.
+              Its lectures and discussions appear here to choose from, and on the map where they meet.
             </p>
           </div>
         ) : (

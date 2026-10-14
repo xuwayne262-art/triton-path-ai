@@ -4,7 +4,7 @@ import { useId, useMemo, useState } from "react";
 import { Popover } from "radix-ui";
 import { Check, ChevronDown, GraduationCap, Search } from "lucide-react";
 import { COLLEGES, type College } from "@/components/triton/types";
-import { UCSD_MAJORS, UCSD_MINORS } from "@/data/ucsdMajorsMinors";
+import { UCSD_MAJORS, UCSD_MINORS, programLabel } from "@/data/ucsdMajorsMinors";
 import { collegeName } from "@/lib/plat";
 
 /**
@@ -27,7 +27,7 @@ export default function ProgramPicker({
   onCollege: (c: College | null) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const summary = [major || "Choose a major", minor !== "None" ? `${minor} minor` : "", college ? collegeName(college) : ""]
+  const summary = [major ? programLabel(major) : "Choose a major", minor !== "None" ? `${programLabel(minor)} minor` : "", college ? collegeName(college) : ""]
     .filter(Boolean)
     .join(" · ");
 
@@ -105,7 +105,7 @@ export default function ProgramPicker({
   );
 }
 
-const display = (v: string, noneLabel?: string) => (v === "None" && noneLabel ? noneLabel : v);
+const display = (v: string, noneLabel?: string) => (v === "None" && noneLabel ? noneLabel : programLabel(v));
 
 /** A labelled, filterable single choice from a long list. */
 function SearchList({

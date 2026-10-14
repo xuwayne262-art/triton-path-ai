@@ -56,7 +56,7 @@ export default function FourYearPlanPage() {
   const addTitle = allPlanned
     ? `Every course on ${schedule} is already in the plan${plannedYear ? `, in Year ${plannedYear}` : ""}`
     : selectedCourses.length === 0
-      ? `Nothing is on ${schedule} yet — add courses on the This term tab first`
+      ? `Nothing is on ${schedule} yet. Add courses on the This term tab first.`
       : `Puts the ${toAdd} ${toAdd === 1 ? "course" : "courses"} on ${schedule} that ${toAdd === 1 ? "isn’t" : "aren’t"} planned yet into Year ${plannerYear}, ${plannerQuarter}`;
 
   const selectCls = `px-3 py-1.5 text-sm rounded-lg border ${

@@ -54,7 +54,7 @@ function supabaseStore(url: string, key: string): SeatStore {
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
       const missing = /PGRST205|Could not find the table/i.test(detail)
-        ? ` — seat history is not set up in this database yet. Run ${MIGRATION} in the Supabase SQL editor.`
+        ? `. Seat history is not set up in this database yet. Run ${MIGRATION} in the Supabase SQL editor.`
         : "";
       throw new Error(`Supabase ${init.method ?? "GET"} ${res.status}: ${detail.slice(0, 300)}${missing}`);
     }

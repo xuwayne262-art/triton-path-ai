@@ -165,7 +165,7 @@ function Department({ params }: { params: Promise<{ sub: string }> }) {
                 Course offerings published by {listing.department}.
               </span>{" "}
               <span className="text-amber-900 dark:text-amber-200/80">
-                {note ?? "Tentative and subject to change — check here before you plan around a section."}
+                {note ?? "Tentative and subject to change. Check here before you plan around a section."}
               </span>
             </span>
           </a>

@@ -4,6 +4,14 @@
  * Grouped by school / division for readability; exported as flat arrays.
  */
 
+/**
+ * A program as a student reads it: "Music — Composition (BA)" -> "Music:
+ * Composition (BA)". The names below keep their em dashes because they are
+ * keys: saved plans store them and the requirement tables are looked up by
+ * them. Only what is shown changes.
+ */
+export const programLabel = (name: string): string => name.replace(/\s*—\s*/g, ": ");
+
 // ── MAJORS ────────────────────────────────────────────────────────────────────
 
 export const UCSD_MAJORS: string[] = [

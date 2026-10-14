@@ -166,7 +166,7 @@ function paintPin(inner: HTMLElement, p: MapPin) {
     "aria-label",
     `${p.building.n}${p.ghost ? " (preview)" : ""}: ${p.courses.join(", ")}`,
   );
-  inner.title = `${p.building.n}${p.building.m ? ` (${p.building.m})` : ""} — ${p.courses.join(", ")}`;
+  inner.title = `${p.building.n}${p.building.m ? ` (${p.building.m})` : ""}: ${p.courses.join(", ")}`;
 
   const body = document.createElement("div");
   body.className = s.body;

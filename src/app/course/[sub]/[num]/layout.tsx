@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { courseForMeta } from "@/lib/seo";
-import { typicalGrade } from "@/lib/plat";
+import { tidyTitle, typicalGrade } from "@/lib/plat";
 
 /**
  * The course page is drawn in the browser; this names it on the server, so a
@@ -25,7 +25,7 @@ export async function generateMetadata({
     detail.desc ? detail.desc.slice(0, 180) + (detail.desc.length > 180 ? "…" : "") : null,
   ].filter(Boolean).join(" ");
 
-  const title = `${code} — ${detail.t} · UCSDPlans`;
+  const title = `${code} ${tidyTitle(detail.t)} · UCSDPlans`;
   return {
     title,
     description,

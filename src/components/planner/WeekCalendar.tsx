@@ -90,7 +90,7 @@ function Block({
         borderLeft: `3px ${lecture ? "solid" : "dashed"} ${style.hex}`,
       }}
       title={[
-        `${event.code} — ${event.title}`,
+        `${event.code}: ${event.title}`,
         event.sectionCode ? `${event.kindLabel} ${event.sectionCode}` : event.kindLabel,
         `${minutesToLabel(event.startMin)} – ${minutesToLabel(event.endMin)}`,
         where,
@@ -226,7 +226,7 @@ function WalkAlert({ leg, windowStart }: { leg: Leg; windowStart: number }) {
       style={{ top: `${top + Math.max(leg.gap, 0) * pxPerMin / 2}px` }}
       title={`${walk.minutes}-minute walk (${formatDistance(walk.meters)}) from ${
         leg.from.event.where || leg.from.event.code
-      } to ${leg.to.event.where || leg.to.event.code} with a ${leg.gap}-minute break — ${why}.${
+      } to ${leg.to.event.where || leg.to.event.code} with a ${leg.gap}-minute break, ${why}.${
         leg.source === "estimate" ? " Estimated from the straight-line distance." : " Route by UCSD's Class Planner."
       }`}
     >
@@ -250,7 +250,7 @@ export default function WeekCalendar({
   compact = false,
   days = DAYS,
   onDayHeader,
-  emptyHint = "Add a course from the left, then pick its sections — lectures and discussions both land on this calendar, and anything that collides is flagged.",
+  emptyHint = "Add a course from the left, then pick its sections. Lectures and discussions both land on this calendar, and anything that collides is flagged.",
 }: {
   events: CalEvent[];
   /** Options and previews — blocks that are not commitments. */

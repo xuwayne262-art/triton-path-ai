@@ -277,9 +277,9 @@ export default function TermWorkspacePage() {
             ? `Switched ${code} to ${choiceText(families, sel)}, as chosen on its page.`
             : `Added ${code} with ${choiceText(families, sel)}, as chosen on its page.`
           : pick && failed
-            ? `Added ${code}, but its sections could not be loaded — try again in Sections.`
+            ? `Added ${code}, but its sections could not be loaded. Try again in Sections.`
             : pick
-              ? `Added ${code}. Its sections changed since you chose them — pick again in Sections.`
+              ? `Added ${code}. Its sections changed since you chose them, so pick again in Sections.`
               : `Added ${code}. Choose its sections in Sections.`,
       });
       setPendingPick(null);
@@ -489,14 +489,14 @@ export default function TermWorkspacePage() {
     const kept = selectedCourses.filter(({ course }) => sectionsByCode[course.code]?.length).length
       - changed.length - failed.length;
     if (failed.length) {
-      setToast({ text: `${list(failed)} can’t fit around the rest — choose by hand`, action: undo });
+      setToast({ text: `${list(failed)} can’t fit around the rest. Choose by hand.`, action: undo });
     } else if (changed.length) {
       setToast({
         text: `Fitted ${changed.length} ${changed.length === 1 ? "course" : "courses"}${kept > 0 ? ", kept your other picks" : ""}`,
         action: undo,
       });
     } else {
-      setToast({ text: "Everything already fits — nothing changed" });
+      setToast({ text: "Everything already fits. Nothing changed." });
     }
   }, [autoPickAll, restoreSelections, selectedCourses, sectionsByCode]);
 
@@ -538,7 +538,7 @@ export default function TermWorkspacePage() {
     a.download = icsFileName(termName || quarter.name);
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setToast({ text: "Calendar file saved — open it to add every class and final to your calendar" });
+    setToast({ text: "Calendar file saved. Open it to add every class and final to your calendar." });
   }, [quarter, events, exams, courseByCode, termName]);
 
   const clearWithUndo = useCallback(() => {
@@ -618,7 +618,7 @@ export default function TermWorkspacePage() {
                 key={id}
                 type="button"
                 onClick={() => { pickTab(id); setRailFlag("1"); }}
-                title={id === "sections" && pending ? `${label} — ${pending} to pick` : label}
+                title={id === "sections" && pending ? `${label}, ${pending} to pick` : label}
                 aria-label={id === "sections" && pending ? `${label}, ${pending} to pick` : label}
                 className="relative rounded-lg p-2 text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
               >
@@ -750,7 +750,7 @@ export default function TermWorkspacePage() {
                   else toggleMap(true);
                 }}
                 className="flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 transition hover:bg-amber-100 dark:bg-amber-500/15 dark:text-amber-300"
-                title="Classes too far apart for the break between them — open the map to see the walk"
+                title="Classes too far apart for the break between them. Open the map to see the walk."
               >
                 <Footprints className="h-3 w-3" />
                 {troubles.length} tight {troubles.length === 1 ? "walk" : "walks"}
@@ -773,7 +773,7 @@ export default function TermWorkspacePage() {
                 type="button"
                 onClick={openPicture}
                 disabled={!events.length}
-                title={events.length ? "Save your whole week as a picture" : "Pick sections first — then save your week as a picture"}
+                title={events.length ? "Save your whole week as a picture" : "Pick sections first, then save your week as a picture"}
                 className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/15 dark:text-gray-200 dark:hover:bg-white/5"
               >
                 <ImageDown className="h-3.5 w-3.5" />
@@ -785,7 +785,7 @@ export default function TermWorkspacePage() {
                 disabled={!canExportCalendar}
                 title={canExportCalendar
                   ? "Download a calendar file (.ics) with every class, weekly until the last day of instruction, and your finals"
-                  : "Pick sections first — then add your week to your calendar"}
+                  : "Pick sections first, then add your week to your calendar"}
                 className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/15 dark:text-gray-200 dark:hover:bg-white/5"
               >
                 <CalendarPlus className="h-3.5 w-3.5" />
@@ -908,7 +908,7 @@ export default function TermWorkspacePage() {
               onDayHeader={isPhone ? (d) => setPhoneDay((cur) => (cur ? null : d)) : undefined}
               emptyHint={
                 isPhone
-                  ? "Add a course on the Courses tab, then pick its sections — lectures and discussions both land here."
+                  ? "Add a course on the Courses tab, then pick its sections. Lectures and discussions both land here."
                   : undefined
               }
             />
@@ -929,7 +929,7 @@ export default function TermWorkspacePage() {
                     className="h-3 w-4 rounded-sm border border-dashed border-gray-400"
                     style={{ background: "repeating-linear-gradient(135deg, #94a3b833 0 3px, transparent 3px 6px)" }}
                   />
-                  Striped = an option — click to choose it
+                  Striped = an option. Click to choose it.
                 </span>
                 <span className="flex items-center gap-1.5">
                   <span aria-hidden className="h-3 w-3 rounded-sm ring-2 ring-red-500" />

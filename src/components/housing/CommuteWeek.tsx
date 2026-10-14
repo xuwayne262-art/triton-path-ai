@@ -48,8 +48,8 @@ export default function CommuteWeek({
             <span className="ml-1.5 text-sm font-semibold text-gray-500 dark:text-gray-400">a week {MODES[mode].verb}</span>
           </p>
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-            About {formatHours(perQuarter(measure.week))} over a {QUARTER_WEEKS}-week quarter — one round trip a
-            day, to your {schedule.termName} classes.
+            About {formatHours(perQuarter(measure.week))} over a {QUARTER_WEEKS}-week quarter, at one round trip a
+            day to your {schedule.termName} classes.
           </p>
 
           <ol className="mt-4 space-y-2">
@@ -78,7 +78,7 @@ export default function CommuteWeek({
                 </p>
                 {d.unplaced.length > 0 && (
                   <p className="mt-0.5 pl-5 text-[11px] text-gray-500 dark:text-gray-400">
-                    Also {d.unplaced.map((e) => e.code).join(", ")} — no room on the map yet.
+                    Also {d.unplaced.map((e) => e.code).join(", ")}, which have no room on the map yet.
                   </p>
                 )}
                 {transitDays.has(d.day) && (

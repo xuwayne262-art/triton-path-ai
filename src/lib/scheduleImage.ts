@@ -100,7 +100,7 @@ export function scheduleImageInput(args: {
 
     let note = "";
     if (!families.length) {
-      note = onGrid.has(c.code) ? "Catalog time — sections not published" : "No sections published this term";
+      note = onGrid.has(c.code) ? "Catalog time (no sections published)" : "No sections published this term";
     } else if (!family) {
       note = "Section not picked yet";
     } else {
@@ -580,7 +580,7 @@ export function paintSchedule(
   ctx.font = f(500, 12);
   ctx.textAlign = "left";
   ctx.fillText(
-    "Times and rooms from UCSD’s Class Planner. Check TSS before you enroll — sections can change.",
+    "Times and rooms from UCSD’s Class Planner. Check TSS before you enroll, since sections can change.",
     grid.x,
     layout.footerY + 14,
   );

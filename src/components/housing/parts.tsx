@@ -34,7 +34,7 @@ export function ModeToggle({ mode, onMode }: { mode: Mode; onMode: (m: Mode) => 
           role="radio"
           aria-checked={mode === m}
           onClick={() => onMode(m)}
-          title={mode === m ? `${MODE_HINT[m]} (chosen)` : `${MODE_HINT[m]} — click to switch`}
+          title={mode === m ? `${MODE_HINT[m]} (chosen)` : `${MODE_HINT[m]}. Click to switch.`}
           className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition ${
             mode === m
               ? "bg-white text-[#182B49] shadow-sm dark:bg-white/20 dark:text-white"

@@ -282,7 +282,7 @@ export default function CourseDetailPage({
         <div className="mx-auto max-w-2xl px-4 py-24 text-center">
           <h1 className={PAGE_TITLE}>Couldn&apos;t load {code}</h1>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            The course data did not arrive — check your connection and try again.
+            The course data did not arrive. Check your connection and try again.
           </p>
           <button
             type="button"
@@ -656,7 +656,7 @@ function Eligibility({
         ) : catalogued ? (
           `none listed in the UCSD General Catalog${offered ? " or on this term's schedule" : ""}.`
         ) : (
-          "not on record — this course is not in the current catalog, so check with the department."
+          "not on record. This course is not in the current catalog, so check with the department."
         )}
       </p>
       {detail.res && (
@@ -711,7 +711,7 @@ function LeadsTo({ code, leads }: { code: string; leads: string[] }) {
   return (
     <div>
       <p className="text-xs text-gray-600 dark:text-gray-400">
-        {leads.length} {leads.length === 1 ? "course lists" : "courses list"} {code} among their prerequisites — alone, or as one of several options.
+        {leads.length} {leads.length === 1 ? "course lists" : "courses list"} {code} among their prerequisites, alone or as one of several options.
       </p>
       <ul className="mt-3 flex flex-wrap gap-2">
         {leads.map((c) => (
@@ -750,7 +750,7 @@ function PastTerms({ detail }: { detail: CourseDetail }) {
           {shown.map((h, i) => (
             <tr key={`${h[0]}-${h[1]}-${i}`} className="border-t border-gray-100 dark:border-white/5">
               <th scope="row" className="py-2 pr-3 text-left font-normal whitespace-nowrap">{termName(h[0])}</th>
-              <td className="py-2 pr-3">{detail.profs[h[1]]?.i ?? "—"}</td>
+              <td className="py-2 pr-3">{detail.profs[h[1]]?.i ?? "Not listed"}</td>
               <td className="py-2 text-right tabular-nums">
                 {h[2] != null ? (
                   <span className="inline-flex items-center justify-end gap-2">

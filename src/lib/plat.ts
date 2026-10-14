@@ -291,12 +291,19 @@ export function loadJSON<T>(url: string, prepare?: (file: T) => T): Promise<T> {
 }
 
 /**
- * "Introductory Ecology—Organisms and Habitat" -> "Introductory Ecology — Organisms and Habitat".
- * The catalog closes up its em dashes (108 titles); the site spaces them, as it
- * does its own. En dashes are ranges — "K–12", "P–12" — and stay closed.
+ * "Introductory Ecology—Organisms and Habitat" -> "Introductory Ecology: Organisms and Habitat".
+ * The catalog joins a title and its subtitle with an em dash (108 titles); the
+ * site writes no em dashes, so it reads them as a colon, or a comma where the
+ * title already has a colon ("Remote, Introduction to Ethnic Studies: Land and
+ * Labor"). One between numbers is a range and becomes an en dash: "(4—6)" ->
+ * "(4–6)". En dashes already are ranges ("K–12") and stay as they are. Only the
+ * title as shown changes; the published data keeps the catalog's own text.
  */
-export const tidyTitle = (title: string): string =>
-  typeof title === "string" ? title.replace(/\s*—\s*/g, " — ") : title;
+export function tidyTitle(title: string): string {
+  if (typeof title !== "string") return title;
+  const ranged = title.replace(/(\d)\s*—\s*(\d)/g, "$1–$2");
+  return ranged.replace(/\s*—\s*/g, ranged.includes(":") ? ", " : ": ");
+}
 
 export const loadIndex = () =>
   loadJSON<PlatIndex>("/data/plat/index.json", (file) => {

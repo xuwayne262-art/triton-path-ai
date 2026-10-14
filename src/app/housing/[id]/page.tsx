@@ -58,7 +58,7 @@ export default function ListingPage() {
 
   // A tab or a bookmark should say which place this is, not just the site.
   useEffect(() => {
-    if (listing) document.title = `${headline(listing)} — UCSDPlans housing`;
+    if (listing) document.title = `${headline(listing)} · UCSDPlans housing`;
   }, [listing]);
 
   const load = useCallback(async () => {
@@ -140,7 +140,7 @@ export default function ListingPage() {
                   </span>
                   {listing.state === "stale" && (
                     <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400">
-                      Not reconfirmed in over two weeks — ask if it is still available
+                      Not reconfirmed in over two weeks. Ask if it is still available.
                     </span>
                   )}
                   {listing.mine && listing.state !== "live" && listing.state !== "stale" && (
@@ -166,7 +166,7 @@ export default function ListingPage() {
                       ? "Utilities included"
                       : listing.utilities
                         ? `Plus about ${dollars(listing.utilities)} a month in utilities`
-                        : "Utilities not stated — ask"}
+                        : "Ask about utilities"}
                     {listing.room === "shared" && " · price is for one bed in a shared room"}
                   </p>
                 </div>
@@ -179,8 +179,8 @@ export default function ListingPage() {
               <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <Fact icon={<BedDouble className="h-4 w-4" />} label="Room" value={listing.room === "private" ? "Private" : "Shared"} />
                 <Fact icon={<Bath className="h-4 w-4" />} label="Bathroom" value={listing.bath === "private" ? "Private" : "Shared"} />
-                <Fact icon={<House className="h-4 w-4" />} label="Bedrooms" value={listing.bedrooms == null ? "—" : listing.bedrooms === 0 ? "Studio" : String(listing.bedrooms)} />
-                <Fact icon={<Users className="h-4 w-4" />} label="Housemates" value={listing.housemates == null ? "—" : String(listing.housemates)} />
+                <Fact icon={<House className="h-4 w-4" />} label="Bedrooms" value={listing.bedrooms == null ? "Not stated" : listing.bedrooms === 0 ? "Studio" : String(listing.bedrooms)} />
+                <Fact icon={<Users className="h-4 w-4" />} label="Housemates" value={listing.housemates == null ? "Not stated" : String(listing.housemates)} />
                 <Fact icon={<Sofa className="h-4 w-4" />} label="Furnished" value={listing.furnished ? "Yes" : "No"} />
                 <Fact icon={<WashingMachine className="h-4 w-4" />} label="Laundry" value={LAUNDRY_SHORT[listing.laundry]} />
                 <Fact icon={<Car className="h-4 w-4" />} label="Parking" value={listing.parking ? "Yes" : "No"} />
@@ -438,7 +438,7 @@ function OwnerControls({ listing, onChanged, onDeleted }: { listing: PublicListi
       </div>
       {confirmedUntil && (
         <p role="status" className="mt-2 text-xs text-emerald-700 dark:text-emerald-300">
-          Confirmed — it stays listed until {confirmedUntil}.
+          Confirmed. It stays listed until {confirmedUntil}.
         </p>
       )}
       {error && <p className="mt-2 text-xs text-rose-600 dark:text-rose-400">{error}</p>}
@@ -465,10 +465,10 @@ function ReportButton({ id }: { id: string }) {
   return (
     <p className="text-xs text-gray-500 dark:text-gray-400">
       {state === "done" ? (
-        "Thanks — reported. It is hidden once three students report it."
+        "Thanks for reporting. It is hidden once three students report it."
       ) : (
         <button type="button" onClick={report} disabled={state === "busy"} className="inline-flex items-center gap-1.5 font-semibold hover:text-rose-600 disabled:opacity-40 dark:hover:text-rose-400">
-          <Flag className="h-3.5 w-3.5" /> {state === "failed" ? "That did not go through — try again" : "Report this listing"}
+          <Flag className="h-3.5 w-3.5" /> {state === "failed" ? "That did not go through. Try again." : "Report this listing"}
         </button>
       )}
     </p>

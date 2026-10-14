@@ -78,7 +78,7 @@ export function seatAgeSentence(age: SeatAge, now: number): string {
   }
   const when = `Counted by UCSD’s Class Planner on ${seatMoment(age.at)}, ${ago(age.at, now)}.`;
   return age.kind === "old"
-    ? `${when} That is more than a day old and may be out of date — check TSS for the live count.`
+    ? `${when} That is more than a day old and may be out of date. Check TSS for the live count.`
     : `${when} Seats change quickly; TSS has the live count.`;
 }
 

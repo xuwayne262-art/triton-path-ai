@@ -99,7 +99,7 @@ export default function ImportPage() {
       setParsed(null);
       setPhase("error");
       setMessage(
-        "That does not look like an Academic History — no terms or transfer credit were found. "
+        "That does not look like an Academic History. No terms or transfer credit were found. "
         + "Select the whole page on TritonLink before copying.",
       );
       return;
@@ -171,7 +171,7 @@ export default function ImportPage() {
           // nothing here is a box either: it is context for the steps below.
           <p className="mt-6 text-sm leading-relaxed text-gray-600 dark:text-gray-300">
             <span className="font-semibold text-gray-900 dark:text-gray-100">No Academic History saved yet.</span>{" "}
-            Saving one keeps every course, grade and unit — term by term, plus transfer credit — with your
+            Saving one keeps every course, grade and unit (term by term, plus transfer credit) with your
             UCSDPlans account on any device, and the UCSD courses you&rsquo;ve completed count toward the
             degree progress beside your{" "}
             <Link href="/planner/four-year" className="font-medium underline underline-offset-2">4-year plan</Link>.
@@ -201,7 +201,7 @@ export default function ImportPage() {
               Couldn&rsquo;t load your saved Academic History
             </p>
             <p className="mt-1 text-sm text-red-800 dark:text-red-300">
-              If you saved one, it is still there — this was a problem loading it, on our side, not yours.
+              If you saved one, it is still there. This was a problem loading it, on our side, not yours.
               {retries > 0 && !retrying
                 && ` Still not loading after ${retries === 1 ? "a retry" : `${retries} retries`}. If it keeps happening, tell us through Contact in the top bar.`}
             </p>
@@ -233,7 +233,7 @@ export default function ImportPage() {
             </a>{" "}
             on TritonLink.
           </li>
-          <li>Select the whole page and copy it — <kbd className="rounded border px-1 text-xs">Ctrl</kbd>/<kbd className="rounded border px-1 text-xs">⌘</kbd> + <kbd className="rounded border px-1 text-xs">A</kbd>, then <kbd className="rounded border px-1 text-xs">C</kbd>.</li>
+          <li>Select the whole page and copy it: <kbd className="rounded border px-1 text-xs">Ctrl</kbd>/<kbd className="rounded border px-1 text-xs">⌘</kbd> + <kbd className="rounded border px-1 text-xs">A</kbd>, then <kbd className="rounded border px-1 text-xs">C</kbd>.</li>
           <li>Paste it below and check what came through.</li>
         </ol>
 
@@ -311,7 +311,7 @@ function Review({
         <Stat label="Courses" value={String(t.courses)} />
         <Stat label="Units earned" value={String(t.unitsEarned)} />
         <Stat label="In progress" value={String(t.unitsInProgress)} />
-        <Stat label="GPA" value={t.gpa == null ? "—" : t.gpa.toFixed(2)} />
+        <Stat label="GPA" value={t.gpa == null ? "None" : t.gpa.toFixed(2)} />
       </dl>
 
       {/*
@@ -331,7 +331,7 @@ function Review({
             ))}
           </ul>
           <p className="mt-1.5">
-            Everything else below came through. These lines are not saved or counted anywhere — if one matters,
+            Everything else below came through. These lines are not saved or counted anywhere. If one matters,
             check it on TritonLink, and tell us through Contact in the top bar so the reader can learn it.
           </p>
         </div>
@@ -355,7 +355,7 @@ function Review({
                   <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-gray-300">{c.title}</span>
                   <span className="shrink-0 tabular-nums text-xs text-gray-500 dark:text-gray-400">{c.units}u</span>
                   <span className="w-8 shrink-0 text-right text-xs font-semibold tabular-nums">
-                    {c.grade ?? "—"}
+                    {c.grade ?? "None"}
                   </span>
                 </li>
               ))}
@@ -376,7 +376,7 @@ function Review({
                     <span className="text-gray-500 dark:text-gray-400"> · {x.from}</span>
                   </span>
                   <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">
-                    {x.equivalents.join(", ") || "—"}
+                    {x.equivalents.join(", ") || "None"}
                   </span>
                   <span className="shrink-0 tabular-nums text-xs text-gray-500 dark:text-gray-400">{x.units}u</span>
                 </li>

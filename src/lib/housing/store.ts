@@ -100,10 +100,10 @@ const MIGRATION = "supabase/002_housing.sql";
 /** The two failures a fresh deployment hits, as instructions rather than codes. */
 export function hint(status: number, body: string): string {
   if (/PGRST205/.test(body) || /Could not find the table/i.test(body) || /Bucket not found/i.test(body)) {
-    return ` — housing is not set up in this database yet. Run ${MIGRATION} in the Supabase SQL editor.`;
+    return `. Housing is not set up in this database yet. Run ${MIGRATION} in the Supabase SQL editor.`;
   }
   if (status === 401 || status === 403 || /PGRST301|JWT|permission denied/i.test(body)) {
-    return " — the key was rejected. This driver needs the SERVICE ROLE key (SUPABASE_SERVICE_ROLE_KEY"
+    return ". The key was rejected. This driver needs the SERVICE ROLE key (SUPABASE_SERVICE_ROLE_KEY"
       + " or SUPABASE_SECRET_KEY), never the anon key.";
   }
   return "";

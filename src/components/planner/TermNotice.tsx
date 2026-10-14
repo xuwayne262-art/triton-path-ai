@@ -52,7 +52,7 @@ export default function TermNotice({
     <p role="status" className="flex items-start gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-white/10 dark:bg-white/[0.03] dark:text-gray-300 md:px-4">
       <Archive aria-hidden className="mt-px h-3.5 w-3.5 shrink-0" />
       <span>
-        Your {termLabel(last)} schedule — {kept.join(", ")} — is kept with your plan.{" "}
+        Your {termLabel(last)} schedule ({kept.join(", ")}) is kept with your plan.{" "}
         {termName || "This term"} starts empty.
       </span>
     </p>

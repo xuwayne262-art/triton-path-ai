@@ -190,7 +190,7 @@ export default function RightSidebar({
                     </div>
                     {(planned > 0 || covered) && (
                       <p className={`mt-0.5 text-[10px] leading-snug ${darkMode ? "text-gray-400" : "text-gray-600"}`}>
-                        {req.done} done · {planned} planned{covered ? " — covered by your plan, not yet earned" : ""}
+                        {req.done} done · {planned} planned{covered ? " · covered by your plan, not yet earned" : ""}
                       </p>
                     )}
                   </div>

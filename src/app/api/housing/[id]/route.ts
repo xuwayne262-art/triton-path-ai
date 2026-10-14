@@ -120,7 +120,7 @@ export async function PATCH(request: Request, ctx: Ctx): Promise<Response> {
     if (action === "taken") next = { ...listing, status: "taken" };
     else {
       if (listing.to < today) {
-        return json({ error: "Its dates are over — edit them to list it again.", code: "HOUSING_ENDED" }, 409);
+        return json({ error: "Its dates are over. Edit them to list it again.", code: "HOUSING_ENDED" }, 409);
       }
       next = { ...listing, status: "open", confirmed: now.toISOString() };
     }
