@@ -14,10 +14,12 @@ import ProfessorRow from "@/components/plat/ProfessorShelf";
 import SearchCombobox from "@/components/plat/SearchCombobox";
 import { GradeBadge } from "@/components/plat/Grade";
 import { useRecent } from "@/components/plat/useRecent";
+import { useNow } from "@/components/plat/useNow";
 import {
-  CAMPUS, loadGE, loadIndex, loadProfessors, sortCourses,
+  CAMPUS, dayLabel, loadGE, loadIndex, loadProfessors, sortCourses,
   type CourseRow as Row, type GEFile, type PlatIndex, type ProfessorRecord,
 } from "@/lib/plat";
+import { announcementHref, isNewAnnouncement, latestAnnouncement } from "@/lib/announcements";
 import { SHELF_RULE, shelfEligible } from "@/lib/recommend";
 import { agoLabel, type RecentItem } from "@/lib/recent";
 import { DEPARTMENTS } from "@/data/ucsdStructure";
@@ -50,8 +52,8 @@ function varied(rows: Row[], count: number): Row[] {
  * is, and the search, with the quarter as a compact strip under it. Beside
  * them, the three things a student comes to do — browse courses, find a GE,
  * plan a week — in one list, with Housing and the Academic History as the
- * student services they are. Then whatever this browser looked at last, and shelves of real courses
- * for a student who knows nothing yet.
+ * student services they are. Then the latest announcement, whatever this browser looked at last,
+ * and shelves of real courses for a student who knows nothing yet.
  */
 export default function HomePage() {
   const [data, setData] = useState<PlatIndex | null>(null);
@@ -100,6 +102,8 @@ export default function HomePage() {
   const searches = recent.filter((r) => r.kind === "search");
   const visits = recent.filter((r) => r.kind !== "search");
   const term = data?.meta.termName ?? "this term";
+  const news = latestAnnouncement();
+  const now = useNow();
 
   return (
     <PlatShell hideSearch>
@@ -203,6 +207,31 @@ export default function HomePage() {
             </p>
           </div>
         </div>
+
+        {/* ── What changed lately: the newest announcement, one click from all of them ── */}
+        {news && (
+          <section className="mt-16" aria-labelledby="news-title">
+            <h2 id="news-title" className={SECTION_TITLE}>Announcements</h2>
+            <Link
+              href={announcementHref(news)}
+              className="group mt-4 flex flex-col gap-3 rounded-2xl border border-gray-200 px-5 py-4 transition hover:border-[#1B2C4F]/40 hover:bg-gray-50 sm:flex-row sm:items-center sm:gap-8 dark:border-white/10 dark:hover:border-[#FFC72C]/40 dark:hover:bg-white/5"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                  <time dateTime={news.date}>{dayLabel(news.date)}</time>
+                  {now && isNewAnnouncement(news, now) && (
+                    <span className="rounded-full bg-[#FFCD00] px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-[#182B49]">New</span>
+                  )}
+                </span>
+                <span className="mt-1 block text-sm font-semibold group-hover:underline">{news.title}</span>
+                <span className="mt-1 block max-w-3xl text-xs leading-relaxed text-gray-700 dark:text-gray-300">{news.summary}</span>
+              </span>
+              <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-[#1B2C4F] dark:text-[#FFC72C]">
+                What changed <ArrowRight aria-hidden className="h-3 w-3" />
+              </span>
+            </Link>
+          </section>
+        )}
 
         {/* ── Pick up where you left off ─────────────────────────────────── */}
         {visits.length > 0 && (

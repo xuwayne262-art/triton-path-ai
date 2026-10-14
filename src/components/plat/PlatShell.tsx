@@ -156,6 +156,7 @@ export default function PlatShell({
             Historical grades describe the past, not your quarter — confirm requirements with your college advisor.
           </p>
           <nav aria-label="About" className="flex shrink-0 flex-wrap gap-x-4 gap-y-1 font-semibold">
+            <Link href="/announcements" className="hover:text-gray-900 hover:underline dark:hover:text-white">Announcements</Link>
             <Link href="/about" className="hover:text-gray-900 hover:underline dark:hover:text-white">About &amp; data sources</Link>
             <Link href="/about#letter" className="hover:text-gray-900 hover:underline dark:hover:text-white">How the letter grade works</Link>
           </nav>

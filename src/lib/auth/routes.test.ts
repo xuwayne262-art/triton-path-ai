@@ -31,6 +31,7 @@ describe("isPublicPath", () => {
       "/ge",
       "/professor/joseph-gibbs-politz",
       "/about",
+      "/announcements",
       "/data/plat/index.json",
       "/data/plat/subject/CSE.json",
       "/data/plat/professors.json",

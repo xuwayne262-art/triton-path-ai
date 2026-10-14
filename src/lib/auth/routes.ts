@@ -2,12 +2,12 @@
  * What the middleware lets through unauthenticated.
  *
  * Browsing is open, the way UCSBPlat's is: the course explorer — home, the
- * department and course pages, professors, GEs, About — and the dataset they
- * read, so a link sent to a friend or found on a search engine opens the page
- * instead of a sign-in wall. What belongs to a student stays behind their
- * @ucsd.edu sign-in: the Planner, the Academic History, housing (listers
- * posted expecting only UCSD students to see their place and contacts), and
- * every API that reads or writes their data.
+ * department and course pages, professors, GEs, About, Announcements — and
+ * the dataset they read, so a link sent to a friend or found on a search
+ * engine opens the page instead of a sign-in wall. What belongs to a student
+ * stays behind their @ucsd.edu sign-in: the Planner, the Academic History,
+ * housing (listers posted expecting only UCSD students to see their place
+ * and contacts), and every API that reads or writes their data.
  */
 
 /**
@@ -45,6 +45,7 @@ const PUBLIC_PAGES = new Set([
   "/courses",
   "/ge",
   "/about",
+  "/announcements",
   // Seat counts over time, read by the public course page.
   "/api/seats",
 ]);

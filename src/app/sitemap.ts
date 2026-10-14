@@ -19,6 +19,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: at("/courses"), changeFrequency: "weekly", priority: 0.8 },
     { url: at("/ge"), changeFrequency: "weekly", priority: 0.8 },
     { url: at("/about"), changeFrequency: "monthly", priority: 0.3 },
+    { url: at("/announcements"), changeFrequency: "weekly", priority: 0.3 },
     ...DEPARTMENTS.map((d) => ({ url: at(`/courses/${d.id}`), changeFrequency: "weekly" as const, priority: 0.6 })),
     ...(index?.courses ?? [])
       .filter((c) => c.o === 1 || c.ct !== 0)
