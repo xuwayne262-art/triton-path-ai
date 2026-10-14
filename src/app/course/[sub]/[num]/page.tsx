@@ -588,7 +588,7 @@ export default function CourseDetailPage({
 
           {/* ── Rail: the choice, in view while it is being made ─────────── */}
           <aside className="hidden min-w-0 lg:col-span-5 lg:block" aria-label={`${code} at a glance`}>
-            <div className="sticky top-24">
+            <div className="sticky top-32 xl:top-24">
               <ChoiceSummary {...summaryProps} />
             </div>
           </aside>

@@ -13,10 +13,10 @@ import { loadIndex, refreshedLabel, type IndexMeta } from "@/lib/plat";
 import { seatSpan, spanLabel } from "@/lib/freshness";
 
 /**
- * The site's frame: one bar with the search and the Planner, and the four
- * places a student goes named in plain words — on a laptop in the bar, on a
- * phone in a row of labelled tabs under it, since a row of bare icons made a
- * first-time visitor guess.
+ * The site's frame: one bar with the search and the Planner, and the places a
+ * student goes named in plain words — on a wide screen in the bar; narrower,
+ * where five links would squeeze the search out of it, in a row of labelled
+ * tabs under it, since a row of bare icons made a first-time visitor guess.
  *
  * The explorer is public, so the bar also says "Sign in" to a visitor who is
  * not; the Planner, Academic History and Housing ask them to at the door.
@@ -27,6 +27,7 @@ const NAV = [
   { href: "/ge", label: "Easy GEs", match: (p: string) => p.startsWith("/ge") },
   { href: "/housing", label: "Housing", match: (p: string) => p.startsWith("/housing"), badge: "New" },
   { href: "/import", label: "Academic History", match: (p: string) => p.startsWith("/import") },
+  { href: "/announcements", label: "Announcements", match: (p: string) => p.startsWith("/announcements") },
 ] as const;
 
 export default function PlatShell({
@@ -72,7 +73,7 @@ export default function PlatShell({
 
           {!hideSearch && <SearchBox className="min-w-0 flex-1 lg:max-w-md" />}
 
-          <nav aria-label="Main" className="ml-auto hidden items-center gap-1 lg:flex">
+          <nav aria-label="Main" className="ml-auto hidden items-center gap-1 xl:flex">
             {NAV.map((n) => (
               <Link key={n.href} href={n.href} aria-current={n.match(pathname) ? "page" : undefined} className={tab(n.match(pathname))}>
                 {n.label}
@@ -85,7 +86,7 @@ export default function PlatShell({
             ))}
           </nav>
 
-          <div className={`flex shrink-0 items-center gap-1 sm:gap-2 ${hideSearch ? "ml-auto" : ""} lg:ml-0`}>
+          <div className={`flex shrink-0 items-center gap-1 sm:gap-2 ${hideSearch ? "ml-auto" : ""} xl:ml-0`}>
             {/* Who made this and how to reach them, one click away on every page. */}
             <ContactMenu iconOnly />
 
@@ -128,8 +129,8 @@ export default function PlatShell({
           </div>
         </div>
 
-        {/* Below a laptop's width the places go in a row of labelled tabs. */}
-        <nav aria-label="Main" className="border-t border-gray-100 lg:hidden dark:border-white/5">
+        {/* Below 1280px the places go in a row of labelled tabs. */}
+        <nav aria-label="Main" className="border-t border-gray-100 xl:hidden dark:border-white/5">
           <div className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-3 py-1.5 [scrollbar-width:none] sm:px-5">
             {NAV.map((n) => (
               <Link key={n.href} href={n.href} aria-current={n.match(pathname) ? "page" : undefined} className={tab(n.match(pathname))}>
@@ -151,12 +152,11 @@ export default function PlatShell({
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 text-xs leading-relaxed text-gray-500 dark:text-gray-400 sm:px-6 lg:flex-row lg:items-start lg:justify-between lg:px-8">
           <p className="max-w-3xl">
             {meta
-              ? `${meta.gradeRecords.toLocaleString()} course–instructor grade distributions (${meta.years}) from the UCSD Associated Students Instructor Grade Archive; descriptions and prerequisites from the UCSD General Catalog; ${meta.termName} sections and seats from UCSD’s Class Planner, ${seats} — not live, so check TSS before you enroll. `
+              ? `${meta.gradeRecords.toLocaleString()} course–instructor grade distributions (${meta.years}) from the UCSD Associated Students Instructor Grade Archive; descriptions and prerequisites from the UCSD General Catalog; ${meta.termName} sections and seats from UCSD’s Class Planner, ${seats}. Seats are not live, so check TSS before you enroll. `
               : ""}
-            Historical grades describe the past, not your quarter — confirm requirements with your college advisor.
+            Historical grades describe the past, not your quarter. Confirm requirements with your college advisor.
           </p>
           <nav aria-label="About" className="flex shrink-0 flex-wrap gap-x-4 gap-y-1 font-semibold">
-            <Link href="/announcements" className="hover:text-gray-900 hover:underline dark:hover:text-white">Announcements</Link>
             <Link href="/about" className="hover:text-gray-900 hover:underline dark:hover:text-white">About &amp; data sources</Link>
             <Link href="/about#letter" className="hover:text-gray-900 hover:underline dark:hover:text-white">How the letter grade works</Link>
           </nav>

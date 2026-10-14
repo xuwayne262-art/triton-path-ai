@@ -22,6 +22,7 @@ export default function SearchCombobox({
   variant,
   label = "Search courses and professors",
   placeholder,
+  shortPlaceholder,
   value,
   onValueChange,
   className = "",
@@ -29,6 +30,8 @@ export default function SearchCombobox({
   variant: "bar" | "hero";
   label?: string;
   placeholder: string;
+  /** Shown instead of `placeholder` wherever the box is too narrow to show it whole. */
+  shortPlaceholder?: string;
   /** Controlled text, for a page that fills it in (the home page's recent searches). */
   value?: string;
   onValueChange?: (q: string) => void;
@@ -59,6 +62,25 @@ export default function SearchCombobox({
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
+
+  // A prompt cut off mid-word reads as a bug, so where the full one does not
+  // fit the box (a phone, or a laptop bar beside five links) it says the short
+  // one. The field's accessible name is the full label either way.
+  const [fits, setFits] = useState(true);
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!shortPlaceholder || !input || typeof ResizeObserver === "undefined") return;
+    const ctx = document.createElement("canvas").getContext("2d");
+    if (!ctx) return;
+    const measure = new ResizeObserver(() => {
+      const cs = getComputedStyle(input);
+      ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      const room = input.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      setFits(ctx.measureText(placeholder).width <= room);
+    });
+    measure.observe(input);
+    return () => measure.disconnect();
+  }, [placeholder, shortPlaceholder]);
 
   const results = useMemo<Combined>(
     () => ({ profs: searchProfessors(profs, q, 4), courses: searchCourses(courses, q, 6) }),
@@ -119,7 +141,7 @@ export default function SearchCombobox({
         onChange={(e) => { setQ(e.target.value); setOpen(true); }}
         onFocus={() => setOpen(true)}
         onKeyDown={onKeyDown}
-        placeholder={placeholder}
+        placeholder={shortPlaceholder && !fits ? shortPlaceholder : placeholder}
         className={hero
           ? "h-12 w-full rounded-xl border border-gray-300 bg-white pl-10 pr-10 text-[15px] shadow-sm outline-none transition placeholder:text-gray-500 focus:border-[#1B2C4F] focus:ring-2 focus:ring-[#1B2C4F]/15 dark:border-white/15 dark:bg-white/5 dark:text-gray-100 dark:placeholder:text-gray-400 dark:focus:border-[#FFC72C] dark:focus:ring-[#FFC72C]/20"
           : "w-full rounded-full border border-gray-200 bg-gray-50 py-2 pl-9 pr-8 text-sm outline-none transition placeholder:text-gray-500 focus:border-[#182B49] focus:bg-white focus:ring-2 focus:ring-[#182B49]/15 dark:border-white/10 dark:bg-white/5 dark:text-gray-100 dark:placeholder:text-gray-400 dark:focus:border-[#FFCD00] dark:focus:bg-white/10"}

@@ -675,7 +675,7 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
 
         {/* ── Preview ── */}
         <aside className="lg:col-span-5">
-          <div className="space-y-3 lg:sticky lg:top-24">
+          <div className="space-y-3 lg:sticky lg:top-32 xl:top-24">
             <p className={LABEL}>Preview</p>
             {preview && previewMeasure ? (
               <>

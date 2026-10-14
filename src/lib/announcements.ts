@@ -34,13 +34,16 @@ function isCalendarDay(s: string): boolean {
 /**
  * Everything wrong with a list of announcements, in plain words; empty when
  * it is fine. Newest first, real dates, one id each starting with its date,
- * nothing left blank, and every link a page on this site that opens without
- * a sign-in — the Announcements page is public, so a link into the Planner
- * would greet a visitor with a login screen.
+ * nothing left blank, no em dashes, and every link a page on this site that
+ * opens without a sign-in. The Announcements page is public, so a link into
+ * the Planner would greet a visitor with a login screen.
  */
 export function announcementProblems(list: readonly Announcement[]): string[] {
   const problems: string[] = [];
   const ids = new Set<string>();
+  const dashed = (where: string, text: string) => {
+    if (text.includes("—")) problems.push(`${where}: "${text.slice(0, 40)}…" uses an em dash; use a period or comma`);
+  };
   list.forEach((a, i) => {
     const where = a.id || `entry ${i + 1}`;
     if (!isCalendarDay(a.date)) problems.push(`${where}: date "${a.date}" is not a YYYY-MM-DD day`);
@@ -53,13 +56,19 @@ export function announcementProblems(list: readonly Announcement[]): string[] {
     if (!a.title.trim()) problems.push(`${where}: no title`);
     if (!a.summary.trim()) problems.push(`${where}: no summary`);
     if (!a.groups.length) problems.push(`${where}: no changes listed`);
+    dashed(where, a.title);
+    dashed(where, a.summary);
     for (const g of a.groups) {
       if (!g.label.trim()) problems.push(`${where}: a group has no label`);
       if (!g.items.length) problems.push(`${where}: "${g.label}" lists nothing`);
+      dashed(where, g.label);
       for (const it of g.items) {
         if (!it.title.trim() || !it.text.trim()) problems.push(`${where}: an item in "${g.label}" is blank`);
+        dashed(where, it.title);
+        dashed(where, it.text);
         if (it.link) {
           const { href, label } = it.link;
+          dashed(where, label);
           const path = href.split(/[?#]/)[0];
           if (!href.startsWith("/") || href.startsWith("//")) problems.push(`${where}: "${label}" should link inside the site, not to ${href}`);
           else if (!isPublicPath(path)) problems.push(`${where}: "${label}" links to ${path}, which asks visitors to sign in`);

@@ -100,7 +100,7 @@ export default function AboutPage() {
           </ul>
         </section>
 
-        <section id="seats" className="mt-12 scroll-mt-32 lg:scroll-mt-24">
+        <section id="seats" className="mt-12 scroll-mt-32 xl:scroll-mt-24">
           <h2 className={SECTION_TITLE}>How fresh the seat counts are</h2>
           <div className="mt-3 space-y-4 text-sm leading-relaxed text-gray-700 dark:text-gray-200">
             <p>
@@ -120,7 +120,7 @@ export default function AboutPage() {
           </div>
         </section>
 
-        <section id="letter" className="mt-12 scroll-mt-32 lg:scroll-mt-24">
+        <section id="letter" className="mt-12 scroll-mt-32 xl:scroll-mt-24">
           <h2 className={SECTION_TITLE}>How the letter grade is worked out</h2>
           <div className="mt-3 space-y-4 text-sm leading-relaxed text-gray-700 dark:text-gray-200">
             <p>
@@ -149,7 +149,7 @@ export default function AboutPage() {
           </div>
         </section>
 
-        <section id="ratings" className="mt-12 scroll-mt-32 lg:scroll-mt-24">
+        <section id="ratings" className="mt-12 scroll-mt-32 xl:scroll-mt-24">
           <h2 className={SECTION_TITLE}>What the ratings and difficulty mean</h2>
           <div className="mt-3 space-y-4 text-sm leading-relaxed text-gray-700 dark:text-gray-200">
             <p>
@@ -168,7 +168,7 @@ export default function AboutPage() {
           </div>
         </section>
 
-        <section id="ge" className="mt-12 scroll-mt-32 lg:scroll-mt-24">
+        <section id="ge" className="mt-12 scroll-mt-32 xl:scroll-mt-24">
           <h2 className={SECTION_TITLE}>What the GE lists cover</h2>
           <div className="mt-3 space-y-4 text-sm leading-relaxed text-gray-700 dark:text-gray-200">
             <p>

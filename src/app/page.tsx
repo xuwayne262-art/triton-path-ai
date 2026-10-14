@@ -184,7 +184,7 @@ export default function HomePage() {
                 icon={<GraduationCap className="h-4 w-4" />}
                 title="Find a GE"
                 count={geCounts ? `${geCounts.college.toLocaleString()} on college lists` : undefined}
-                detail={geCounts ? `By college, with past grades — plus ${geCounts.dei} for DEI and the AHI list` : "By college, with past grades"}
+                detail={geCounts ? `By college, with past grades, plus ${geCounts.dei} for DEI and the AHI list` : "By college, with past grades"}
               />
               <EntryRow
                 href="/planner"
@@ -201,9 +201,9 @@ export default function HomePage() {
             <p className="text-xs leading-relaxed text-gray-600 dark:text-gray-400">
               Also for UCSD students:{" "}
               <Link href="/housing" className="font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]">Housing</Link>
-              {" "}— sublets posted by @ucsd.edu students, by the walk to your classes ·{" "}
+              {" "}for sublets from @ucsd.edu students, and{" "}
               <Link href="/import" className="font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]">Academic History</Link>
-              {" "}— import your completed courses for planning.
+              {" "}to import your completed courses.
             </p>
           </div>
         </div>
@@ -227,7 +227,7 @@ export default function HomePage() {
                 <span className="mt-1 block max-w-3xl text-xs leading-relaxed text-gray-700 dark:text-gray-300">{news.summary}</span>
               </span>
               <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-[#1B2C4F] dark:text-[#FFC72C]">
-                What changed <ArrowRight aria-hidden className="h-3 w-3" />
+                Read more
               </span>
             </Link>
           </section>
@@ -298,7 +298,7 @@ export default function HomePage() {
               </div>
               <p className="mt-1 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
                 {SHELF_RULE} A high past average says nothing about workload, and some courses still have
-                restrictions — check each one.{" "}
+                restrictions, so check each one.{" "}
                 <Link href="/about#letter" className="underline underline-offset-2 hover:text-gray-900 dark:hover:text-white">How the letter is worked out</Link>
               </p>
               <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10">

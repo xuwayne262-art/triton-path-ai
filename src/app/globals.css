@@ -151,14 +151,14 @@
     @apply bg-background text-foreground;
   }
   /*
-   * The site bar sticks to the top (64px, and a row of tabs under it below a
-   * laptop's width). Whatever the keyboard or a #link scrolls into view stops
-   * below it rather than underneath it.
+   * The site bar sticks to the top (64px, and a row of tabs under it below
+   * 1280px). Whatever the keyboard or a #link scrolls into view stops below it
+   * rather than underneath it.
    */
   html {
     scroll-padding-top: 7.5rem;
   }
-  @media (min-width: 1024px) {
+  @media (min-width: 1280px) {
     html {
       scroll-padding-top: 5.5rem;
     }

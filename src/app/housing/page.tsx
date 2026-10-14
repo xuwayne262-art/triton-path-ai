@@ -350,7 +350,7 @@ export default function HousingPage() {
           {/* ── The map ──────────────────────────────────────────────────── */}
           <div className={`lg:col-span-7 ${phoneView === "list" ? "max-lg:hidden" : ""}`}>
             {/* Pinned a little below the site bar, ending 32px above the window's foot. */}
-            <div className="h-[70dvh] overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10 lg:sticky lg:top-24 lg:h-[calc(100dvh-8rem)]">
+            <div className="h-[70dvh] overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10 lg:sticky lg:top-32 lg:h-[calc(100dvh-10rem)] xl:top-24 xl:h-[calc(100dvh-8rem)]">
               <HousingMap
                 darkMode={theme === "dark"}
                 homes={homes}
@@ -468,7 +468,7 @@ function CheckAddress({
   };
 
   return (
-    <section id="check" aria-labelledby="check-h" className="scroll-mt-32 lg:scroll-mt-24">
+    <section id="check" aria-labelledby="check-h" className="scroll-mt-32 xl:scroll-mt-24">
       <h2 id="check-h" className={SECTION_TITLE}>Found a place somewhere else?</h2>
       <p className="mt-1.5 text-[13px] leading-relaxed text-gray-500 dark:text-gray-400">
         Paste its address and see your commute from there, next to everything listed here.

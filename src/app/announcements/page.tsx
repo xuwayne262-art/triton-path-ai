@@ -8,7 +8,7 @@ import { dayLabel } from "@/lib/plat";
 
 export const metadata: Metadata = {
   title: "Announcements · UCSDPlans",
-  description: "What’s new on UCSDPlans: each update, newest first, and where to see it.",
+  description: "What’s new on UCSDPlans.",
 };
 
 /**
@@ -20,7 +20,7 @@ export default function AnnouncementsPage() {
   return (
     <PlatShell>
       <div className={`mx-auto max-w-3xl px-4 sm:px-6 ${PAGE_PAD}`}>
-        <PageHeader title="Announcements" description="What’s new on UCSDPlans, newest first." />
+        <PageHeader title="Announcements" description="What’s new on UCSDPlans." />
 
         <div className={PAGE_GAP}>
           {ANNOUNCEMENTS.map((a, i) => (
@@ -48,8 +48,8 @@ export default function AnnouncementsPage() {
                           {it.link && (
                             <>
                               {" "}
-                              <Link href={it.link.href} className="whitespace-nowrap font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]">
-                                {it.link.label} →
+                              <Link href={it.link.href} className="whitespace-nowrap font-semibold text-[#1B2C4F] underline underline-offset-2 hover:no-underline dark:text-[#FFC72C]">
+                                {it.link.label}
                               </Link>
                             </>
                           )}
@@ -64,8 +64,8 @@ export default function AnnouncementsPage() {
         </div>
 
         <p className="mt-16 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
-          Spotted a problem, or want something added?{" "}
-          <Link href="/about" className="font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]">Get in touch</Link>.
+          Questions or ideas?{" "}
+          <Link href="/about" className="font-semibold text-[#1B2C4F] underline underline-offset-2 hover:no-underline dark:text-[#FFC72C]">Get in touch</Link>.
         </p>
       </div>
     </PlatShell>

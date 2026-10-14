@@ -64,6 +64,14 @@ describe("announcementProblems", () => {
     assert.deepEqual(announcementProblems([linkTo("/about#letter")]), []);
   });
 
+  test("rejects em dashes anywhere a student reads", () => {
+    assert.match(announcementProblems([entry({ title: "Finals — now per lecture" })]).join(" "), /em dash/);
+    assert.match(announcementProblems([entry({ summary: "Faster — and clearer." })]).join(" "), /em dash/);
+    const item = (text: string) => entry({ groups: [{ label: "Course pages", items: [{ title: "Finals", text }] }] });
+    assert.match(announcementProblems([item("Each lecture — its own final.")]).join(" "), /em dash/);
+    assert.deepEqual(announcementProblems([item("Each lecture lists its own final.")]), []);
+  });
+
   test("rejects blank parts", () => {
     assert.match(announcementProblems([entry({ title: " " })]).join(" "), /no title/);
     assert.match(announcementProblems([entry({ summary: "" })]).join(" "), /no summary/);
