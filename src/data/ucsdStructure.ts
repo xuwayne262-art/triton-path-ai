@@ -171,7 +171,7 @@ export const DEPARTMENTS: Department[] = [
     subjects: [
       "MED", "RAD", "BIOM", "PAE", "CLRE", "DDPM", "LHCO",
       "SOMC", "SOMI", "ANES", "DERM", "EMED", "ICEP", "OBG", "OPTH", "ORTH",
-      "PATH", "PEDS", "PHAR", "PSY", "RMAS", "SURG", "UROL",
+      "PATH", "PEDS", "PHAR", "PSY", "RMAS", "RMED", "SURG", "UROL",
     ],
   },
 
