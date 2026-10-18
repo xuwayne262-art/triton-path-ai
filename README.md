@@ -358,7 +358,63 @@ Storage bucket. Without it, the board answers 502 and the server log names the
 file to run. `next dev` with no Supabase variables uses
 `.history-store/housing/` instead.
 
-## Hosted AI is turned off
+## AI course discovery (opt-in)
+
+`/discover`, linked from Home and Courses, translates a short request into
+editable course filters. It uses the existing catalog, GE lists, and
+`courseFilters.ts` for results: the model never supplies course records.
+Manual filters work publicly even when AI is disabled. AI requests require a
+server-verified, eligible `@ucsd.edu` session. The existing broad AI endpoints
+below remain disabled.
+
+To enable the narrow search on a preview first:
+
+1. Run [`supabase/005_course_search_quota.sql`](supabase/005_course_search_quota.sql)
+   in the project's Supabase SQL editor. The migration is idempotent, keeps
+   RLS enabled, and grants the RPC only to the service role.
+2. Keep the existing Google/Auth.js credentials and `AUTH_SECRET` (or
+   `NEXTAUTH_SECRET`). Configure `SUPABASE_URL` (or
+   `NEXT_PUBLIC_SUPABASE_URL`) and a server-only
+   `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_SECRET_KEY`). Never expose a
+   service key as a `NEXT_PUBLIC_*` variable.
+3. Set `AI_COURSE_SEARCH_MODEL` to an exact `provider/model` ID from
+   <https://ai-gateway.vercel.sh/v1/models> with structured-output support.
+   Choose an inexpensive text model; there is no hardcoded fallback.
+   Authenticate with Vercel's `VERCEL_OIDC_TOKEN` or a server-only
+   `AI_GATEWAY_API_KEY`. The installed AI SDK requires Node 22+; the existing
+   Vercel project uses Node 24.
+4. Set `AI_COURSE_SEARCH_ENABLED=true` in that preview environment and
+   redeploy. All settings are required; the default is disabled. Use a Gateway
+   budget as an additional monetary limit, particularly if changing models.
+5. Sign in with a UCSD account. Try “Sixth College humanities GEs with no
+   prerequisites listed” and “COGS courses up to 4 units.” Check the displayed
+   scope, chips, sort, and course links against manual filters. Try a request
+   with meeting times and confirm the unmet constraint is clearly identified.
+   Check Gateway logs for the request/model/usage before enabling production.
+
+The database reserves **10 attempts per student and 200 site-wide per UTC
+day** atomically before any provider call, shared across serverless instances.
+Failed generations consume a reservation, preventing retries from escaping
+the cap. Quota-storage failure blocks generation; there is no local counter
+or file fallback. Only keyed hashes and counters are stored, with 30 days of
+retention. Model calls have a 15-second deadline, no automatic retries, and
+a 1,200-token output cap. Requests are at most 600 characters, validated at
+runtime, and responses are `no-store` with sanitized errors. Changing the
+caps requires editing the migration and applying it again.
+
+Only the request and public search vocabulary are sent to the AI service;
+academic history, saved plans, and account identity are not added. Gateway or
+provider logging is subject to their settings. AI-selected criteria are always
+visible and editable. Unsupported requests (times, conflicts, personal degree
+eligibility, exact unit counts, or other terms) must be identified by the
+parser and shown as unapplied; this extraction still needs evaluation with a
+configured model before launch. GE lists may be incomplete and do not replace
+the degree audit or college advising.
+
+To turn AI search off, remove `AI_COURSE_SEARCH_ENABLED` or set it to `false`
+and redeploy. Public manual filters continue working.
+
+## Broad AI advising remains turned off
 
 All three AI endpoints answer **503** with `Cache-Control: no-store`:
 

@@ -166,6 +166,10 @@ export default function HomePage() {
               </Link>
             </nav>
 
+            <Link href="/discover" className="mt-4 inline-flex min-h-10 items-center gap-2 text-sm font-semibold text-[#1B2C4F] underline underline-offset-4 dark:text-[#FFC72C]">
+              Describe the courses you want · AI search beta <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </Link>
+
             {/* The quarter as context, under the search it must not outrank. */}
             <QuarterClock className="mt-8 max-w-2xl" />
           </div>

@@ -26,6 +26,8 @@ describe("isPublicPath", () => {
     for (const path of [
       "/",
       "/courses",
+      "/discover",
+      "/api/course-search", // POST separately verifies the session before any paid work.
       "/courses/CSE",
       "/course/CSE/11",
       "/ge",

@@ -122,6 +122,10 @@ export default function CoursesPage() {
           }
         />
 
+        <Link href="/discover" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#182B49] underline underline-offset-4 dark:text-[#FFCD00]">
+          Describe the courses you want · AI search beta →
+        </Link>
+
         {needle && (
           <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
             {totalDepts} matching {totalDepts === 1 ? "listing" : "listings"}
