@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Search } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import PageHeader from "@/components/plat/PageHeader";
+import DiscoverLink from "@/components/plat/DiscoverLink";
 import { LABEL, PAGE_GAP, PAGE_PAD } from "@/components/plat/typeScale";
 import { loadIndex, type PlatIndex } from "@/lib/plat";
 import {
@@ -122,9 +123,7 @@ export default function CoursesPage() {
           }
         />
 
-        <Link href="/discover" className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-[#182B49] underline underline-offset-4 dark:text-[#FFCD00]">
-          Describe the courses you want · AI search beta →
-        </Link>
+        <DiscoverLink className="mt-5 inline-flex items-center text-sm font-semibold text-[#182B49] underline underline-offset-4 dark:text-[#FFCD00]" />
 
         {needle && (
           <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">

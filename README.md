@@ -360,8 +360,9 @@ file to run. `next dev` with no Supabase variables uses
 
 ## AI course discovery (opt-in)
 
-`/discover`, linked from Home and Courses, translates a short request into
-editable course filters. It uses the existing catalog, GE lists, and
+`/discover` translates a short request into
+editable course filters; Home and Courses link to it once AI search is on.
+It uses the existing catalog, GE lists, and
 `courseFilters.ts` for results: the model never supplies course records.
 Manual filters work publicly even when AI is disabled. AI requests require a
 server-verified, eligible `@ucsd.edu` session. The existing broad AI endpoints

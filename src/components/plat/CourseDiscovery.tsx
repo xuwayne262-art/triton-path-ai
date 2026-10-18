@@ -8,6 +8,7 @@ import PageHeader from "./PageHeader";
 import CourseResults from "./CourseResults";
 import { PAGE_GAP, PAGE_PAD } from "./typeScale";
 import { useSignedIn, useSignInHref } from "./useSignedIn";
+import { courseSearchAvailable } from "./DiscoverLink";
 import { collegeName, loadGE, loadIndex, type GEFile, type PlatIndex } from "@/lib/plat";
 import { discoveryRows, EMPTY_DISCOVERY, type DiscoveryIntent } from "@/lib/discovery";
 
@@ -37,10 +38,7 @@ export default function CourseDiscovery() {
     Promise.all([loadIndex(), loadGE()])
       .then(([index, ge]) => { if (live) setData({ index, ge }); })
       .catch(() => { if (live) setDataFailed(true); });
-    fetch("/api/course-search", { cache: "no-store" })
-      .then((r) => r.ok ? r.json() : null)
-      .then((body) => { if (live) setAvailable(body?.available === true); })
-      .catch(() => { if (live) setAvailable(false); });
+    courseSearchAvailable().then((on) => { if (live) setAvailable(on); });
     return () => { live = false; controller.current?.abort(); };
   }, []);
 
@@ -72,7 +70,7 @@ export default function CourseDiscovery() {
 
   const reset = () => { setIntent(EMPTY_DISCOVERY); setInterpreted(false); setError(""); };
   const scopeChips = [
-    ...(intent.college ? [{ label: `${collegeName(intent.college)} GE lists`, clear: () => setIntent({ ...intent, college: null, area: null }) }] : []),
+    ...(intent.college ? [{ label: `${collegeName(intent.college)} GE requirements`, clear: () => setIntent({ ...intent, college: null, area: null }) }] : []),
     ...(intent.area ? [{ label: intent.area.split(":").slice(1).join(":"), clear: () => setIntent({ ...intent, area: null }) }] : []),
     ...(intent.requirement ? [{ label: intent.requirement.slice(7), clear: () => setIntent({ ...intent, requirement: null }) }] : []),
     ...(intent.subject ? [{ label: intent.subject, clear: () => setIntent({ ...intent, subject: null }) }] : []),
@@ -130,7 +128,7 @@ export default function CourseDiscovery() {
           </div>}
           <fieldset disabled={busy || !data} className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 disabled:opacity-60">
             <legend className="sr-only">Course search scope</legend>
-            <label className="text-xs font-medium">College GE lists
+            <label className="text-xs font-medium">College
               <select value={intent.college ?? ""} onChange={(e) => setIntent({ ...intent, college: e.target.value || null, area: null })} className={FIELD}>
                 <option value="">All courses · no college filter</option>
                 {colleges.map((college) => <option key={college} value={college}>{collegeName(college)}</option>)}
