@@ -1,4 +1,12 @@
--- Apply before enabling AI_COURSE_SEARCH_ENABLED. No addresses or prompts are stored.
+-- UCSDPlans: a daily limit on AI course searches (/discover), 10 per student
+-- and 200 across the site per UTC day, reserved before any model call.
+--
+-- Run this ONCE in the Supabase SQL editor of the project that serves
+-- ucsdplans.com (ref acvensugaqcdpbccouhm, the one with student_plan and
+-- seat_history): Dashboard -> SQL Editor -> New query -> paste -> Run.
+-- It is idempotent, so running it again is harmless. Run it before setting
+-- AI_COURSE_SEARCH_ENABLED. Only a keyed hash per student and the counts are
+-- stored: no addresses and no requests.
 create table if not exists public.course_search_usage (
   day date not null,
   owner text not null,
