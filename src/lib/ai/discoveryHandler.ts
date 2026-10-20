@@ -44,7 +44,11 @@ export async function handleDiscovery(request: Request, deps: DiscoveryDependenc
     const result = discoverySchema.parse(await deps.interpret(parsed.data.query, data.index, data.ge, signal));
     if (!validDiscoveryScope(result, data.index, data.ge)) throw new Error("Unknown search scope");
     return json({ intent: result });
-  } catch {
+  } catch (error) {
+    // Gemini's free tier allows only a few requests a minute for the whole site.
+    if ((error as { statusCode?: unknown } | null)?.statusCode === 429) {
+      return json({ error: "AI search is busy right now. Try again in a minute, or use the filters below.", code: "SEARCH_BUSY" }, 503, { "Retry-After": "60" });
+    }
     return json({ error: "We couldn’t interpret that search. Try a shorter request or adjust the filters below.", code: "SEARCH_FAILED" }, 502);
   }
 }

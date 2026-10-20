@@ -98,6 +98,13 @@ test("provider errors are sanitized and unsupported criteria remain visible", as
   const res = await handleDiscovery(request(), broken.deps);
   assert.equal(res.status, 502);
   assert.ok(!(await res.text()).includes("secret provider"));
+  const limited = fixture({ interpret: async () => { throw Object.assign(new Error("secret quota detail"), { statusCode: 429 }); } });
+  const busy = await handleDiscovery(request(), limited.deps);
+  assert.equal(busy.status, 503);
+  assert.equal(busy.headers.get("retry-after"), "60");
+  const busyBody = await busy.json();
+  assert.equal(busyBody.code, "SEARCH_BUSY");
+  assert.ok(!JSON.stringify(busyBody).includes("secret quota"));
   const { deps } = fixture({ interpret: async () => ({ ...EMPTY_DISCOVERY, unsupported: ["Meeting times cannot be filtered here."], clarification: "Which college are you in?" }) });
   const body = await (await handleDiscovery(request(), deps)).json();
   assert.equal(body.intent.unsupported.length, 1);

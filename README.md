@@ -378,35 +378,37 @@ To enable the narrow search on a preview first:
    `NEXT_PUBLIC_SUPABASE_URL`) and a server-only
    `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_SECRET_KEY`). Never expose a
    service key as a `NEXT_PUBLIC_*` variable.
-3. Authenticate with Vercel's `VERCEL_OIDC_TOKEN` or a server-only
-   `AI_GATEWAY_API_KEY`. The installed AI SDK requires Node 22+; the existing
-   Vercel project uses Node 24.
+3. Set a server-only `GEMINI_API_KEY` from Google AI Studio
+   (`GOOGLE_GENERATIVE_AI_API_KEY` also works). The installed AI SDK requires
+   Node 22+; the existing Vercel project uses Node 24.
 4. Set `AI_COURSE_SEARCH_ENABLED=true` in that preview environment and
-   redeploy. All settings are required; the default is disabled. Use a Gateway
-   budget as an additional monetary limit, particularly if changing models.
+   redeploy. All settings are required; the default is disabled.
 5. Sign in with a UCSD account. Try “Sixth College humanities GEs with no
    prerequisites listed” and “COGS courses up to 4 units.” Check the displayed
    scope, chips, sort, and course links against manual filters. Try a request
    with meeting times and confirm the unmet constraint is clearly identified.
-   Check Gateway logs for the request/model/usage before enabling production.
+   Check usage in Google AI Studio before enabling production.
 
-The parser runs on GPT-5 nano (`openai/gpt-5-nano`) at minimal reasoning,
-chosen from the Gateway catalog in October 2026:
+The parser runs on Gemini 3.5 Flash-Lite (`gemini-3.5-flash-lite`) through
+the Gemini API, with thinking at its minimum. In October 2026 it passed all 16
+search cases in two runs, answering in about a second. Gemini 3.1 Flash-Lite
+chose the same filters but took several seconds on the free tier, and Gemini
+3.8 Flash timed out. `AI_COURSE_SEARCH_MODEL` can name another Gemini model.
 
-- The free tier's $5 monthly credit covers it.
-- Both providers that serve it (OpenAI and Azure) keep no prompt data and
-  don't train on it.
-- It supports strict structured output.
-- The Gateway measures 0.5 s to the first token on OpenAI.
+On a Google project without billing, the free tier costs nothing:
 
-A search sends about 4,000 tokens and gets a few hundred back, roughly
-$0.0003, so even the 200-a-day cap stays near $2 a month. Claude Haiku 5.5,
-GPT-6 Luna and Gemini 3.1 Flash-Lite are newer but need purchased Gateway
-credits, and Gemini 2.5 Flash-Lite is being retired. To try another model, set
-`AI_COURSE_SEARCH_MODEL` to its `provider/model` ID from
-<https://ai-gateway.vercel.sh/v1/models>. It needs structured-output support.
-The call asks for `minimal` reasoning, so check the model's
-`reasoning_options` too.
+- **Google may use the requests to improve its products, and people may
+  review them.** The page tells students so and asks them to leave out
+  personal details, which Google's terms require. Turning on billing for the
+  project stops that, at about $0.0014 a search; then drop that clause from
+  the page's help line.
+- **Free-tier limits apply to the whole Google project** and appear in AI
+  Studio. In testing, the per-minute limit stopped a burst after about 15
+  searches; students then see "AI search is busy right now" (503 with
+  `Retry-After: 60`). Daily limits reset at midnight Pacific time.
+- Google's terms also require the developer to be 18 or older, rule out
+  services directed at or likely to be used by people under 18, and require
+  billing for users in the EEA, Switzerland and the UK.
 
 The database reserves **10 attempts per student and 200 site-wide per UTC
 day** atomically before any provider call, shared across serverless instances.
@@ -418,14 +420,12 @@ a 1,200-token output cap. Requests are at most 600 characters, validated at
 runtime, and responses are `no-store` with sanitized errors. Changing the
 caps requires editing the migration and applying it again.
 
-Only the request and public search vocabulary are sent to the AI service;
-academic history, saved plans, and account identity are not added. Gateway or
-provider logging is subject to their settings. AI-selected criteria are always
-visible and editable. Unsupported requests (times, conflicts, personal degree
-eligibility, exact unit counts, or other terms) must be identified by the
-parser and shown as unapplied; this extraction still needs evaluation with a
-configured model before launch. GE lists may be incomplete and do not replace
-the degree audit or college advising.
+Only the request and public search vocabulary are sent to Google;
+academic history, saved plans, and account identity are not added. AI-selected
+criteria are always visible and editable. Unsupported requests (times,
+conflicts, personal degree eligibility, exact unit counts, or other terms) are
+identified by the parser and shown as unapplied. GE lists may be incomplete
+and do not replace the degree audit or college advising.
 
 To turn AI search off, remove `AI_COURSE_SEARCH_ENABLED` or set it to `false`
 and redeploy. Public manual filters continue working.

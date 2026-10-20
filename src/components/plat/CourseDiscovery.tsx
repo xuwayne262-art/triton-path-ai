@@ -93,7 +93,7 @@ export default function CourseDiscovery() {
               placeholder="Try: Sixth College humanities GEs with no prerequisites listed"
               aria-describedby="discovery-help" className={`${FIELD} h-auto resize-y py-3`} />
             <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p id="discovery-help" className="max-w-md text-xs leading-relaxed text-gray-500 dark:text-gray-400">Only your request is sent to the AI service. No transcript is needed. 10 searches per student per day; filters are unlimited.</p>
+              <p id="discovery-help" className="max-w-md text-xs leading-relaxed text-gray-500 dark:text-gray-400">Your request goes to Google Gemini, which may use it to improve its products, so leave out personal details. 10 searches per student per day; filters are unlimited.</p>
               <button type="submit" disabled={busy || !available || !signedIn || !data || query.trim().length < 3}
                 className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#182B49] px-4 text-sm font-semibold text-white transition hover:bg-[#243f66] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#182B49] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#FFCD00] dark:text-[#182B49]">
                 {busy ? <LoaderCircle aria-hidden="true" className="h-4 w-4 animate-spin" /> : <ArrowRight aria-hidden="true" className="h-4 w-4" />}

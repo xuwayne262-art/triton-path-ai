@@ -10,18 +10,21 @@ function configuration() {
 
 export function discoveryConfigured(): boolean {
   const { url, key, secret } = configuration();
-  return process.env.AI_COURSE_SEARCH_ENABLED === "true" && Boolean(
-    url && key && secret && (process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN),
-  );
+  return process.env.AI_COURSE_SEARCH_ENABLED === "true" && Boolean(url && key && secret && geminiKey());
+}
+
+/** A Gemini API key from Google AI Studio. GOOGLE_GENERATIVE_AI_API_KEY is the AI SDK's name for it. */
+export function geminiKey(): string | undefined {
+  return process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
 }
 
 /**
- * GPT-5 nano: covered by AI Gateway's free monthly credit, served only by
- * providers that keep no prompt data and don't train on it, and strict about
- * the filter schema. AI_COURSE_SEARCH_MODEL can name another gateway model.
+ * Gemini 3.5 Flash-Lite: free on the Gemini API's free tier, and in October
+ * 2026 it matched Gemini 3.1 Flash-Lite on every search case while answering
+ * faster (about 1 s). AI_COURSE_SEARCH_MODEL can name another Gemini model.
  */
 export function courseSearchModel(): string {
-  return process.env.AI_COURSE_SEARCH_MODEL?.trim() || "openai/gpt-5-nano";
+  return process.env.AI_COURSE_SEARCH_MODEL?.trim() || "gemini-3.5-flash-lite";
 }
 
 /** Atomic, durable reservation BEFORE any model call. No in-memory fallback. */

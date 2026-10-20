@@ -2,14 +2,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { courseSearchModel, discoveryConfigured, reserveDiscovery } from "./discoveryQuota";
 
-const ENV = ["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SERVICE_KEY", "SUPABASE_SECRET_KEY", "AUTH_SECRET", "NEXTAUTH_SECRET", "AI_GATEWAY_API_KEY", "VERCEL_OIDC_TOKEN", "AI_COURSE_SEARCH_MODEL", "AI_COURSE_SEARCH_ENABLED"] as const;
+const ENV = ["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SERVICE_KEY", "SUPABASE_SECRET_KEY", "AUTH_SECRET", "NEXTAUTH_SECRET", "GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY", "AI_GATEWAY_API_KEY", "VERCEL_OIDC_TOKEN", "AI_COURSE_SEARCH_MODEL", "AI_COURSE_SEARCH_ENABLED"] as const;
 
-test("AI search requires explicit opt-in, durable quota credentials, and gateway authentication", () => {
+test("AI search requires explicit opt-in, durable quota credentials, and a Gemini API key", () => {
   const before = ENV.map((name) => process.env[name]);
   try {
     for (const name of ENV) delete process.env[name];
     assert.equal(discoveryConfigured(), false);
-    const required = { SUPABASE_URL: "https://example.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "test-key", AUTH_SECRET: "test-secret", AI_GATEWAY_API_KEY: "test-gateway-key", AI_COURSE_SEARCH_ENABLED: "true" };
+    const required = { SUPABASE_URL: "https://example.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "test-key", AUTH_SECRET: "test-secret", GEMINI_API_KEY: "test-gemini-key", AI_COURSE_SEARCH_ENABLED: "true" };
     Object.assign(process.env, required);
     assert.equal(discoveryConfigured(), true);
     for (const [name, value] of Object.entries(required)) {
@@ -17,20 +17,26 @@ test("AI search requires explicit opt-in, durable quota credentials, and gateway
       assert.equal(discoveryConfigured(), false, name);
       process.env[name] = value;
     }
+    // The AI SDK's own name for the key works too; an AI Gateway key alone no longer does.
+    delete process.env.GEMINI_API_KEY;
+    process.env.AI_GATEWAY_API_KEY = "test-gateway-key";
+    assert.equal(discoveryConfigured(), false);
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY = "test-gemini-key";
+    assert.equal(discoveryConfigured(), true);
   } finally {
     ENV.forEach((name, i) => { if (before[i] === undefined) delete process.env[name]; else process.env[name] = before[i]; });
   }
 });
 
-test("AI search uses GPT-5 nano unless AI_COURSE_SEARCH_MODEL names another model", () => {
+test("AI search uses Gemini 3.5 Flash-Lite unless AI_COURSE_SEARCH_MODEL names another model", () => {
   const before = process.env.AI_COURSE_SEARCH_MODEL;
   try {
     delete process.env.AI_COURSE_SEARCH_MODEL;
-    assert.equal(courseSearchModel(), "openai/gpt-5-nano");
+    assert.equal(courseSearchModel(), "gemini-3.5-flash-lite");
     process.env.AI_COURSE_SEARCH_MODEL = "  ";
-    assert.equal(courseSearchModel(), "openai/gpt-5-nano");
-    process.env.AI_COURSE_SEARCH_MODEL = " mistral/mistral-small ";
-    assert.equal(courseSearchModel(), "mistral/mistral-small");
+    assert.equal(courseSearchModel(), "gemini-3.5-flash-lite");
+    process.env.AI_COURSE_SEARCH_MODEL = " gemini-3.1-flash-lite ";
+    assert.equal(courseSearchModel(), "gemini-3.1-flash-lite");
   } finally {
     if (before === undefined) delete process.env.AI_COURSE_SEARCH_MODEL; else process.env.AI_COURSE_SEARCH_MODEL = before;
   }
