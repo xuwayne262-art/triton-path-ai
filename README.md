@@ -358,7 +358,79 @@ Storage bucket. Without it, the board answers 502 and the server log names the
 file to run. `next dev` with no Supabase variables uses
 `.history-store/housing/` instead.
 
-## Hosted AI is turned off
+## AI course discovery (opt-in)
+
+`/discover` translates a short request into
+editable course filters; Home and Courses link to it once AI search is on.
+It uses the existing catalog, GE lists, and
+`courseFilters.ts` for results: the model never supplies course records.
+Manual filters work publicly even when AI is disabled. AI requests require a
+server-verified, eligible `@ucsd.edu` session. The existing broad AI endpoints
+below remain disabled.
+
+To enable the narrow search on a preview first:
+
+1. Run [`supabase/005_course_search_quota.sql`](supabase/005_course_search_quota.sql)
+   in the project's Supabase SQL editor. The migration is idempotent, keeps
+   RLS enabled, and grants the RPC only to the service role.
+2. Keep the existing Google/Auth.js credentials and `AUTH_SECRET` (or
+   `NEXTAUTH_SECRET`). Configure `SUPABASE_URL` (or
+   `NEXT_PUBLIC_SUPABASE_URL`) and a server-only
+   `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_SECRET_KEY`). Never expose a
+   service key as a `NEXT_PUBLIC_*` variable.
+3. Set a server-only `GEMINI_API_KEY` from Google AI Studio
+   (`GOOGLE_GENERATIVE_AI_API_KEY` also works). The installed AI SDK requires
+   Node 22+; the existing Vercel project uses Node 24.
+4. Set `AI_COURSE_SEARCH_ENABLED=true` in that preview environment and
+   redeploy. All settings are required; the default is disabled.
+5. Sign in with a UCSD account. Try “Sixth College humanities GEs with no
+   prerequisites listed” and “COGS courses up to 4 units.” Check the displayed
+   scope, chips, sort, and course links against manual filters. Try a request
+   with meeting times and confirm the unmet constraint is clearly identified.
+   Check usage in Google AI Studio before enabling production.
+
+The parser runs on Gemini 3.5 Flash-Lite (`gemini-3.5-flash-lite`) through
+the Gemini API, with thinking at its minimum. In October 2026 it passed all 16
+search cases in two runs, answering in about a second. Gemini 3.1 Flash-Lite
+chose the same filters but took several seconds on the free tier, and Gemini
+3.8 Flash timed out. `AI_COURSE_SEARCH_MODEL` can name another Gemini model.
+
+On a Google project without billing, the free tier costs nothing:
+
+- **Google may use the requests to improve its products, and people may
+  review them.** The page tells students so and asks them to leave out
+  personal details, which Google's terms require. Turning on billing for the
+  project stops that, at about $0.0014 a search; then drop that clause from
+  the page's help line.
+- **Free-tier limits apply to the whole Google project** and appear in AI
+  Studio. In testing, the per-minute limit stopped a burst after about 15
+  searches; students then see "AI search is busy right now" (503 with
+  `Retry-After: 60`). Daily limits reset at midnight Pacific time.
+- Google's terms also require the developer to be 18 or older, rule out
+  services directed at or likely to be used by people under 18, and require
+  billing for users in the EEA, Switzerland and the UK.
+
+The database reserves **10 attempts per student and 200 site-wide per UTC
+day** atomically before any provider call, shared across serverless instances.
+Failed generations consume a reservation, preventing retries from escaping
+the cap. Quota-storage failure blocks generation; there is no local counter
+or file fallback. Only keyed hashes and counters are stored, with 30 days of
+retention. Model calls have a 15-second deadline, no automatic retries, and
+a 1,200-token output cap. Requests are at most 600 characters, validated at
+runtime, and responses are `no-store` with sanitized errors. Changing the
+caps requires editing the migration and applying it again.
+
+Only the request and public search vocabulary are sent to Google;
+academic history, saved plans, and account identity are not added. AI-selected
+criteria are always visible and editable. Unsupported requests (times,
+conflicts, personal degree eligibility, exact unit counts, or other terms) are
+identified by the parser and shown as unapplied. GE lists may be incomplete
+and do not replace the degree audit or college advising.
+
+To turn AI search off, remove `AI_COURSE_SEARCH_ENABLED` or set it to `false`
+and redeploy. Public manual filters continue working.
+
+## Broad AI advising remains turned off
 
 All three AI endpoints answer **503** with `Cache-Control: no-store`:
 

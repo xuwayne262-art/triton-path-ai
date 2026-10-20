@@ -12,6 +12,7 @@ import CourseRow from "@/components/plat/CourseRow";
 import PassTimeline from "@/components/plat/PassTimeline";
 import ProfessorRow from "@/components/plat/ProfessorShelf";
 import SearchCombobox from "@/components/plat/SearchCombobox";
+import DiscoverLink from "@/components/plat/DiscoverLink";
 import { GradeBadge } from "@/components/plat/Grade";
 import { useRecent } from "@/components/plat/useRecent";
 import { useNow } from "@/components/plat/useNow";
@@ -165,6 +166,8 @@ export default function HomePage() {
                 all {DEPARTMENTS.length} departments →
               </Link>
             </nav>
+
+            <DiscoverLink className="mt-4 inline-flex min-h-10 items-center text-sm font-semibold text-[#1B2C4F] underline underline-offset-4 dark:text-[#FFC72C]" />
 
             {/* The quarter as context, under the search it must not outrank. */}
             <QuarterClock className="mt-8 max-w-2xl" />

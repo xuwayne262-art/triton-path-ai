@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   // pages for link previews; a serverless function only has the files traced
   // into it, and these are read by path, not imported.
   outputFileTracingIncludes: {
+    "/api/course-search": ["./public/data/plat/index.json", "./public/data/plat/ge.json"],
     "/course/[sub]/[num]": ["./public/data/plat/subject/*.json"],
     "/professor/[name]": ["./public/data/plat/professors.json"],
   },
