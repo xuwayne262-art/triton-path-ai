@@ -72,6 +72,10 @@ test("the quota RPC sends only a stable keyed hash and fails closed for storage 
     await assert.rejects(() => reserveDiscovery("student@ucsd.edu"));
     status = 500;
     await assert.rejects(() => reserveDiscovery("student@ucsd.edu"));
+    // The error names the cause for the server log, such as the 005 function missing.
+    status = 404;
+    value = { code: "PGRST202", message: "Could not find the function public.reserve_course_search(owner_key)" };
+    await assert.rejects(() => reserveDiscovery("student@ucsd.edu"), /HTTP 404, PGRST202/);
   } finally {
     names.forEach((name, i) => { if (before[i] === undefined) delete process.env[name]; else process.env[name] = before[i]; });
   }

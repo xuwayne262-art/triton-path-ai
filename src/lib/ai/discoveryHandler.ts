@@ -36,7 +36,8 @@ export async function handleDiscovery(request: Request, deps: DiscoveryDependenc
       return json({ error: "The daily AI search limit has been reached. Try again after midnight UTC, or use the filters below.", code: "SEARCH_LIMIT" }, 429,
         { "Retry-After": String(Math.max(1, Math.ceil((reset - now.getTime()) / 1000))) });
     }
-  } catch {
+  } catch (error) {
+    console.error("[course-search] data or quota check failed:", error instanceof Error ? error.message : String(error));
     return json({ error: "AI search is temporarily unavailable. You can still use the filters below.", code: "SEARCH_UNAVAILABLE" }, 503);
   }
   try {
@@ -45,8 +46,11 @@ export async function handleDiscovery(request: Request, deps: DiscoveryDependenc
     if (!validDiscoveryScope(result, data.index, data.ge)) throw new Error("Unknown search scope");
     return json({ intent: result });
   } catch (error) {
+    // Name and status only: a validation error's message can echo what the student typed.
+    const e = error as { name?: unknown; statusCode?: unknown } | null;
+    console.error("[course-search] search failed:", String(e?.name ?? "Error"), e?.statusCode ?? "");
     // Gemini's free tier allows only a few requests a minute for the whole site.
-    if ((error as { statusCode?: unknown } | null)?.statusCode === 429) {
+    if (e?.statusCode === 429) {
       return json({ error: "AI search is busy right now. Try again in a minute, or use the filters below.", code: "SEARCH_BUSY" }, 503, { "Retry-After": "60" });
     }
     return json({ error: "We couldn’t interpret that search. Try a shorter request or adjust the filters below.", code: "SEARCH_FAILED" }, 502);

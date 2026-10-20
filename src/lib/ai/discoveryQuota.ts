@@ -37,7 +37,12 @@ export async function reserveDiscovery(email: string): Promise<boolean> {
     headers: { apikey: key, authorization: `Bearer ${key}`, "content-type": "application/json" },
     body: JSON.stringify({ owner_key: owner }),
   });
-  if (!response.ok) throw new Error("Discovery quota unavailable");
+  if (!response.ok) {
+    // PostgREST's code (PGRST202 means the 005 function is missing) or Supabase's message.
+    const body: unknown = await response.json().catch(() => null);
+    const reason = body && typeof body === "object" ? (body as { code?: unknown; message?: unknown }).code ?? (body as { message?: unknown }).message : null;
+    throw new Error(`Discovery quota unavailable (HTTP ${response.status}${typeof reason === "string" ? `, ${reason.slice(0, 120)}` : ""})`);
+  }
   const allowed: unknown = await response.json();
   if (typeof allowed !== "boolean") throw new Error("Invalid discovery quota response");
   return allowed;
