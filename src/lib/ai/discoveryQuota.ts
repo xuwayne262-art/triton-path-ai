@@ -11,9 +11,17 @@ function configuration() {
 export function discoveryConfigured(): boolean {
   const { url, key, secret } = configuration();
   return process.env.AI_COURSE_SEARCH_ENABLED === "true" && Boolean(
-    url && key && secret && process.env.AI_COURSE_SEARCH_MODEL &&
-    (process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN),
+    url && key && secret && (process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN),
   );
+}
+
+/**
+ * GPT-5 nano: covered by AI Gateway's free monthly credit, served only by
+ * providers that keep no prompt data and don't train on it, and strict about
+ * the filter schema. AI_COURSE_SEARCH_MODEL can name another gateway model.
+ */
+export function courseSearchModel(): string {
+  return process.env.AI_COURSE_SEARCH_MODEL?.trim() || "openai/gpt-5-nano";
 }
 
 /** Atomic, durable reservation BEFORE any model call. No in-memory fallback. */

@@ -1,15 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { discoveryConfigured, reserveDiscovery } from "./discoveryQuota";
+import { courseSearchModel, discoveryConfigured, reserveDiscovery } from "./discoveryQuota";
 
 const ENV = ["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SERVICE_KEY", "SUPABASE_SECRET_KEY", "AUTH_SECRET", "NEXTAUTH_SECRET", "AI_GATEWAY_API_KEY", "VERCEL_OIDC_TOKEN", "AI_COURSE_SEARCH_MODEL", "AI_COURSE_SEARCH_ENABLED"] as const;
 
-test("AI search requires explicit opt-in, durable quota credentials, model, and gateway authentication", () => {
+test("AI search requires explicit opt-in, durable quota credentials, and gateway authentication", () => {
   const before = ENV.map((name) => process.env[name]);
   try {
     for (const name of ENV) delete process.env[name];
     assert.equal(discoveryConfigured(), false);
-    const required = { SUPABASE_URL: "https://example.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "test-key", AUTH_SECRET: "test-secret", AI_GATEWAY_API_KEY: "test-gateway-key", AI_COURSE_SEARCH_MODEL: "test/model", AI_COURSE_SEARCH_ENABLED: "true" };
+    const required = { SUPABASE_URL: "https://example.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "test-key", AUTH_SECRET: "test-secret", AI_GATEWAY_API_KEY: "test-gateway-key", AI_COURSE_SEARCH_ENABLED: "true" };
     Object.assign(process.env, required);
     assert.equal(discoveryConfigured(), true);
     for (const [name, value] of Object.entries(required)) {
@@ -19,6 +19,20 @@ test("AI search requires explicit opt-in, durable quota credentials, model, and 
     }
   } finally {
     ENV.forEach((name, i) => { if (before[i] === undefined) delete process.env[name]; else process.env[name] = before[i]; });
+  }
+});
+
+test("AI search uses GPT-5 nano unless AI_COURSE_SEARCH_MODEL names another model", () => {
+  const before = process.env.AI_COURSE_SEARCH_MODEL;
+  try {
+    delete process.env.AI_COURSE_SEARCH_MODEL;
+    assert.equal(courseSearchModel(), "openai/gpt-5-nano");
+    process.env.AI_COURSE_SEARCH_MODEL = "  ";
+    assert.equal(courseSearchModel(), "openai/gpt-5-nano");
+    process.env.AI_COURSE_SEARCH_MODEL = " mistral/mistral-small ";
+    assert.equal(courseSearchModel(), "mistral/mistral-small");
+  } finally {
+    if (before === undefined) delete process.env.AI_COURSE_SEARCH_MODEL; else process.env.AI_COURSE_SEARCH_MODEL = before;
   }
 });
 

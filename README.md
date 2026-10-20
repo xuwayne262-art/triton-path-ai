@@ -378,10 +378,7 @@ To enable the narrow search on a preview first:
    `NEXT_PUBLIC_SUPABASE_URL`) and a server-only
    `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_SECRET_KEY`). Never expose a
    service key as a `NEXT_PUBLIC_*` variable.
-3. Set `AI_COURSE_SEARCH_MODEL` to an exact `provider/model` ID from
-   <https://ai-gateway.vercel.sh/v1/models> with structured-output support.
-   Choose an inexpensive text model; there is no hardcoded fallback.
-   Authenticate with Vercel's `VERCEL_OIDC_TOKEN` or a server-only
+3. Authenticate with Vercel's `VERCEL_OIDC_TOKEN` or a server-only
    `AI_GATEWAY_API_KEY`. The installed AI SDK requires Node 22+; the existing
    Vercel project uses Node 24.
 4. Set `AI_COURSE_SEARCH_ENABLED=true` in that preview environment and
@@ -392,6 +389,24 @@ To enable the narrow search on a preview first:
    scope, chips, sort, and course links against manual filters. Try a request
    with meeting times and confirm the unmet constraint is clearly identified.
    Check Gateway logs for the request/model/usage before enabling production.
+
+The parser runs on GPT-5 nano (`openai/gpt-5-nano`) at minimal reasoning,
+chosen from the Gateway catalog in October 2026:
+
+- The free tier's $5 monthly credit covers it.
+- Both providers that serve it (OpenAI and Azure) keep no prompt data and
+  don't train on it.
+- It supports strict structured output.
+- The Gateway measures 0.5 s to the first token on OpenAI.
+
+A search sends about 4,000 tokens and gets a few hundred back, roughly
+$0.0003, so even the 200-a-day cap stays near $2 a month. Claude Haiku 5.5,
+GPT-6 Luna and Gemini 3.1 Flash-Lite are newer but need purchased Gateway
+credits, and Gemini 2.5 Flash-Lite is being retired. To try another model, set
+`AI_COURSE_SEARCH_MODEL` to its `provider/model` ID from
+<https://ai-gateway.vercel.sh/v1/models>. It needs structured-output support.
+The call asks for `minimal` reasoning, so check the model's
+`reasoning_options` too.
 
 The database reserves **10 attempts per student and 200 site-wide per UTC
 day** atomically before any provider call, shared across serverless instances.
