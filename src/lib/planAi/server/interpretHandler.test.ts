@@ -151,6 +151,12 @@ describe("the one model call", () => {
     assert.equal(res.status, 503);
     assert.equal(res.headers.get("retry-after"), "30");
     assert.equal(attempts, 1, "no retry against a provider limit");
+    const overloaded = fixture({ interpret: async () => { attempts++; throw Object.assign(new Error("overloaded"), { statusCode: 503 }); } });
+    const paused = await handleInterpret(request(ok()), overloaded.deps);
+    assert.equal(paused.status, 503);
+    assert.equal((await paused.json()).code, "AI_BUSY");
+    assert.equal(paused.headers.get("retry-after"), "30");
+    assert.equal(attempts, 2, "no retry against an overloaded model");
     const slow = fixture({ interpret: async () => { throw Object.assign(new Error("slow"), { name: "TimeoutError" }); } });
     const late = await handleInterpret(request(ok()), slow.deps);
     assert.equal(late.status, 504);

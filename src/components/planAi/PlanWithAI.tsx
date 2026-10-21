@@ -29,7 +29,7 @@ const COMPOSER_PLACEHOLDER = "Keep my current courses and find a GE after 10 a.m
 
 export default function PlanWithAI() {
   const ai = usePlanAi();
-  const { selectedCourses, selectedCollege, totalUnits } = usePlanner();
+  const { selectedCourses, selectedCollege, totalUnits, plannedCourses } = usePlanner();
   const narrow = useMediaQuery("(max-width: 1023.98px)");
   const phone = useMediaQuery("(max-width: 767.98px)");
   const [pane, setPane] = useState<"chat" | "plan">("chat");
@@ -76,6 +76,11 @@ export default function PlanWithAI() {
     { field: "time", label: "Time", value: timeLabel(settings) },
     { field: "goal", label: "Goal", value: goalRefLabel(settings.goal) },
   ] : [];
+  // The bar's units are the chosen quarter's: This term, or a 4-year plan slot.
+  const target = settings?.target;
+  const units = target?.kind === "plan"
+    ? plannedCourses.filter((p) => p.year === target.slot.year && p.quarter === target.slot.quarter).reduce((n, p) => n + p.course.units, 0)
+    : totalUnits;
   const showChat = !narrow || pane === "chat";
   const showPlan = !narrow || pane === "plan";
 
@@ -109,7 +114,7 @@ export default function PlanWithAI() {
                 className={`min-h-10 flex-1 rounded-lg text-sm font-semibold transition ${
                   pane === id ? "bg-[#182B49] text-white dark:bg-[#FFCD00] dark:text-[#182B49]" : "bg-gray-100 text-gray-700 dark:bg-white/5 dark:text-gray-200"
                 }`}>
-                {id === "chat" ? "Chat" : <>Plan <span className="font-normal">· {preview && draftAdds ? `${preview.after.units}` : totalUnits} units{draftAdds ? ` · draft +${draftAdds}` : ""}</span></>}
+                {id === "chat" ? "Chat" : <>Plan <span className="font-normal">· {preview && draftAdds ? `${preview.after.units}` : units} units{draftAdds ? ` · draft +${draftAdds}` : ""}</span></>}
               </button>
             ))}
           </div>
@@ -186,7 +191,7 @@ export default function PlanWithAI() {
                 id="plan-ai-input"
                 ref={composer}
                 value={text}
-                rows={1}
+                rows={2}
                 maxLength={400}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit(); } }}
@@ -204,7 +209,7 @@ export default function PlanWithAI() {
                 ? "AI chat is off right now. Buttons and simple commands like \"add CSE 11\" or \"undo\" still work."
                 : "Requests the planner can't read itself go to Google Gemini. Your plan and Academic History stay here. Leave out personal details. "}
               {ai.model !== false && (
-                <button type="button" onClick={() => setDisclosure((v) => !v)} aria-expanded={disclosure} className="font-semibold underline underline-offset-2">Details</button>
+                <button type="button" onClick={() => setDisclosure((v) => !v)} aria-expanded={disclosure} className="inline-flex min-h-6 items-center font-semibold underline underline-offset-2">Details</button>
               )}
             </p>
             {disclosure && ai.model !== false && (

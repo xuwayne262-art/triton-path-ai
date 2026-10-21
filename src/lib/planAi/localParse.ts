@@ -1,7 +1,7 @@
 import type { DayOfWeek } from "@/components/triton/types";
 import type { Interpretation, IntentKind, Preference, QuarterRef, RequirementRef } from "./types";
 import {
-  AHI, AREA_STUDY, COLLEGE_ALIASES, DEI, DISCIPLINE_ALIASES, GE_WORD, NUMBER_WORDS, ORDINALS, POFC,
+  AHI, AREA_STUDY, COLLEGE_ALIASES, DEI, DISCIPLINE_ALIASES, GE_WORD, NUMBER_WORDS, ORDINALS, POFC, REQUIREMENT_WORDS,
   dayFromWord, daysFromPattern, findCourseCodes, flatten, parseClock, WEEKDAYS,
 } from "./vocabulary";
 import { programFromText, type WarrenDiscipline } from "./warren";
@@ -39,7 +39,7 @@ within okay ok hi hello hey thanks thank whole entire draft drafts suggest sugge
 look looking take taking fits fit fitting work works working between new other another instead same now try trying might
 may satisfy satisfies satisfied count counts combination combo doesn't don't isn't aren't won't wouldn't can't cannot
 here where when both all each every bit very too maybe perhaps probably sure fine great cool thing things stuff way able
-changes change happens happen happened affect affects impact give me same also something's quarter's term's week weekly
+happens happen happened give me same also something's quarter's term's week weekly
 `.trim().split(/\s+/));
 
 /** Subjects by the short names students use for them, when no PofC is being asked about. */
@@ -119,7 +119,8 @@ function calendarYear(w: string | undefined): number | null {
   return null;
 }
 
-const TIME = String.raw`(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?|a|p)?|noon)`;
+// The meridiem is a whole token: "10 and" is 10, not 10 a.m. followed by "nd".
+const TIME = String.raw`(\d{1,2}(?::\d{2})?(?:\s*(?:a\.?m\.?|p\.?m\.?|a|p)(?![a-z]))?|noon)`;
 const NO_CLASS = String.raw`(?:no|not|nothing|zero)\s+(?:(?:classes|class|lectures?|sections?|courses?|meetings?)\s+)?`;
 
 /** Reads `text`. The vocabulary decides what is a course, a subject, a GE area. */
@@ -369,7 +370,7 @@ export function parseLocal(input: string, vocab: ParseVocab): Interpretation {
       requirement = { kind: "college_ge", college: null, area: null, words: areaWords };
     }
   }
-  if (t.eat(/\b(?:my\s+)?major(?:\s+(?:requirements?|courses?|classes))?\b/)) requirement = requirement ?? { kind: "major" };
+  if (t.eat(/\b(?:my\s+)?major(?:\s+(?:requirements?|courses?|class(?:es)?))?\b/)) requirement = requirement ?? { kind: "major" };
   out.requirement = requirement;
 
   // ── Subjects named in words ───────────────────────────────────────────────
@@ -383,19 +384,26 @@ export function parseLocal(input: string, vocab: ParseVocab): Interpretation {
   }
   for (const [re, subjects] of SUBJECT_WORDS) if (t.eat(re)) addSubjects(subjects);
   // A subject code on its own: "cogs courses", "a cse class".
-  for (const m of [...t.rest.matchAll(/\b([a-z]{3,5})\b(?=\s+(?:courses?|classes?|electives?)\b)/g)]) {
+  for (const m of [...t.rest.matchAll(/\b([a-z]{3,5})\b(?=\s+(?:courses?|class(?:es)?|electives?)\b)/g)]) {
     const subject = m[1].toUpperCase();
     if (!vocab.subjects.has(subject)) continue;
     addSubjects([subject]);
     t.take([m.index, m.index + m[1].length]);
   }
 
+  // ── A topic: "a course about film" ─────────────────────────────────────────
+  // One word after a clear topic marker, searched in titles. A longer topic
+  // leaves words behind and goes to the model; a requirement word was read
+  // as a requirement above and never reaches here.
+  const about = t.eat(/\b(?:about|covering)\s+([a-z][a-z-]{2,30})\b/);
+  if (about && !REQUIREMENT_WORDS.test(about[1]) && !FILLER.has(about[1])) out.topic = about[1];
+
   // ── What kind of request, when no command said ────────────────────────────
   const kindPhrases: [RegExp, IntentKind][] = [
     [/\b(?:build|plan|make|create|draft|put together|design|set up|generate)\s+(?:me\s+)?(?:a\s+|my\s+|the\s+)?(?:\d{1,2}\s*-\s*\d{1,2}\s+unit\s+)?(?:full\s+)?(?:quarter|schedule|term|week|timetable)\b/, "build_quarter"],
     [/\b(?:improve|optimi[sz]e|fix|tweak|adjust|rework|clean up|better)\s+(?:my\s+|the\s+|this\s+)?(?:plan|schedule|week|quarter)?\b/, "improve_plan"],
     [/\b(?:compare|difference between|differences)\b/, "compare_options"],
-    [/\b(?:find|suggest|recommend|show|look for|search for|need|want|get)\s+(?:me\s+)?(?:a|an|some|another|one|more)?\s*(?:good\s+)?(?:course|class|ge|option)s?\b/, "find_fitting_course"],
+    [/\b(?:find|suggest|recommend|show|look for|search for|need|want|get)\s+(?:me\s+)?(?:a|an|some|another|one|more)?\s*(?:good\s+)?(?:courses?|class(?:es)?|ges?|options?)\b/, "find_fitting_course"],
     [/\bwhy\b|\bexplain\b|\bwhat\s+requirements?\b|\bwhat\s+(?:would|will|does)\b|\bwhat\s+(?:changes|happens)\b/, "explain_choice"],
     [/\bshow\s+(?:me\s+)?(?:the\s+)?(?:alternatives?|other\s+options|more\s+options)\b|\balternatives?\b/, "compare_options"],
   ];
@@ -421,7 +429,7 @@ export function parseLocal(input: string, vocab: ParseVocab): Interpretation {
   if (!out.kind) {
     if (out.ask === "easier") out.kind = "clarify";
     else if (out.constraints.units) out.kind = "build_quarter";
-    else if (out.requirement || out.subjects.length || out.constraints.noPrerequisites || out.constraints.prereqsMet) out.kind = "find_fitting_course";
+    else if (out.requirement || out.subjects.length || out.topic || out.constraints.noPrerequisites || out.constraints.prereqsMet) out.kind = "find_fitting_course";
     else if (out.preferences.length || out.constraints.earliestStart != null || out.constraints.latestEnd != null || out.constraints.avoidDays?.length) out.kind = "improve_plan";
     else if (out.courses.length && !out.leftover.length) out.kind = "find_fitting_course";
   }

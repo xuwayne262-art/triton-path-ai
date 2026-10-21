@@ -97,11 +97,12 @@ export async function handleInterpret(request: Request, deps: InterpretDependenc
     const e = error as { name?: unknown; statusCode?: unknown; responseHeaders?: Record<string, string> } | null;
     const name = String(e?.name ?? "Error");
     console.error(`[plan-ai] model call failed: ${name} ${e?.statusCode ?? ""} after ${now() - started} ms`);
-    if (e?.statusCode === 429) {
+    // 429 is the free tier's limit; 503 is Google's model overloaded. Both pass.
+    if (e?.statusCode === 429 || e?.statusCode === 503) {
       void deps.metric("model_busy");
       const after = Number(e.responseHeaders?.["retry-after"]);
       return json({ error: "Plan with AI is busy right now. Try again in a minute, or use the buttons.", code: "AI_BUSY" }, 503,
-        { "Retry-After": String(Number.isFinite(after) && after > 0 ? Math.ceil(after) : 60) });
+        { "Retry-After": String(Number.isFinite(after) && after > 0 ? Math.ceil(after) : e.statusCode === 429 ? 60 : 30) });
     }
     if (name === "TimeoutError" || name === "AbortError" || /timeout|abort/i.test(name)) {
       void deps.metric("model_timeout");

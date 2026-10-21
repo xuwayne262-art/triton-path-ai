@@ -48,7 +48,17 @@ export default function SettingsDrawer({
       const el = panel.current?.querySelector<HTMLElement>(`[data-field="${field ?? "target"}"]`) ?? panel.current?.querySelector<HTMLElement>("select, input, button");
       el?.focus();
     }, 0);
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { onClose(); return; }
+      if (e.key !== "Tab" || !panel.current) return;
+      // A modal keeps focus inside it: Tab past the last control wraps to the first.
+      const items = [...panel.current.querySelectorAll<HTMLElement>("button, select, input, a[href]")].filter((el) => !el.hasAttribute("disabled"));
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    };
     window.addEventListener("keydown", onKey);
     return () => {
       window.clearTimeout(t);

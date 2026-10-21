@@ -171,6 +171,12 @@ describe("constraints", () => {
     assert.deepEqual(parse("only tuth").constraints.avoidDays, ["Mon", "Wed", "Fri"]);
     assert.equal(parse("12 to 16 units, no 8ams").constraints.earliestStart, 9 * 60);
     assert.equal(parse("no morning classes").constraints.earliestStart, 12 * 60);
+    // "and" after a time is a word, not a.m.
+    const both = parse("no classes before 10 and 12-16 units");
+    assert.equal(both.constraints.earliestStart, 10 * 60);
+    assert.deepEqual(both.constraints.units, { min: 12, max: 16 });
+    assert.ok(isComplete(both), both.leftover.join(","));
+    assert.equal(parse("nothing after 4 and no fridays").constraints.latestEnd, 16 * 60);
   });
 
   test("units", () => {
@@ -187,9 +193,28 @@ describe("constraints", () => {
     assert.equal(revelle.requirement?.kind === "college_ge" && revelle.requirement.area, "revelle:Mathematics");
   });
 
+  test("a one-word topic is read here; anything longer goes to the model", () => {
+    const film = parse("a course about film");
+    assert.equal(film.kind, "find_fitting_course");
+    assert.equal(film.topic, "film");
+    assert.ok(isComplete(film));
+    assert.equal(parse("courses about pofc").topic, null, "a requirement word is never a topic");
+    assert.ok(!isComplete(parse("something about climate change that isn't boring")));
+  });
+
+  test("a subject code on its own, before course, class or classes", () => {
+    for (const [text, subject] of [["a cse class", "CSE"], ["find me a film class that doesn't start too early", "FILM"], ["cogs courses", "COGS"], ["find some math classes", "MATH"]] as const) {
+      const p = parse(text);
+      assert.deepEqual(p.subjects, [subject], text);
+      assert.ok(!p.leftover.includes(subject.toLowerCase()), `${text}: ${p.leftover.join(",")}`);
+    }
+    assert.equal(parse("find some math classes").kind, "find_fitting_course");
+  });
+
   test("anything unread is named, so it can go to the model or back to the student", () => {
     const p = parse("find a course about climate change");
-    assert.ok(p.leftover.includes("climate"));
+    assert.equal(p.topic, "climate");
+    assert.ok(p.leftover.includes("change"), "the second word of a longer topic is named, not dropped");
     assert.equal(isComplete(p), false);
   });
 });

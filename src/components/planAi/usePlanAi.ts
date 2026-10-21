@@ -314,26 +314,46 @@ export function usePlanAi(): PlanAiState {
         });
         return;
       }
-      const followUps: Choice[] = result.proposals.length
-        ? [
-            ...(s.target.kind === "term" ? [{ label: "Try a later start", action: { kind: "later-start" } } as Choice] : []),
-            ...(mode === "build" ? [{ label: "Fewer campus days", action: { kind: "pref", pref: "fewer_days" } } as Choice] : []),
-            { label: "Shorter gaps", action: { kind: "pref", pref: "fewer_gaps" } },
-          ]
+      if (mode === "build" && result.proposals.length && !changing.length) {
+        const facts = result.proposals[0].after;
+        const text = `Your ${targetWords(s.target)} plan already fits: ${facts.units} units${constraintClause(s)}.`;
+        say({
+          text,
+          notes,
+          followUps: [
+            { label: "Add a course anyway", action: { kind: "start", flow: "find" }, primary: true },
+            ...(s.target.kind === "term" ? [
+              { label: "Fewer campus days", action: { kind: "pref", pref: "fewer_days" } } as Choice,
+              { label: "Shorter gaps", action: { kind: "pref", pref: "fewer_gaps" } } as Choice,
+            ] : []),
+          ],
+        });
+        return;
+      }
+      const shownProposals = mode === "improve" ? changing : result.proposals.filter((p) => p.ops.length);
+      const answer = mode === "improve" ? { ...result, proposals: changing } : result;
+      const followUps: Choice[] = shownProposals.length
+        ? s.target.kind === "term"
+          ? [
+              { label: "Try a later start", action: { kind: "later-start" } },
+              ...(mode === "build" ? [{ label: "Fewer campus days", action: { kind: "pref", pref: "fewer_days" } } as Choice] : []),
+              { label: "Shorter gaps", action: { kind: "pref", pref: "fewer_gaps" } },
+            ]
+          : [{ label: "Change settings", action: { kind: "settings" } }]
         : relaxation
           ? [{ label: relaxationText(relaxation).action, action: { kind: "relax", relaxation }, primary: true }, { label: "Change settings", action: { kind: "settings" } }]
           : [{ label: "Change settings", action: { kind: "settings" } }];
-      if (!result.proposals.length && relaxation) notes.unshift(relaxationText(relaxation).text);
-      lastWhyNot.current = result.proposals.length ? [] : [optionsReply(result, s, s.target, mode), ...(relaxation ? [relaxationText(relaxation).text] : [])];
+      if (!shownProposals.length && relaxation) notes.unshift(relaxationText(relaxation).text);
+      lastWhyNot.current = shownProposals.length ? [] : [optionsReply(answer, s, s.target, mode), ...(relaxation ? [relaxationText(relaxation).text] : [])];
       say({
-        text: optionsReply(result, s, s.target, mode),
+        text: optionsReply(answer, s, s.target, mode),
         notes,
-        options: result.proposals.length ? { ids: result.proposals.map((p) => p.id) } : undefined,
-        sources: result.proposals[0]?.sources,
+        options: shownProposals.length ? { ids: shownProposals.map((p) => p.id) } : undefined,
+        sources: shownProposals[0]?.sources,
         followUps,
       });
-      shown.current = result.proposals.length ? { kind: "options", ids: result.proposals.map((p) => p.id) } : shown.current;
-      if (result.proposals[0]) setPreviewId(result.proposals[0].id);
+      shown.current = shownProposals.length ? { kind: "options", ids: shownProposals.map((p) => p.id) } : shown.current;
+      if (shownProposals[0]) setPreviewId(shownProposals[0].id);
     } finally {
       setBusy(null);
     }
@@ -357,9 +377,12 @@ export function usePlanAi(): PlanAiState {
     }
   }, []);
 
-  const post = useCallback(async (change: { id: string; kind: "apply" | "undo"; undoOf?: string; ops: PlanOp[] }) => {
+  const post = useCallback(async (change: { id: string; kind: "apply" | "undo"; undoOf?: string; ops: PlanOp[] }, base: string | null = null) => {
     const agreed = await settleAccountPlan();
     if (!agreed) return { ok: false as const, text: syncProblem(accountSyncStatus()) };
+    // Checked again now that the account's latest is in: another device may
+    // have changed the plan this suggestion's checks were made against.
+    if (base && isStale({ base }, storedFingerprint())) return { ok: false as const, code: "STALE", text: "" };
     let res: Response;
     try {
       res = await fetch("/api/plan-ai/apply", {
@@ -374,7 +397,7 @@ export function usePlanAi(): PlanAiState {
     if (body && (res.ok || res.status === 409 || res.status === 404)) adoptAccountPlan(body);
     if (res.ok && body?.change) return { ok: true as const, status: body.status ?? "applied", change: body.change };
     return { ok: false as const, code: body?.code, problems: body?.problems ?? [], text: body?.error ?? "Your plan couldn't be saved. Nothing changed." };
-  }, []);
+  }, [storedFingerprint]);
 
   const applyOps = useCallback(async (ops: PlanOp[], key: string, base: string | null): Promise<boolean> => {
     if (base && isStale({ base }, storedFingerprint())) {
@@ -386,7 +409,7 @@ export function usePlanAi(): PlanAiState {
     try {
       const id = attempts.current.get(key) ?? newChangeId();
       attempts.current.set(key, id);
-      const result = await post({ id, kind: "apply", ops });
+      const result = await post({ id, kind: "apply", ops }, base);
       if (result.ok) {
         attempts.current.delete(key);
         lastChange.current = { id: result.change.id, label: result.change.label };
@@ -398,6 +421,11 @@ export function usePlanAi(): PlanAiState {
         });
         setStatus(`Saved to your plan. ${result.change.label}.`);
         return true;
+      }
+      if (result.code === "STALE") {
+        say({ text: "Your plan changed on another tab or device since this suggestion, so I didn't apply it. I've loaded the latest plan.", tone: "error", followUps: [{ label: "Update the suggestion", action: { kind: "run", flow: lastFlow.current?.flow ?? "find" }, primary: true }] });
+        setStatus("Not applied: your plan changed since the suggestion.");
+        return false;
       }
       const problems = (result.problems ?? []).map((p) => problemText(p, live.current.termName));
       say({
@@ -484,6 +512,7 @@ export function usePlanAi(): PlanAiState {
     try {
       const result = await post({ id: newChangeId(), kind: "undo", undoOf: changeId, ops: [] });
       if (result.ok) {
+        if (lastChange.current?.id === changeId) lastChange.current = null;
         const text = result.status === "already-undone" ? "That change was already undone." : `${result.change.label}.`;
         say({ text, tone: "success", receipt: { changeId: result.change.id, label: result.change.label, kind: "undo", where: live.current.changeLog.find((c) => c.id === changeId)?.ops.some((o) => o.op.endsWith("_plan")) ? "plan" : "term" } });
         setStatus(text);
@@ -854,8 +883,10 @@ export function usePlanAi(): PlanAiState {
               text: "What would make it easier for you?",
               choices: [
                 { label: "Fewer units", action: { kind: "units", min: 12, max: 12 } },
-                { label: "Fewer campus days", action: { kind: "pref", pref: "fewer_days" } },
-                { label: "Later start", action: { kind: "later-start" } },
+                ...(s.target.kind === "term" ? [
+                  { label: "Fewer campus days", action: { kind: "pref", pref: "fewer_days" } } as Choice,
+                  { label: "Later start", action: { kind: "later-start" } } as Choice,
+                ] : []),
                 { label: "No prerequisites", action: { kind: "set", patch: { noPrerequisites: true }, flow: "find" } },
               ],
             },
@@ -900,7 +931,7 @@ export function usePlanAi(): PlanAiState {
         say({
           text: read.fallback,
           tone: "info",
-          notes: [unread, "Commands that work now: \"add CSE 11\", \"remove CSE 11\", \"undo\", \"no classes before 10\", \"12-16 units\"."].filter(Boolean),
+          notes: [unread, ...read.notes, "Commands that work now: \"add CSE 11\", \"remove CSE 11\", \"undo\", \"no classes before 10\", \"12-16 units\", \"a course about film\"."].filter(Boolean),
           question: { text: "", choices: STARTERS },
         });
         return;
@@ -928,6 +959,18 @@ export function usePlanAi(): PlanAiState {
           lastFlow.current = { flow: "find", courses: [] };
           return;
         }
+        if (a.flow === "improve" && s.target.kind === "plan") {
+          // Days, gaps and start times need a published schedule; a 4-year plan quarter has courses only.
+          say({
+            text: `${targetWords(s.target)} has no published times yet, so I can add courses there but can't change days or gaps.`,
+            followUps: [
+              { label: "Fill to 12+ units", action: { kind: "units", min: 12, max: s.units.max ?? 16 }, primary: true },
+              { label: "Change settings", action: { kind: "settings" } },
+            ],
+          });
+          lastFlow.current = { flow: "improve", courses: [] };
+          return;
+        }
         if (a.flow === "improve") {
           say({
             text: "What should change?",
@@ -944,9 +987,13 @@ export function usePlanAi(): PlanAiState {
           lastFlow.current = { flow: "improve", courses: [] };
           return;
         }
-        const kept = live.current.selectedCourses.map((c) => c.course.code);
+        // What the build keeps: the chosen quarter's own courses, This term's or a 4-year plan slot's.
+        const t = s.target;
+        const kept = t.kind === "plan"
+          ? live.current.plannedCourses.filter((p) => p.year === t.slot.year && p.quarter === t.slot.quarter).map((p) => p.course.code)
+          : live.current.selectedCourses.map((c) => c.course.code);
         say({
-          text: `I'll build ${targetWords(s.target)} around ${kept.length ? kept.join(", ") : "an empty week"}, ${unitsLabel(s.units)}, ${goalRefLabel(s.goal).toLowerCase()}. Change anything first?`,
+          text: `I'll build ${targetWords(t)} around ${kept.length ? kept.join(", ") : t.kind === "plan" ? "an empty quarter" : "an empty week"}, ${unitsLabel(s.units)}, ${goalRefLabel(s.goal).toLowerCase()}. Change anything first?`,
           followUps: [
             { label: "Build it", action: { kind: "run", flow: "build" }, primary: true },
             { label: "Change settings", action: { kind: "settings" } },

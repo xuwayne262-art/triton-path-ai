@@ -9,7 +9,7 @@ import { dayLabel } from "@/lib/plat";
  * Checks as a list: an icon, the status in words, the claim, and whose word
  * it rests on. Colour repeats the status; it never carries it alone. Only a
  * pass on UCSD's own data or the student's own record is green — a rule
- * UCSDPlans applied or a student-compiled list reads as "not checked".
+ * UCSDPlans applied or a student-compiled list reads as "not verified".
  */
 
 /** A requirement claim from a rule or a student list: neither confirmed nor a warning. */

@@ -53,14 +53,20 @@ export function optionsReply(r: OptionsResult, s: Settings, target: PlanTarget, 
   const where = targetWords(target);
   if (r.proposals.length) {
     const draft = r.proposals[0];
+    // A 4-year plan quarter has courses but no week: its drafts are other mixes, not tradeoffs.
+    const plan = target.kind === "plan";
+    const week = plan ? "quarter" : "week";
     const lead = mode === "build"
       ? `Here's a ${draft.after.units}-unit ${where} draft${constraintClause(s)}.`
       : draft.ops.length
-        ? `Here's how your ${where} week could change${constraintClause(s)}.`
-        : `Your ${where} week already fits what you asked for.`;
-    const more = r.proposals.length === 1
-      ? r.considered > 0 && mode === "build" ? " It's the only combination that fits." : ""
-      : ` ${r.proposals.length === 2 ? "One alternative" : "Two alternatives"} below ${r.proposals.length === 2 ? "trades" : "trade"} something off.`;
+        ? `Here's how your ${where} ${week} could change${constraintClause(s)}.`
+        : `Your ${where} ${week} already fits what you asked for.`;
+    const others = r.proposals.length - 1;
+    const more = !others
+      ? r.solutions === 1 && mode === "build" && !plan ? " It's the only combination that fits." : ""
+      : plan
+        ? ` ${others === 1 ? "Another mix" : "Two other mixes"} below.`
+        : ` ${others === 1 ? "One alternative" : "Two alternatives"} below ${others === 1 ? "trades" : "trade"} something off.`;
     return `${lead}${more}`;
   }
   const units = mode === "build" ? ` in ${unitsLabel(s.units)}` : "";
@@ -107,9 +113,12 @@ export function sensitiveReply(reasons: SensitiveReason[]): string {
 export function moveReply(m: MoveConsequences): string {
   const where = slotWords(m.to);
   const parts: string[] = [];
-  for (const d of m.dependents) {
-    parts.push(`${d.code} in ${slotWords(d.slot)} ${d.required ? "needs" : "lists"} ${m.code} as a prerequisite, so it would no longer come first.`);
-  }
+  const named = (ds: MoveConsequences["dependents"]) => list(ds.map((d) => `${d.code} (${slotWords(d.slot)})`));
+  const needs = m.dependents.filter((d) => d.required);
+  const lists = m.dependents.filter((d) => !d.required);
+  if (needs.length) parts.push(`${named(needs)} ${needs.length === 1 ? "needs" : "need"} ${m.code} as a prerequisite.`);
+  if (lists.length) parts.push(`${named(lists)} ${lists.length === 1 ? "lists" : "list"} ${m.code} as a prerequisite.`);
+  if (m.dependents.length) parts.push(`In ${where}, ${m.code} would no longer come before ${m.dependents.length === 1 ? "it" : "them"}.`);
   for (const p of m.prerequisitesAfter) parts.push(`${m.code} lists ${p.code}, which your plan puts in ${slotWords(p.slot)}.`);
   const offered = m.pastTerms.length
     ? `It was taught in ${list(m.pastTerms.slice(0, 2).map(termWords))}. The ${m.to.quarter} schedule isn't published yet.`

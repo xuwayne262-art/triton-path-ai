@@ -132,10 +132,11 @@ export default function PlanPanel({
               {trade.map((t) => <span key={t}>{t}. </span>)}
             </div>
           )}
-          {facts.unscheduled.length > 0 && (
+          {/* A 4-year plan quarter says once, under its list, that no times are published. */}
+          {isTerm && facts.unscheduled.length > 0 && (
             <p className="col-span-2 flex gap-1.5 text-xs text-amber-800 sm:col-span-4 dark:text-amber-200">
               <AlertTriangle aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              Times not checked for {facts.unscheduled.join(", ")}{isTerm ? ": no sections chosen" : ": schedule not published"}.
+              Times not fully checked for {facts.unscheduled.join(", ")}: some aren’t published or chosen yet.
             </p>
           )}
           {isTerm && seatsAsOf && (

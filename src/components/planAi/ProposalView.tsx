@@ -38,6 +38,8 @@ export default function ProposalView({
     goal: settings?.goal ? goalRefLabel(settings.goal) : undefined,
   };
   const trade = tradeoffs(p);
+  // A 4-year plan quarter has no times at all; the message above the options says so once.
+  const plan = p.target.kind === "plan";
   return (
     <article
       aria-label={`Option ${index + 1}: ${p.title}`}
@@ -58,7 +60,7 @@ export default function ProposalView({
       </div>
 
       <p className="mt-2 text-xs tabular-nums text-gray-700 dark:text-gray-300">
-        {factsLines(p.after).join(" · ")}
+        {factsLines(plan ? { ...p.after, unscheduled: [] } : p.after).join(" · ")}
         {p.after.days.length > 0 && p.after.gapMinutes > 0 ? ` · ${minutes(p.after.gapMinutes)} of gaps a week` : ""}
       </p>
 
@@ -69,7 +71,7 @@ export default function ProposalView({
             {p.adds.map((a) => (
               <dd key={a.code} className="ml-0 text-gray-700 dark:text-gray-300">
                 <span className="font-medium">{a.code}</span>
-                {a.meetings.length ? ` · ${a.meetings.map((m) => `${m.label} ${m.when}`).join("; ")}` : p.target.kind === "plan" ? " · schedule not published" : " · sections not chosen"}
+                {a.meetings.length ? ` · ${a.meetings.map((m) => `${m.label} ${m.when}`).join("; ")}` : plan ? ` · ${a.title}` : " · sections not chosen"}
               </dd>
             ))}
           </div>

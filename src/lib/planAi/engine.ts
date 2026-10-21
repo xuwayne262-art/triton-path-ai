@@ -524,6 +524,8 @@ export interface OptionsResult {
   undecided: string[];
   /** Candidates considered for adding. */
   considered: number;
+  /** Distinct weeks the search found; one means there was no other way. */
+  solutions: number;
   /** Units the kept courses already total. */
   keptUnits: number;
 }
@@ -646,6 +648,7 @@ export async function buildPlanOptions(ctx: PlanningContext, ask: Ask, mode: "bu
     outcome,
     undecided: st.undecided,
     considered,
+    solutions: result.solutions.length,
     keptUnits: ctx.plan.schedule.reduce((n, s) => n + s.units, 0),
   };
 }
@@ -706,6 +709,7 @@ async function planSlotOptions(ctx: PlanningContext, ask: Ask): Promise<OptionsR
     outcome: { exhaustive: true, explored: usable.length, relaxation: null },
     undecided: [],
     considered: usable.length,
+    solutions: drafts.length,
     keptUnits: have,
   };
 }
