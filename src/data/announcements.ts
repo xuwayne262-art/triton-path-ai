@@ -41,6 +41,58 @@ export interface Announcement {
 
 export const ANNOUNCEMENTS: readonly Announcement[] = [
   {
+    id: "2026-10-21-plan-with-ai",
+    date: "2026-10-21",
+    title: "Plan with AI, in the Planner",
+    summary: "Describe the quarter you want, and Plan with AI builds it from real sections next to your plan.",
+    groups: [
+      {
+        label: "Plan with AI",
+        items: [
+          {
+            title: "Build a quarter",
+            text: "Get up to three drafts that fit your units, times and days, with finals checked.",
+          },
+          {
+            title: "Change your plan in words",
+            text: "Type “add CSE 11” or “undo” and your plan updates.",
+          },
+          {
+            title: "See what a move changes",
+            text: "Ask what happens if you move a course, and see which planned courses list it as a prerequisite.",
+          },
+          {
+            title: "Your 4-year plan too",
+            text: "Pick any quarter of your 4-year plan and fill it with courses.",
+          },
+        ],
+      },
+      {
+        label: "Finding courses",
+        items: [
+          {
+            title: "Requirements, not keywords",
+            text: "Warren PofC and Area Study, college GEs and DEI are read as requirements.",
+            link: { href: "/discover", label: "Open Find courses" },
+          },
+          {
+            title: "Every check is labeled",
+            text: "Each draft says what was checked against UCSD’s data and what wasn’t.",
+          },
+        ],
+      },
+      {
+        label: "Your data",
+        items: [
+          {
+            title: "What goes to Google",
+            text: "Only requests the Planner can’t read go to Google’s Gemini, never your plan or Academic History.",
+          },
+        ],
+      },
+    ],
+  },
+  {
     id: "2026-10-13-course-pages",
     date: "2026-10-13",
     title: "Finals that match your lecture, and dated seat counts",

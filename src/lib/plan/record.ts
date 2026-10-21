@@ -1,5 +1,6 @@
 import type { College, Course, CourseTime } from "@/components/triton/types";
 import type { SectionSelection } from "@/lib/sections";
+import { cleanChangeLog, type PlanChange } from "./change";
 
 /**
  * What a student builds in UCSDPlans that should follow them to any device
@@ -57,6 +58,11 @@ export interface PlannerDoc {
   term?: string;
   /** Earlier terms' schedules and section picks, by term. Absent when there are none. */
   past?: Record<string, PastTerm>;
+  /**
+   * Recent changes Plan with AI saved, oldest first, each with what reverses
+   * it (see change.ts). Absent when there are none.
+   */
+  log?: PlanChange[];
 }
 
 /**
@@ -281,9 +287,10 @@ export function cleanPlanner(v: unknown): PlannerDoc | null {
 
   const term = str(v.term, 8);
   const past = cleanPast(v.past);
+  const log = cleanChangeLog(v.log);
 
-  // `term` and `past` are left off when there is nothing to say, so a plan
-  // saved before they existed passes through unchanged.
+  // `term`, `past` and `log` are left off when there is nothing to say, so a
+  // plan saved before they existed passes through unchanged.
   return {
     major: str(v.major, 120) || DEFAULT_MAJOR,
     minor: str(v.minor, 120) || DEFAULT_MINOR,
@@ -294,6 +301,7 @@ export function cleanPlanner(v: unknown): PlannerDoc | null {
     sections: cleanSections(v.sections),
     ...(TERM_CODE.test(term) ? { term } : {}),
     ...(Object.keys(past).length ? { past } : {}),
+    ...(log.length ? { log } : {}),
   };
 }
 
@@ -347,6 +355,6 @@ export function isBlankPlanner(p: PlannerDoc | null): boolean {
   return !p || (
     p.major === DEFAULT_MAJOR && p.minor === DEFAULT_MINOR && p.college === null &&
     !p.schedule.length && !p.planned.length && !p.synced.length && !Object.keys(p.sections).length &&
-    !Object.keys(p.past ?? {}).length
+    !Object.keys(p.past ?? {}).length && !p.log?.length
   );
 }

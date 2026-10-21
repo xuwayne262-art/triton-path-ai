@@ -358,77 +358,130 @@ Storage bucket. Without it, the board answers 502 and the server log names the
 file to run. `next dev` with no Supabase variables uses
 `.history-store/housing/` instead.
 
-## AI course discovery (opt-in)
+## Plan with AI
 
-`/discover` translates a short request into
-editable course filters; Home and Courses link to it once AI search is on.
-It uses the existing catalog, GE lists, and
-`courseFilters.ts` for results: the model never supplies course records.
-Manual filters work publicly even when AI is disabled. AI requests require a
-server-verified, eligible `@ucsd.edu` session. The existing broad AI endpoints
-below remain disabled.
+`/planner/ai`, the **Plan with AI** tab beside This term and 4-year plan, is a
+conversation next to the student's own plan. It builds a quarter, improves
+one, finds a course that fits, applies changes asked for in words ("add CSE
+11", "replace CSE 11 with CSE 12", "move MATH 20A to year 2 winter", "add the
+second option", "undo"), and explains consequences ("what changes if I move
+MATH 20A to year 3 fall"). It works on This term (sections and times) and on
+any 4-year plan quarter (courses only). `/discover` keeps its manual filters
+and hands a typed request to Plan with AI; Home and Courses link there.
 
-To enable the narrow search on a preview first:
+How a request is handled:
 
-1. Run [`supabase/005_course_search_quota.sql`](supabase/005_course_search_quota.sql)
-   in the project's Supabase SQL editor. The migration is idempotent, keeps
-   RLS enabled, and grants the RPC only to the service role.
-2. Keep the existing Google/Auth.js credentials and `AUTH_SECRET` (or
-   `NEXTAUTH_SECRET`). Configure `SUPABASE_URL` (or
-   `NEXT_PUBLIC_SUPABASE_URL`) and a server-only
-   `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_SECRET_KEY`). Never expose a
-   service key as a `NEXT_PUBLIC_*` variable.
-3. Set a server-only `GEMINI_API_KEY` from Google AI Studio
-   (`GOOGLE_GENERATIVE_AI_API_KEY` also works). The installed AI SDK requires
-   Node 22+; the existing Vercel project uses Node 24.
-4. Set `AI_COURSE_SEARCH_ENABLED=true` in that preview environment and
-   redeploy. All settings are required; the default is disabled.
-5. Sign in with a UCSD account. Try “Sixth College humanities GEs with no
-   prerequisites listed” and “COGS courses up to 4 units.” Check the displayed
-   scope, chips, sort, and course links against manual filters. Try a request
-   with meeting times and confirm the unmet constraint is clearly identified.
-   Check usage in Google AI Studio before enabling production.
+1. **A local parser** (`src/lib/planAi/localParse.ts`) reads course codes,
+   times, days, units, quarters, commands and requirements (Warren PofC and
+   Area Study, college GEs, DEI). Most requests never reach a model, and
+   anything it cannot place is named rather than dropped.
+2. **At most one Gemini call**, only for words the parser could not place,
+   with a strict output schema. The answer is validated: a course code that
+   is not in the catalog is dropped and named. A model's reading is never
+   applied by itself; only a command the student typed, read locally, saves
+   without a click.
+3. **Everything else is deterministic** (`src/lib/planAi/engine.ts`).
+   Candidates come from the dataset; each lecture is combined with its
+   required discussion or lab and its final; clashes are checked; a bounded
+   search returns up to three options, each with its reasons, tradeoffs and
+   checks. Every check says what it rests on: UCSD's data, a written rule, a
+   community list, the student's record, or "not checked".
+4. **Saves go through `POST /api/plan-ai/apply`**, into the same record
+   `/api/plan` keeps. The account is the server's session; the browser's copy
+   must carry that account's owner tag; a repeated change id is answered, not
+   applied twice; a plan that moved on since the suggestion gets 409 and the
+   current plan; every operation is checked against the plan and this term's
+   published sections; and all of them land in one compare-and-set write.
+   Undo applies the inverse the server stored with the change, and refuses,
+   saying why, if something since has touched what it would reverse.
 
-The parser runs on Gemini 3.5 Flash-Lite (`gemini-3.5-flash-lite`) through
-the Gemini API, with thinking at its minimum. In October 2026 it passed all 16
-search cases in two runs, answering in about a second. Gemini 3.1 Flash-Lite
-chose the same filters but took several seconds on the free tier, and Gemini
-3.8 Flash timed out. `AI_COURSE_SEARCH_MODEL` can name another Gemini model.
+What the answers rest on:
 
-On a Google project without billing, the free tier costs nothing:
+- **Authoritative:** this term's sections, times and finals, catalog units
+  and course existence, all from UCSD's Class Planner dataset. Seat counts
+  carry their date and are never called live.
+- **Partial:** prerequisites are read from the catalog's sentence against the
+  saved Academic History; a sentence it cannot read, or one that needs
+  consent, is "not checked". GE and DEI lists are the site's lists and may be
+  incomplete. Warren PofC and Area Study use the rules on Warren's pages
+  (checked 2026-10-21), including the exclusions written there for some
+  majors. "A major course" means courses from the major's departments.
+- **Not available:** schedules for later quarters (4-year plan drafts are
+  course level, with the terms a course was taught in from the grade
+  archive), major requirements as a degree audit, live seats and waitlists.
+
+Setup:
+
+1. Run [`supabase/006_plan_ai.sql`](supabase/006_plan_ai.sql) once in the
+   Supabase SQL editor (the project with `student_plan`). It is idempotent,
+   keeps RLS on, and grants its two functions to the service role only.
+2. Keep the existing `AUTH_SECRET`, `SUPABASE_URL` and server-only
+   `SUPABASE_SERVICE_ROLE_KEY`: the model budget is counted there.
+3. Set a server-only `GEMINI_API_KEY` from Google AI Studio, on a Google
+   project without billing (`GOOGLE_GENERATIVE_AI_API_KEY` also works).
+4. Set `PLAN_AI_ENABLED=true` and redeploy. `PLAN_AI_MODEL` can name another
+   Gemini model; the default is `gemini-3.5-flash-lite`. There is no fallback
+   model, paid or free.
+
+Without any of these, Plan with AI still works: the buttons, chips, local
+parser, drafts, saves and undo need no model. A request that needs one is
+answered with "AI chat is temporarily unavailable. You can still build and
+edit your plan." The server log says which setting is missing.
+`AI_COURSE_SEARCH_ENABLED`, `AI_COURSE_SEARCH_MODEL` and the tables from
+`supabase/005_course_search_quota.sql` are no longer used.
+
+Every model call is reserved first, in one Supabase transaction shared by all
+serverless instances, against three limits. Days follow Pacific time, as
+Gemini's daily quota does, and a failed call still counts:
+
+| Limit | Default |
+| --- | --- |
+| Per student per day | 20 |
+| Site-wide per day | 150 |
+| Site-wide per minute | 8 |
+
+Keep them below the free-tier limits AI Studio shows for the model, with room
+to spare. Change them without a migration:
+
+```sql
+update public.plan_ai_budget set per_student_daily = 20, site_daily = 150, site_per_minute = 8, updated_at = now();
+select * from public.plan_ai_metric where day > current_date - 7 order by day desc, event;
+```
+
+`plan_ai_metric` counts events per day (model calls, busy answers, timeouts,
+blocked requests, saves and conflicts) with no student data. Usage rows hold a
+keyed hash and a count, kept 35 days. A model call has a 12-second deadline,
+no retries and a 700-token output cap. A 429 or 503 from Google pauses the
+chat for its `Retry-After` (60 or 30 seconds when Google gives none) while
+the planner keeps working. In a live test on 2026-10-21 Gemini read 7 of 7
+requests correctly in 5 to 6 seconds each, and once answered 503.
+
+What reaches Google: the typed request (at most 400 characters), two numbers
+(how many options are on screen, whether a change is waiting), and public
+vocabulary (subject codes, GE area names). Never the plan, Academic History,
+name, email or PID. Text that looks like an email, phone number, PID, GPA,
+grades, a name, a link or a pasted record is not sent, and the student is
+told why. `src/lib/planAi/privacy.ts` builds the request from an allowlist,
+and `privacy.test.ts` checks it.
+
+On a Google project without billing the free tier costs nothing:
 
 - **Google may use the requests to improve its products, and people may
   review them.** The page tells students so and asks them to leave out
-  personal details, which Google's terms require. Turning on billing for the
-  project stops that, at about $0.0014 a search; then drop that clause from
-  the page's help line.
+  personal details, which Google's terms require.
 - **Free-tier limits apply to the whole Google project** and appear in AI
-  Studio. In testing, the per-minute limit stopped a burst after about 15
-  searches; students then see "AI search is busy right now" (503 with
-  `Retry-After: 60`). Daily limits reset at midnight Pacific time.
+  Studio. Daily limits reset at midnight Pacific time.
 - Google's terms also require the developer to be 18 or older, rule out
   services directed at or likely to be used by people under 18, and require
   billing for users in the EEA, Switzerland and the UK.
 
-The database reserves **10 attempts per student and 200 site-wide per UTC
-day** atomically before any provider call, shared across serverless instances.
-Failed generations consume a reservation, preventing retries from escaping
-the cap. Quota-storage failure blocks generation; there is no local counter
-or file fallback. Only keyed hashes and counters are stored, with 30 days of
-retention. Model calls have a 15-second deadline, no automatic retries, and
-a 1,200-token output cap. Requests are at most 600 characters, validated at
-runtime, and responses are `no-store` with sanitized errors. Changing the
-caps requires editing the migration and applying it again.
+To try it locally without touching production data, start `next dev` with the
+Supabase variables set to empty in the process environment (a variable already
+set wins over `.env.local`). Plans then go to `.history-store/plan/` and the
+model budget is counted in memory, with the same defaults.
 
-Only the request and public search vocabulary are sent to Google;
-academic history, saved plans, and account identity are not added. AI-selected
-criteria are always visible and editable. Unsupported requests (times,
-conflicts, personal degree eligibility, exact unit counts, or other terms) are
-identified by the parser and shown as unapplied. GE lists may be incomplete
-and do not replace the degree audit or college advising.
-
-To turn AI search off, remove `AI_COURSE_SEARCH_ENABLED` or set it to `false`
-and redeploy. Public manual filters continue working.
+To turn the model off, remove `PLAN_AI_ENABLED` or set it to `false` and
+redeploy. Everything else keeps working.
 
 ## Broad AI advising remains turned off
 

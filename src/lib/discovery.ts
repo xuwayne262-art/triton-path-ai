@@ -1,20 +1,24 @@
 import type { CourseRow, GEFile, PlatIndex } from "./plat";
 import { DEFAULT_FILTERS, type ResultFilters } from "./courseFilters";
 
-/** AI selects search criteria; the catalog remains the only source of courses. */
+/**
+ * The scope a student picks on /discover — a college's GE lists, one area,
+ * a university requirement, a subject — over the filters every course list
+ * shares. Requests in words go to Plan with AI instead (/planner/ai), which
+ * reads requirement words such as "PofC" as requirements rather than as
+ * words to find in titles.
+ */
 export interface DiscoveryIntent {
   college: string | null;
   area: string | null;
   requirement: "campus:DEI" | "campus:AHI" | null;
   subject: string | null;
   filters: ResultFilters;
-  unsupported: string[];
-  clarification: string | null;
 }
 
 export const EMPTY_DISCOVERY: DiscoveryIntent = {
   college: null, area: null, requirement: null, subject: null,
-  filters: { ...DEFAULT_FILTERS }, unsupported: [], clarification: null,
+  filters: { ...DEFAULT_FILTERS },
 };
 
 /** Reject invented or contradictory scopes instead of silently broadening. */

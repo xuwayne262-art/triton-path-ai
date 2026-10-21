@@ -44,8 +44,6 @@ const PUBLIC_PAGES = new Set([
   "/",
   "/courses",
   "/discover",
-  // Public availability probe only. POST performs its own server session check.
-  "/api/course-search",
   "/ge",
   "/about",
   "/announcements",

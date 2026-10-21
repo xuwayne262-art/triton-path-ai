@@ -35,6 +35,7 @@ import {
   type PastTerm, type PlannedCourse, type PlannerDoc, type PlanQuarter, type PlanYear, type ScheduleCourse,
 } from "@/lib/plan/record";
 import { inTerm, LEGACY_TERM, termRank } from "@/lib/plan/term";
+import type { PlanChange } from "@/lib/plan/change";
 import {
   noteLocalChange, PLANNER_EVENT, PLANNER_KEY, useAccountSync, type SyncStatus,
 } from "@/lib/plan/sync";
@@ -274,6 +275,12 @@ interface PlannerValue {
   completedCount: number;
   /** Asks again for an Academic History that failed to load. */
   retryHistory: () => void;
+  /** The saved Academic History itself, for checks that stay in this browser (Plan with AI's prerequisites). */
+  history: ParsedHistory | null;
+  /** Recent changes Plan with AI saved to this plan, oldest first, for its Undo. */
+  changeLog: PlanChange[];
+  /** Whether the stored plan has been read into this page yet. */
+  hydrated: boolean;
 }
 
 const PlannerCtx = createContext<PlannerValue | null>(null);
@@ -318,6 +325,9 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   /** The term `selectedCourses` and `selections` were picked from; undefined on a plan saved before terms were recorded. */
   const [planTerm, setPlanTerm] = useState<string | undefined>(undefined);
   const [pastTerms, setPastTerms] = useState<Record<string, PastTerm>>({});
+  // Only the server writes it (see /api/plan-ai/apply); it is held here so
+  // every save of the plan carries it back unchanged.
+  const [changeLog, setChangeLog] = useState<PlanChange[]>([]);
 
   const { codes: savedCodes, toggle: toggleSaved } = useShortlist();
   const majorSubjectSet = useMemo(() => majorSubjects(selectedMajor), [selectedMajor]);
@@ -402,6 +412,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       setSelections(saved?.sections ?? {});
       setPlanTerm(saved?.term);
       setPastTerms(saved?.past ?? {});
+      setChangeLog(saved?.log ?? []);
     };
     const saved = readPersisted();
     if (saved) apply(saved);
@@ -464,12 +475,13 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       sections: selections,
       ...(planTerm ? { term: planTerm } : {}),
       ...(Object.keys(pastTerms).length ? { past: pastTerms } : {}),
+      ...(changeLog.length ? { log: changeLog } : {}),
     };
     try { localStorage.setItem(PLANNER_KEY, JSON.stringify(payload)); } catch {}
     noteLocalChange();
   }, [
     hydrated, newerPlanTerm, selectedMajor, selectedMinor, selectedCollege,
-    selectedCourses, plannedCourses, selections, planTerm, pastTerms,
+    selectedCourses, plannedCourses, selections, planTerm, pastTerms, changeLog,
   ]);
 
   // ── Section data ────────────────────────────────────────────────────────────
@@ -1138,6 +1150,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     isGeneratingPlan, planError, generateFourYearPlan,
     roleOf, getColorForCourse, activeRequirements, degreeProgress, progressCourses,
     historyStatus, completedCount: doneCourses.length, retryHistory,
+    history, changeLog, hydrated,
   };
 
   return <PlannerCtx.Provider value={value}>{children}</PlannerCtx.Provider>;

@@ -27,7 +27,6 @@ describe("isPublicPath", () => {
       "/",
       "/courses",
       "/discover",
-      "/api/course-search", // POST separately verifies the session before any paid work.
       "/courses/CSE",
       "/course/CSE/11",
       "/ge",
@@ -48,6 +47,7 @@ describe("isPublicPath", () => {
     for (const path of [
       "/planner",
       "/planner/four-year",
+      "/planner/ai",
       "/import",
       "/housing",
       "/housing/new",
@@ -61,6 +61,10 @@ describe("isPublicPath", () => {
     for (const path of [
       "/api/chat",
       "/api/plan",
+      "/api/plan-ai",
+      "/api/plan-ai/interpret",
+      "/api/plan-ai/apply",
+      "/api/course-search",
       "/api/history",
       "/api/housing",
       "/api/housing/abc123",
