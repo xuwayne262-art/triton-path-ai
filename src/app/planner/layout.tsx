@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, Calendar, LayoutGrid, Moon, Sun } from "lucide-react";
+import { ArrowLeft, Calendar, LayoutGrid, MessagesSquare, Moon, Sun } from "lucide-react";
 import ContactMenu from "@/components/plat/ContactMenu";
 import TridentMark from "@/components/plat/TridentMark";
 import ProgramPicker from "@/components/planner/ProgramPicker";
@@ -25,6 +25,8 @@ import { PlannerProvider, usePlanner } from "./PlannerProvider";
 const TABS = [
   { href: "/planner", label: "This term", icon: Calendar },
   { href: "/planner/four-year", label: "4-year plan", icon: LayoutGrid },
+  // The conversation beside the same plan; the shortest label that still says what it is.
+  { href: "/planner/ai", label: "Plan with AI", icon: MessagesSquare },
 ] as const;
 
 function PlannerChrome({ children }: { children: React.ReactNode }) {

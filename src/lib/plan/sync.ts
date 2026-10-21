@@ -376,6 +376,42 @@ export function createSync(env: SyncEnv) {
       void pump();
     },
 
+    /**
+     * Saves whatever is waiting, now, and resolves once this device and the
+     * account agree: with the account's revision and this copy's owner tag,
+     * which a change made on the server must name. Null when they cannot be
+     * brought to agree — offline, signed out, or nowhere to keep plans — and
+     * `status()` says which.
+     */
+    async settle(): Promise<{ owner: string; rev: number } | null> {
+      if (!started) return null;
+      if (saveTimer !== null) {
+        env.clearTimeout(saveTimer);
+        saveTimer = null;
+      }
+      // With nothing to save, ask anyway: another tab may have saved since,
+      // and finding out now beats a refused change.
+      if (meta && !sameJson(outgoing(readLocal()), meta.base)) wantPush = true;
+      else wantPull = true;
+      await pump();
+      while (running) await running;
+      return status === "synced" && meta ? { owner: meta.owner, rev: meta.rev } : null;
+    },
+
+    /**
+     * The account's copy as a request of this device's own just saved it (a
+     * Plan with AI change): folded in like a save from any other device, so
+     * an edit made here while the request was out is merged, not lost.
+     * False when the reply is not a plan.
+     */
+    adopt(body: unknown): boolean {
+      const remote = readRemote(body);
+      if (!remote || !started) return false;
+      absorb(remote);
+      if (wantPush) void pump();
+      return true;
+    },
+
     status: () => status,
 
     subscribe(listener: () => void) {
@@ -458,4 +494,22 @@ export function useAccountSync(): SyncStatus {
 /** Call after writing any of the three documents, so the edit reaches the account. */
 export function noteLocalChange(): void {
   browserEngine()?.noteLocalChange();
+}
+
+/** Saves now and waits for the account to agree; see the engine's `settle`. */
+export function settleAccountPlan(): Promise<{ owner: string; rev: number } | null> {
+  const e = browserEngine();
+  if (!e) return Promise.resolve(null);
+  e.start();
+  return e.settle();
+}
+
+/** Folds a plan the server just saved for this device into the local copy; see the engine's `adopt`. */
+export function adoptAccountPlan(body: unknown): boolean {
+  return browserEngine()?.adopt(body) ?? false;
+}
+
+/** How the sync stands right now, for code outside React. */
+export function accountSyncStatus(): SyncStatus {
+  return browserEngine()?.status() ?? "idle";
 }

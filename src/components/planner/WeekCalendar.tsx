@@ -49,13 +49,15 @@ function geometry(event: PlacedEvent, windowStart: number) {
 }
 
 function Block({
-  event, windowStart, darkMode, lit, dim, focused, compact, onRemove, onHover, onPick,
+  event, windowStart, darkMode, lit, dim, focused, compact, onRemove, onHover, onPick, fading = false,
 }: {
   event: PlacedEvent;
   windowStart: number;
   darkMode: boolean;
   lit: boolean;
   dim: boolean;
+  /** A draft would remove or change this block: drawn faded, and said so. */
+  fading?: boolean;
   focused: boolean;
   /** A phone-width week: the code alone, allowed to wrap onto two lines. */
   compact: boolean;
@@ -81,7 +83,7 @@ function Block({
         lecture ? style.bg : darkMode ? "bg-white/[0.07]" : "bg-white"
       } ${event.conflict ? "ring-2 ring-red-500" : ""} ${
         lit ? "z-10 shadow-lg ring-2 ring-[#FFCD00]" : focused ? "ring-2 ring-[#182B49]/50 dark:ring-[#FFCD00]/60" : ""
-      } ${dim ? "opacity-50" : ""}`}
+      } ${dim || fading ? "opacity-50" : ""} ${fading ? "outline-dashed outline-1 outline-offset-[-2px] outline-gray-500" : ""}`}
       style={{
         top: g.top,
         height: g.height,
@@ -110,6 +112,7 @@ function Block({
           `${DAY_NAMES[event.day]} ${minutesToLabel(event.startMin)} to ${minutesToLabel(event.endMin)}`,
           where,
           event.conflict ? "conflicts with another course" : "",
+          fading ? "the draft removes or changes this" : "",
         ].filter(Boolean).join(", ")}
         className="absolute inset-0 cursor-pointer rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#FFCD00]"
       />
@@ -250,6 +253,7 @@ export default function WeekCalendar({
   compact = false,
   days = DAYS,
   onDayHeader,
+  fading,
   emptyHint = "Add a course from the left, then pick its sections. Lectures and discussions both land on this calendar, and anything that collides is flagged.",
 }: {
   events: CalEvent[];
@@ -272,6 +276,8 @@ export default function WeekCalendar({
   /** Makes the day headers buttons, e.g. to open that day on its own. */
   onDayHeader?: (day: DayOfWeek) => void;
   emptyHint?: string;
+  /** Courses a draft would remove or re-section, shown faded where they are now. */
+  fading?: ReadonlySet<string>;
 }) {
   const gutter = compact ? 40 : 52;
   const columns = `${gutter}px repeat(${days.length}, minmax(0, 1fr))`;
@@ -399,6 +405,7 @@ export default function WeekCalendar({
                     darkMode={darkMode}
                     lit={isLit(event)}
                     dim={active && !isLit(event)}
+                    fading={fading?.has(event.code) ?? false}
                     focused={focusCode === event.code}
                     compact={compact}
                     onRemove={onRemove}

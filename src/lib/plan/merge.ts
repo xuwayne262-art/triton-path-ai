@@ -3,6 +3,7 @@ import {
   type PastTerm, type PlanDocs, type PlannerDoc, type TermRatings,
 } from "./record";
 import { inTerm, laterTerm, termOf } from "./term";
+import { mergeChangeLogs } from "./change";
 
 /**
  * Bringing two copies of one student's plan back together.
@@ -128,11 +129,22 @@ function newestRatings(local: TermRatings, remote: TermRatings): TermRatings {
   return out;
 }
 
-/** The plan with its term and earlier terms set, each left off when there is nothing to say. */
-function withTerms(p: PlannerDoc, term: string | undefined, past: Record<string, PastTerm>): PlannerDoc {
+/**
+ * The plan with its term, earlier terms and Plan with AI's change log set,
+ * each left off when there is nothing to say. Both sides' logs are kept: a
+ * change either device saw happened, and an undo recorded on either stands.
+ */
+function withTerms(
+  p: PlannerDoc,
+  term: string | undefined,
+  past: Record<string, PastTerm>,
+  logs: [PlannerDoc, PlannerDoc],
+): PlannerDoc {
   const out: PlannerDoc = { ...p };
   if (term) out.term = term;
   if (Object.keys(past).length) out.past = past;
+  const log = mergeChangeLogs(logs[0].log, logs[1].log);
+  if (log.length) out.log = log;
   return out;
 }
 
@@ -170,7 +182,7 @@ function adoptPlanner(local: PlannerDoc, remote: PlannerDoc): PlannerDoc {
     synced: union(remote.synced, local.synced),
     // The account's pick for a course it already has; this device's for the rest.
     sections: { ...local.sections, ...remote.sections },
-  }, remote.term ?? local.term, { ...local.past, ...remote.past });
+  }, remote.term ?? local.term, { ...local.past, ...remote.past }, [remote, local]);
 }
 
 function mergePlanner(base: PlannerDoc | null, local: PlannerDoc | null, remote: PlannerDoc | null): PlannerDoc | null {
@@ -193,7 +205,7 @@ function mergePlanner(base: PlannerDoc | null, local: PlannerDoc | null, remote:
     // Only ever grows: it records which starred courses have been placed once.
     synced: union(remote.synced, local.synced),
     sections: mergeRecord(base.sections, local.sections, remote.sections),
-  }, pick(base.term, local.term, remote.term), mergeRecord(base.past ?? {}, local.past ?? {}, remote.past ?? {}));
+  }, pick(base.term, local.term, remote.term), mergeRecord(base.past ?? {}, local.past ?? {}, remote.past ?? {}), [remote, local]);
 }
 
 /**
