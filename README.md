@@ -349,10 +349,16 @@ so one request cannot collect everyone's phone number.
   admin screen; to restore one, empty `reports` in its record.
 - **Limits:** three open listings per student, 2,000-character descriptions,
   six photos.
-- **Photos** are re-encoded to JPEG in the browser (at most 1600 px), which also
-  strips the EXIF block and the GPS position phones write into it. The server
-  accepts JPEG only. A photo's ref carries an HMAC of its uploader, so a listing
-  can only attach — and deleting one can only remove — photos its owner uploaded.
+- **Photos** are re-encoded to JPEG in the browser (at most 1600 px), and the
+  server does not rely on it: `src/lib/housing/jpeg.ts` decodes every upload
+  with sharp/libvips (refusing truncated, corrupt, non-JPEG and oversized
+  images), turns it upright and encodes new bytes with no EXIF, XMP, IPTC, ICC
+  or comments, so no GPS position survives. Only those bytes are stored.
+  Uploads are limited per student per hour in Supabase
+  (`supabase/007_housing_photo_rate.sql`, shared by every server instance);
+  without it uploads answer 503 rather than run unlimited. A photo's ref
+  carries an HMAC of its uploader, so a listing can only attach — and deleting
+  one can only remove — photos its owner uploaded.
 
 **Setup: run [`supabase/002_housing.sql`](supabase/002_housing.sql) once** in the
 Supabase SQL editor before deploying. It creates the `housing_listing` table
@@ -459,13 +465,21 @@ chat for its `Retry-After` (60 or 30 seconds when Google gives none) while
 the planner keeps working. In a live test on 2026-10-21 Gemini read 7 of 7
 requests correctly in 5 to 6 seconds each, and once answered 503.
 
-What reaches Google: the typed request (at most 400 characters), two numbers
-(how many options are on screen, whether a change is waiting), and public
-vocabulary (subject codes, GE area names). Never the plan, Academic History,
-name, email or PID. Text that looks like an email, phone number, PID, GPA,
-grades, a name, a link or a pasted record is not sent, and the student is
-told why. `src/lib/planAi/privacy.ts` builds the request from an allowlist,
-and `privacy.test.ts` checks it.
+What reaches Google: the request **rebuilt from canonical planning tokens**
+(`src/lib/planAi/outbound.ts`), never the text as typed: planning words,
+catalog course codes, subject codes, GE-area and Warren-program words, and
+numbers, times and ranges in a fixed spelling. Anything else typed (other
+words, other scripts, first-person words, everything after "because" or
+"since") stays in the browser and is named to the student. Plus two numbers
+(how many options are on screen, whether a change is waiting) and public
+vocabulary. Never the plan, Academic History, name, email or PID; text that
+looks like an email, phone number, PID, GPA, grades, a name, a link or a
+pasted record is kept back whole before that. The server rebuilds what it
+receives and refuses anything that is not already canonical, so a direct API
+call cannot carry more than the browser would. `boundary.test.ts` asserts on
+the complete provider payload with a recording transport. A sentence of
+planning words still means what it says; the vocabulary is kept to schedules,
+load and requirements so that such a sentence says little about the person.
 
 On a Google project without billing the free tier costs nothing:
 
