@@ -157,7 +157,8 @@ export default function PlatShell({
       </header>
 
       <DatasetNotice />
-      <main id="main" tabIndex={-1} className="outline-none">{children}</main>
+      {/* At least a screen tall, so the footer never starts in view and then jumps when a page's data arrives. */}
+      <main id="main" tabIndex={-1} className="min-h-[100dvh] outline-none">{children}</main>
 
       <footer className="mt-20 border-t border-gray-200 py-8 dark:border-white/10">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 text-xs leading-relaxed text-gray-500 dark:text-gray-400 sm:px-6 lg:flex-row lg:items-start lg:justify-between lg:px-8">

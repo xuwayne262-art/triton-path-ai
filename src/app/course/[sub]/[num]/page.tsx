@@ -40,6 +40,7 @@ import { unitsLabel } from "@/lib/units";
 import { quarterByKey } from "@/lib/housing/terms";
 import { collegeForSubject, departmentForSubject } from "@/data/ucsdStructure";
 import type { CoursePin } from "@/components/plat/CourseMap";
+import WhenVisible from "@/components/plat/WhenVisible";
 
 const CourseMap = dynamic(() => import("@/components/plat/CourseMap"), {
   ssr: false,
@@ -460,7 +461,9 @@ export default function CourseDetailPage({
                 <h2 id="where-title" className={SECTION_TITLE}>Where it meets</h2>
                 {pins.length > 0 && (
                   <div className="mt-3">
-                    <CourseMap pins={pins} dark={theme === "dark"} />
+                    <WhenVisible placeholder={<div className="h-40 w-full rounded-xl bg-slate-100 dark:bg-white/5" />}>
+                      <CourseMap pins={pins} dark={theme === "dark"} />
+                    </WhenVisible>
                   </div>
                 )}
                 <ul className="mt-3 divide-y divide-gray-100 rounded-xl border border-gray-200 dark:divide-white/5 dark:border-white/10">

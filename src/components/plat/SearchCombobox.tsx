@@ -50,10 +50,17 @@ export default function SearchCombobox({
   const boxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // The course index and the 220KB professor list are fetched when the search
+  // is about to be used (pointer over it, focus, or text in it), not on every
+  // page load: most pages never search, and both files are cached once loaded.
+  const [wanted, setWanted] = useState(false);
+  const want = () => { if (!wanted) setWanted(true); };
+  const searching = wanted || q.trim().length > 0;
   useEffect(() => {
+    if (!searching) return;
     loadIndex().then((d) => setCourses(d.courses)).catch(() => {});
     loadProfessors().then((d) => setProfs(d.professors)).catch(() => {});
-  }, []);
+  }, [searching]);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -153,7 +160,7 @@ export default function SearchCombobox({
 
   const hero = variant === "hero";
   return (
-    <div ref={boxRef} className={`relative ${className}`}>
+    <div ref={boxRef} className={`relative ${className}`} onPointerEnter={want} onTouchStart={want}>
       <Search aria-hidden className={`pointer-events-none absolute top-1/2 -translate-y-1/2 text-gray-500 ${hero ? "left-3.5 h-4 w-4" : "left-3 h-4 w-4"}`} />
       <input
         ref={inputRef}
@@ -167,8 +174,8 @@ export default function SearchCombobox({
         autoComplete="off"
         spellCheck={false}
         value={q}
-        onChange={(e) => { setQ(e.target.value); setOpen(true); }}
-        onFocus={() => setOpen(true)}
+        onChange={(e) => { setQ(e.target.value); setOpen(true); want(); }}
+        onFocus={() => { setOpen(true); want(); }}
         onKeyDown={onKeyDown}
         placeholder={shortPlaceholder && !fits ? shortPlaceholder : placeholder}
         className={hero
