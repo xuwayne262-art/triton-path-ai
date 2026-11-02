@@ -30,6 +30,8 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
   const [index, setIndex] = useState<PlatIndex | null>(null);
   const [files, setFiles] = useState<Record<string, SubjectFile>>({});
   const [allTerms, setAllTerms] = useState(false);
+  /** One course to look at, or every course they have taught. A 14-course mixture says little about the one a student is choosing. */
+  const [course, setCourse] = useState<string>("all");
 
   useEffect(() => {
     loadProfessors().then((f) => setProfs(f.professors)).catch(() => setProfs([]));
@@ -78,14 +80,19 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
     return out.sort((a, b) => termOrder(b.term) - termOrder(a.term) || a.code.localeCompare(b.code));
   }, [prof, files]);
 
-  const points = useMemo((): TermPoint[] => terms
+  const courseOptions = useMemo(() => [...new Set(terms.map((t) => t.code))].sort(), [terms]);
+  const focus = course !== "all" && courseOptions.includes(course) ? course : "all";
+  const viewTerms = useMemo(() => (focus === "all" ? terms : terms.filter((t) => t.code === focus)), [terms, focus]);
+
+  const points = useMemo((): TermPoint[] => viewTerms
     .filter((t) => t.gpa != null)
-    .map((t) => ({ term: t.term, series: t.code, gpa: t.gpa as number, aRate: t.aRate })), [terms]);
+    .map((t) => ({ term: t.term, series: t.code, gpa: t.gpa as number, aRate: t.aRate })), [viewTerms]);
   const highlight = useMemo(() => {
+    if (focus !== "all") return [focus];
     const count = new Map<string, number>();
     for (const p of points) count.set(p.series, (count.get(p.series) ?? 0) + 1);
     return [...count.keys()].sort((a, b) => (count.get(b) ?? 0) - (count.get(a) ?? 0)).slice(0, 3);
-  }, [points]);
+  }, [points, focus]);
 
   const teachingNow = useMemo(() => prof?.c.filter((c) => c[3] === 1) ?? [], [prof]);
   const previously = useMemo(() => prof?.c.filter((c) => c[3] !== 1) ?? [], [prof]);
@@ -108,7 +115,7 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
 
   const verdict = typicalGrade(prof?.gpa, prof?.terms);
   const dept = prof ? professorDepartment(prof) : null;
-  const shownTerms = allTerms ? terms : terms.slice(0, TERMS_SHOWN);
+  const shownTerms = allTerms ? viewTerms : viewTerms.slice(0, TERMS_SHOWN);
 
   return (
     <PlatShell>
@@ -129,24 +136,34 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
           <p className="py-24 text-center text-sm text-gray-500 dark:text-gray-400">Loading…</p>
         ) : (
           <>
-            <header className="mt-5 flex items-start gap-5">
-              <GradeBadge gpa={prof.gpa} terms={prof.terms} size="lg" />
-              <div className="min-w-0 flex-1">
+            {/* Who they are and what they teach now lead; a big letter beside a
+                person's name read as a grade of the person, so the history follows, small. */}
+            <header className="mt-5">
+              <div className="min-w-0">
                 <h1 className={PAGE_TITLE}>{prof.n}</h1>
                 {prof.a?.length ? (
                   <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">
                     also listed as {prof.a.join(", ")}
                   </p>
                 ) : null}
-                <p className="mt-2 max-w-3xl text-sm leading-relaxed text-gray-700 dark:text-gray-300">
-                  {verdict && prof.gpa != null
-                    ? <>
-                        <span className="font-semibold">Historical average {prof.gpa.toFixed(2)} GPA ({verdict.letter})</span>{" "}
-                        across their classes: {prof.terms} graded {prof.terms === 1 ? "term" : "terms"} in {prof.c.length}{" "}
-                        {prof.c.length === 1 ? "course" : "courses"}. Past classes, not a prediction.
-                      </>
-                    : "No published grade distribution for this instructor yet."}
-                  {prof.cur === 1 && " They are teaching this term."}
+                <p className="mt-2 text-sm text-gray-800 dark:text-gray-200">
+                  {teachingNow.length
+                    ? <>Teaching {index?.meta.termName ?? "this term"}: {teachingNow.map(([code], i) => (
+                        <span key={code}>{i > 0 && ", "}<Link href={courseHref(code)} className="font-mono text-xs font-bold text-[#182B49] hover:underline dark:text-[#FFCD00]">{code}</Link></span>
+                      ))}</>
+                    : "Not on this term’s schedule."}
+                </p>
+                <p className="mt-2 flex max-w-3xl items-center gap-2 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+                  {verdict && prof.gpa != null && <GradeBadge gpa={prof.gpa} terms={prof.terms} size="xs" />}
+                  <span>
+                    {verdict && prof.gpa != null
+                      ? <>
+                          Historical grading: {prof.gpa.toFixed(2)} average GPA across their classes, {prof.terms} graded{" "}
+                          {prof.terms === 1 ? "term" : "terms"} in {prof.c.length} {prof.c.length === 1 ? "course" : "courses"}.
+                          Past classes, not a prediction, and not a rating of their teaching.
+                        </>
+                      : "No published grade distribution for this instructor yet."}
+                  </span>
                 </p>
 
                 <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-gray-600 dark:text-gray-300">
@@ -191,9 +208,22 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
               </div>
 
               <aside className="min-w-0 space-y-6 lg:col-span-5">
+                {courseOptions.length > 1 && (
+                  <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    <span className="font-medium">Show</span>
+                    <select
+                      value={focus}
+                      onChange={(e) => { setCourse(e.target.value); setAllTerms(false); }}
+                      className="min-h-9 rounded-lg border border-gray-200 bg-white px-2.5 text-sm dark:border-white/10 dark:bg-white/5 dark:text-gray-100"
+                    >
+                      <option value="all">All {courseOptions.length} courses</option>
+                      {courseOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </label>
+                )}
                 {points.length > 1 && (
                   <section className="rounded-2xl border border-gray-200 p-5 dark:border-white/10">
-                    <h2 className={SECTION_TITLE}>Grades by term</h2>
+                    <h2 className={SECTION_TITLE}>Grades by term{focus !== "all" ? ` · ${focus}` : ""}</h2>
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                       Each dot is one class&rsquo;s average for one term, coloured by course.
                     </p>
@@ -203,7 +233,7 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
                   </section>
                 )}
 
-                {terms.length > 0 && (
+                {viewTerms.length > 0 && (
                   <section className="rounded-2xl border border-gray-200 p-5 dark:border-white/10">
                     <h2 className={SECTION_TITLE}>Every term</h2>
                     <table className="mt-3 w-full text-sm">
@@ -236,9 +266,9 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
                         ))}
                       </tbody>
                     </table>
-                    {terms.length > TERMS_SHOWN && (
+                    {viewTerms.length > TERMS_SHOWN && (
                       <button type="button" onClick={() => setAllTerms((v) => !v)} className="mt-3 text-xs font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]">
-                        {allTerms ? "Show fewer" : `Show all ${terms.length} terms`}
+                        {allTerms ? "Show fewer" : `Show all ${viewTerms.length} terms`}
                       </button>
                     )}
                   </section>
