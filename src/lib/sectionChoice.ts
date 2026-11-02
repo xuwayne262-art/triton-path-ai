@@ -15,12 +15,15 @@
 import { type SectionTuple } from "./plat";
 import {
   CODE, DAYS, END, PACKAGE_IDS, START, TYPE,
-  findFamily, isOneOff, oneOffsFor, rowsFor, sectionSeats, typeLabel,
+  findFamily, isOneOff, oneOffsFor, rowsFor, sectionSeats, sectionWhere, typeLabel,
   type LectureFamily, type SectionPart, type SectionSelection,
 } from "./sections";
 
 const isFinal = (s: SectionTuple) => s[TYPE] === "FI";
-const finalKey = (s: SectionTuple) => `${s[DAYS]}|${s[START]}|${s[END]}`;
+/** When a final happens: its date and times, nothing about where. */
+const finalTime = (s: SectionTuple) => `${s[DAYS]}|${s[START]}|${s[END]}`;
+/** The whole record: when and where. Two rooms at one time are two records. */
+const finalRecord = (s: SectionTuple) => `${finalTime(s)}|${sectionWhere(s)}`;
 
 /** Every row a lecture family is made of: its lecture, then every option under it. */
 const familyRows = (f: LectureFamily): SectionTuple[] => [
@@ -36,8 +39,12 @@ export function familyExams(sec: SectionTuple[], family: LectureFamily): Section
 export type FinalOverview =
   /** The schedule lists no final for any section. Not "no final": just none listed. */
   | { kind: "none" }
-  /** Every lecture sits the same final, so it is the course's. */
-  | { kind: "same"; finals: SectionTuple[] }
+  /**
+   * Every lecture sits its final at the same time. `rooms` says whether the
+   * place is the same too: when it is not, no room is the course's, and the
+   * page says the room depends on the lecture rather than printing the first.
+   */
+  | { kind: "same"; finals: SectionTuple[]; rooms: "same" | "varies"; byFamily: { key: string; finals: SectionTuple[] }[] }
   /** Lectures sit different finals, or some list none: it depends on the lecture chosen. */
   | { kind: "varies"; byFamily: { key: string; finals: SectionTuple[] }[] };
 
@@ -45,26 +52,47 @@ export type FinalOverview =
 export function finalOverview(sec: SectionTuple[], families: LectureFamily[]): FinalOverview {
   if (!families.length) {
     const finals = dedupe(sec.filter((s) => isOneOff(s) && isFinal(s)));
-    return finals.length ? { kind: "same", finals } : { kind: "none" };
+    return finals.length ? { kind: "same", finals, rooms: "same", byFamily: [] } : { kind: "none" };
   }
-  const byFamily = families.map((f) => ({ key: f.key, finals: familyExams(sec, f).filter(isFinal) }));
+  const byFamily = families.map((f) => ({ key: f.key, finals: dedupe(familyExams(sec, f).filter(isFinal)) }));
   if (!byFamily.some((f) => f.finals.length)) return { kind: "none" };
-  const signature = (finals: SectionTuple[]) => finals.map(finalKey).sort().join(";");
-  const first = signature(byFamily[0].finals);
-  return byFamily.every((f) => signature(f.finals) === first)
-    ? { kind: "same", finals: byFamily[0].finals }
-    : { kind: "varies", byFamily };
+  const signature = (finals: SectionTuple[], key: (s: SectionTuple) => string) => [...new Set(finals.map(key))].sort().join(";");
+  const sameBy = (key: (s: SectionTuple) => string) => {
+    const first = signature(byFamily[0].finals, key);
+    return byFamily.every((f) => signature(f.finals, key) === first);
+  };
+  if (!sameBy(finalTime)) return { kind: "varies", byFamily };
+  return { kind: "same", finals: byFamily[0].finals, rooms: sameBy(finalRecord) ? "same" : "varies", byFamily };
 }
 
-/** One row per date and time: a final held in two rooms is listed twice by the schedule. */
+/**
+ * One row per date, time and place. The schedule can list the same final more
+ * than once; a final held in two rooms keeps both, since either may be yours.
+ */
 function dedupe(rows: SectionTuple[]): SectionTuple[] {
   const seen = new Set<string>();
   return rows.filter((s) => {
-    const k = finalKey(s);
+    const k = finalRecord(s);
     if (seen.has(k)) return false;
     seen.add(k);
     return true;
   });
+}
+
+/**
+ * Finals grouped by when they happen, each with every room it is listed in —
+ * "" where the schedule names none, which reads as unknown, not as no room.
+ */
+export function finalSlots(finals: SectionTuple[]): { row: SectionTuple; rooms: string[] }[] {
+  const out = new Map<string, { row: SectionTuple; rooms: string[] }>();
+  for (const s of finals) {
+    const k = finalTime(s);
+    const slot = out.get(k) ?? { row: s, rooms: [] };
+    const where = sectionWhere(s);
+    if (!slot.rooms.includes(where)) slot.rooms.push(where);
+    out.set(k, slot);
+  }
+  return [...out.values()];
 }
 
 export interface ChosenPart {

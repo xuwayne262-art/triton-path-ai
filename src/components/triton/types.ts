@@ -87,7 +87,10 @@ export interface Course {
   id: string;
   code: string; // "CSE 11"
   title: string;
+  /** Units counted in totals: the least the course can be taken for. */
   units: number;
+  /** The most it can be taken for, when the student chooses (ECON 199: 2 or 4). Absent when fixed. */
+  unitsMax?: number;
   description?: string;
   prerequisites?: string[];
   departments?: string[];

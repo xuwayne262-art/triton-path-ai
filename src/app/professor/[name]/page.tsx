@@ -226,7 +226,7 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
                             <td className="py-2 text-right tabular-nums">
                               {t.gpa != null ? (
                                 <span className="inline-flex items-center justify-end gap-2">
-                                  <GradeBadge gpa={t.gpa} terms={2} size="xs" />
+                                  <GradeBadge gpa={t.gpa} record={`${termName(t.term)} ${t.code}`} size="xs" />
                                   {t.gpa.toFixed(2)}
                                 </span>
                               ) : <span className="text-gray-500 dark:text-gray-400">no GPA</span>}

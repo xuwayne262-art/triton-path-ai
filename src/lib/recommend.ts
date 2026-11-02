@@ -11,6 +11,7 @@
  */
 
 import { levelBand, type CourseRow } from "./plat";
+import { parseUnits } from "./units";
 
 /** Each college's own core sequence, open only to that college's students. */
 export const COLLEGE_CORE = new Set(["CAT", "CCE", "DOC", "HUM", "MCWP", "MMW", "SYN", "WCWP"]);
@@ -32,7 +33,7 @@ export function shelfEligible(c: CourseRow): boolean {
     && (c.sl ?? 0) >= 40
     && c.r >= 3
     && c.g != null && c.g > 0
-    && parseFloat(c.u ?? "0") >= 3
+    && (parseUnits(c.u, c.t)?.min ?? 0) >= 3
     && levelBand(c) < 2
     && !COLLEGE_CORE.has(c.s)
     && !SPECIAL_NUMBER.test(c.c)

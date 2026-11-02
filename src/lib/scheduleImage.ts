@@ -22,6 +22,7 @@ import {
 import { dayLabel, timeToMinutes, type SectionTuple } from "./plat";
 import { ROLE_STYLES, type CourseRole } from "./plannerBridge";
 import type { DayOfWeek } from "@/components/triton/types";
+import { courseUnitsText, coursesUnitsText } from "./units";
 
 // ── What goes in ─────────────────────────────────────────────────────────────
 
@@ -29,6 +30,8 @@ export interface ImageCourse {
   code: string;
   title: string;
   units: number;
+  /** The top of a variable-units range, when the student still chooses. */
+  unitsMax?: number;
   role: CourseRole;
   /** "Lecture A00 · Discussion A01", or "" when nothing is chosen. */
   sections: string;
@@ -64,6 +67,7 @@ export interface CourseSource {
   code: string;
   title: string;
   units: number;
+  unitsMax?: number;
   role: CourseRole;
   /** This term's instructor from the catalog index, when the sections do not name one. */
   instructor: string | null;
@@ -113,6 +117,7 @@ export function scheduleImageInput(args: {
       code: c.code,
       title: c.title,
       units: c.units,
+      ...(c.unitsMax != null ? { unitsMax: c.unitsMax } : {}),
       role: c.role,
       sections: bits.join(" · "),
       instructor: (family?.lecture?.[INSTRUCTOR] || c.instructor || "").trim(),
@@ -344,7 +349,7 @@ export function paintSchedule(
 ): void {
   const f = (weight: number, size: number) => `${weight} ${size}px ${font}`;
   const { width, height, grid } = layout;
-  const units = input.courses.reduce((n, c) => n + c.units, 0);
+  const units = coursesUnitsText(input.courses);
   const clashing = new Set(input.events.filter((e) => e.conflict).map((e) => e.code));
 
   ctx.textBaseline = "alphabetic";
@@ -520,7 +525,7 @@ export function paintSchedule(
     ctx.textAlign = "right";
     ctx.font = f(500, 12.5);
     ctx.fillStyle = MUTED;
-    const unitText = `${c.units} ${c.units === 1 ? "unit" : "units"}`;
+    const unitText = `${courseUnitsText(c)} ${c.units === 1 && !c.unitsMax ? "unit" : "units"}`;
     ctx.fillText(unitText, x + colW, y + 15);
     const unitW = ctx.measureText(unitText).width + 12;
 

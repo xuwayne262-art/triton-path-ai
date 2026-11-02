@@ -19,6 +19,7 @@ import {
 import { choicePackage, packageUrl, summarizeChoice } from "@/lib/sectionChoice";
 import type { Course } from "@/components/triton/types";
 import type { ScheduleCourse, SectionStatus } from "@/app/planner/PlannerProvider";
+import { courseUnitsText } from "@/lib/units";
 
 /**
  * The term's sections, chosen where you can see them.
@@ -436,7 +437,7 @@ function CourseSections({
             <Link href={courseHref(course.code)} className="truncate text-sm font-bold hover:underline">
               {course.code}
             </Link>
-            <span className="shrink-0 text-xs tabular-nums text-gray-500 dark:text-gray-400">{course.units} units</span>
+            <span className="shrink-0 text-xs tabular-nums text-gray-500 dark:text-gray-400">{courseUnitsText(course)} units</span>
             {status.available && (
               <button
                 type="button"
