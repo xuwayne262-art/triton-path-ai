@@ -44,6 +44,7 @@ const PUBLIC_PAGES = new Set([
   "/",
   "/courses",
   "/discover",
+  "/compare",
   "/ge",
   "/about",
   "/announcements",

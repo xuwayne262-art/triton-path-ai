@@ -4,7 +4,7 @@ import { use, useEffect, useId, useMemo, useState, useSyncExternalStore } from "
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BookMarked, ChevronRight, ExternalLink, LogIn, MapPin } from "lucide-react";
+import { BookMarked, ChevronRight, Columns3, ExternalLink, LogIn, MapPin } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import { PAGE_GAP, PAGE_PAD, PAGE_TITLE, SECTION_TITLE } from "@/components/plat/typeScale";
 import Disclosure from "@/components/plat/Disclosure";
@@ -42,6 +42,7 @@ import { collegeForSubject, departmentForSubject } from "@/data/ucsdStructure";
 import type { CoursePin } from "@/components/plat/CourseMap";
 import WhenVisible from "@/components/plat/WhenVisible";
 import { afterIdle } from "@/lib/idle";
+import { compareHref, parseCompare, rememberedCompare, withCode } from "@/lib/compare";
 
 const CourseMap = dynamic(() => import("@/components/plat/CourseMap"), {
   ssr: false,
@@ -136,6 +137,7 @@ export default function CourseDetailPage({
   // ── The section choice ─────────────────────────────────────────────────
   const families = useMemo(() => groupSections(detail?.sec ?? []), [detail]);
   const urlPick = useSyncExternalStore(noSubscribe, readPick, () => null);
+  const compareList = useSyncExternalStore(noSubscribe, rememberedCompare, () => "");
   const planner = usePlannerEntry(code, term);
   const [selection, setSelectionState] = useState<SectionSelection | undefined>(undefined);
   const [chosenFor, setChosenFor] = useState<string | null>(null);
@@ -404,6 +406,13 @@ export default function CourseDetailPage({
               with a missing id lands on a TSS error page, which is worse for a
               student mid-enrolment than no link at all.
             */}
+            <Link
+              href={compareHref(withCode(parseCompare(compareList).codes, code))}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:border-white/15 dark:hover:bg-white/10"
+            >
+              <Columns3 className="h-4 w-4" aria-hidden />
+              Compare
+            </Link>
             {detail?.tss && (
               <a
                 href={detail.tss}
