@@ -7,7 +7,7 @@ import {
   groupSections, sectionSeats, sectionSeatsAt, sectionWaitlist, sectionWhen, sectionWhere, selectionRule, typeLabel,
   type LectureFamily, type SectionSelection,
 } from "@/lib/sections";
-import { finalOverview, type FinalOverview } from "@/lib/sectionChoice";
+import { finalOverview, finalSlots, type FinalOverview } from "@/lib/sectionChoice";
 import { seatAge } from "@/lib/freshness";
 import { SeatAgeNote } from "./SeatAge";
 import { useNow } from "./useNow";
@@ -112,6 +112,21 @@ export function examLine(s: SectionTuple): string {
   return [dayLabel(s[DAYS]), prettyRange(s[START], s[END]), sectionWhere(s)].filter(Boolean).join(" · ");
 }
 
+/**
+ * Finals as one line per date and time. A final listed in two rooms names
+ * both; one with no room says so rather than reading as a room-less exam.
+ * `room: "varies"` is for a course-wide line whose room depends on the lecture.
+ */
+export function finalsText(finals: SectionTuple[], room: "same" | "varies" = "same"): string {
+  return finalSlots(finals).map(({ row, rooms }) => {
+    const known = rooms.filter(Boolean);
+    const where = room === "varies"
+      ? "room varies by lecture"
+      : known.length ? known.join(" or ") : "room not listed";
+    return [dayLabel(row[DAYS]), prettyRange(row[START], row[END]), where].join(" · ");
+  }).join("; ");
+}
+
 function familyMeta(f: LectureFamily): string {
   if (!f.lecture) return "Meeting time TBA";
   return [sectionWhen(f.lecture), sectionWhere(f.lecture)].filter(Boolean).join(" · ");
@@ -119,12 +134,14 @@ function familyMeta(f: LectureFamily): string {
 
 /** The final for one lecture, under it — only when finals differ by lecture. */
 function FamilyFinal({ overview, family }: { overview: FinalOverview; family: string }) {
-  if (overview.kind !== "varies") return null;
+  // Shown per lecture whenever the course-wide line cannot say it all: a
+  // different time, or the same time in a different room.
+  if (overview.kind === "none" || (overview.kind === "same" && overview.rooms === "same")) return null;
   const finals = overview.byFamily.find((f) => f.key === family)?.finals ?? [];
   return (
     <span className="mt-1 block text-[11px] leading-snug text-gray-700 dark:text-gray-300">
       <span className="font-semibold">Final:</span>{" "}
-      {finals.length ? finals.map(examLine).join("; ") : "not listed on the schedule"}
+      {finals.length ? finalsText(finals) : "not listed on the schedule"}
     </span>
   );
 }
@@ -181,8 +198,12 @@ export default function SectionPicker({
       </p>
       {overview.kind === "same" && (
         <p className="mb-3 text-xs text-gray-700 dark:text-gray-300">
-          <span className="font-semibold">Final{families.length > 1 ? ` for every ${noun.toLowerCase()}` : ""}:</span>{" "}
-          {overview.finals.map(examLine).join("; ")}
+          <span className="font-semibold">
+            {families.length > 1
+              ? overview.rooms === "varies" ? `Final, same time for every ${noun.toLowerCase()}:` : `Final for every ${noun.toLowerCase()}:`
+              : "Final:"}
+          </span>{" "}
+          {finalsText(overview.finals, overview.rooms)}
         </p>
       )}
       {overview.kind === "none" && (

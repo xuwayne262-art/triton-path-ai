@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import type { SectionTuple, SubjectFile } from "./plat";
 import { CODE, DAYS, TYPE, groupSections } from "./sections";
 import {
-  choicePackage, decodeChoice, encodeChoice, familyExams, finalOverview, packageUrl, summarizeChoice,
+  choicePackage, decodeChoice, encodeChoice, familyExams, finalOverview, finalSlots, packageUrl, summarizeChoice,
 } from "./sectionChoice";
 
 /** A row in the shape fetch-classplanner.mjs emits. */
@@ -56,6 +56,47 @@ describe("a course's final before a lecture is chosen", () => {
     ];
     const o = finalOverview(same, groupSections(same));
     assert.equal(o.kind, "same");
+    if (o.kind !== "same") return;
+    // Same time, different rooms: no room is the course's (ECON 110B, Fall 2026).
+    assert.equal(o.rooms, "varies");
+    assert.deepEqual(o.byFamily.map((f) => f.finals.map((s) => s[6])), [["WLH 2001"], ["WLH 2005"]]);
+  });
+
+  test("names a room for every lecture only when every lecture has it", () => {
+    const shared = [
+      row("A00", "LE", "MWF", "9:00a", "9:50a", { id: "E 1" }),
+      row("2026-12-09", "FI", "2026-12-09", "8:00a", "10:59a", { id: "E 1", room: "WLH 2001" }),
+      row("B00", "LE", "MWF", "1:00p", "1:50p", { id: "E 2" }),
+      row("2026-12-09", "FI", "2026-12-09", "8:00a", "10:59a", { id: "E 2", room: "WLH 2001" }),
+    ];
+    const o = finalOverview(shared, groupSections(shared));
+    assert.equal(o.kind === "same" && o.rooms, "same");
+  });
+
+  test("keeps both rooms when one lecture's final is listed in two", () => {
+    const split = [
+      row("A00", "LE", "MWF", "9:00a", "9:50a", { id: "E 1" }),
+      row("2026-12-09", "FI", "2026-12-09", "8:00a", "10:59a", { id: "E 1", room: "MOS 0113" }),
+      row("2026-12-09", "FI", "2026-12-09", "8:00a", "10:59a", { id: "E 1", room: "MOS 0114" }),
+    ];
+    const o = finalOverview(split, groupSections(split));
+    assert.equal(o.kind, "same");
+    if (o.kind !== "same") return;
+    assert.deepEqual(finalSlots(o.finals).map((f) => f.rooms), [["MOS 0113", "MOS 0114"]]);
+  });
+
+  test("treats a final with no room as unknown, not as the same room as another", () => {
+    const noRoom = [
+      row("A00", "LE", "MWF", "9:00a", "9:50a", { id: "E 1" }),
+      row("2026-12-09", "FI", "2026-12-09", "8:00a", "10:59a", { id: "E 1", room: "WLH 2001" }),
+      row("B00", "LE", "MWF", "1:00p", "1:50p", { id: "E 2" }),
+      row("2026-12-09", "FI", "2026-12-09", "8:00a", "10:59a", { id: "E 2", room: "" }),
+    ];
+    // An empty room falls back to the building, so build one with neither.
+    noRoom[3][5] = "";
+    const o = finalOverview(noRoom, groupSections(noRoom));
+    assert.equal(o.kind === "same" && o.rooms, "varies");
+    assert.deepEqual(finalSlots([noRoom[3]]).map((f) => f.rooms), [[""]]);
   });
 
   test("varies when one lecture lists a final and another lists none", () => {

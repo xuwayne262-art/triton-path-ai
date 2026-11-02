@@ -11,11 +11,15 @@ import { choicePackage, choiceText, finalOverview, packageUrl, summarizeChoice }
 import { seatAge, seatAgeSentence, seatSpan, spanLabel, sumSeatsAt } from "@/lib/freshness";
 import { tallySectionRows, talliedRows } from "@/lib/seats/tally";
 import { LABEL, SECTION_TITLE } from "./typeScale";
-import { examLine } from "./SectionPicker";
+import { examLine, finalsText } from "./SectionPicker";
 import { SeatAgeNote } from "./SeatAge";
 import { useNow } from "./useNow";
 import type { PlannerEntry } from "./usePlannerEntry";
 import { useState } from "react";
+import { parseUnits, unitsText } from "@/lib/units";
+
+/** Shown while the course's schedule is still on its way: never a negative fact. */
+const CHECKING = "Checking…";
 
 /**
  * The course's term at a glance, and the student's section choice with
@@ -79,11 +83,15 @@ export default function ChoiceSummary({
   const finalText = (() => {
     if (summary) {
       const finals = summary.exams.filter((e) => e[TYPE] === "FI");
-      return finals.length ? finals.map(examLine).join("; ") : `Not listed on the schedule for ${choice.split(" + ")[0]}`;
+      return finals.length ? finalsText(finals) : `Not listed on the schedule for ${choice.split(" + ")[0]}`;
     }
-    if (overview.kind === "same") return overview.finals.map(examLine).join("; ");
+    if (overview.kind === "same") {
+      return overview.rooms === "varies"
+        ? `${finalsText(overview.finals, "varies")}. Choose a lecture to see your room.`
+        : finalsText(overview.finals);
+    }
     if (overview.kind === "varies") return "Varies by section. Choose a lecture to see yours.";
-    return detail ? "Not listed on the schedule" : "…";
+    return detail ? "Not listed on the schedule" : CHECKING;
   })();
   const midterms = summary?.exams.filter((e) => e[TYPE] !== "FI") ?? [];
 
@@ -111,10 +119,10 @@ export default function ChoiceSummary({
       <h2 id="glance-title" className={SECTION_TITLE}>{termLabel} at a glance</h2>
 
       <dl className="mt-4 grid grid-cols-2 gap-3">
-        <Fact label="Units" value={detail?.u ? String(parseFloat(detail.u)) : "Not listed"} />
+        <Fact label="Units" value={!detail ? CHECKING : unitsText(parseUnits(detail.u, detail.t)) || "Not listed"} />
         <Fact
           label="Seats taken"
-          value={seats ? `${seats.enrolled.toLocaleString()} / ${seats.capacity.toLocaleString()}` : offered ? "Not published" : "Not offered"}
+          value={!detail ? CHECKING : seats ? `${seats.enrolled.toLocaleString()} / ${seats.capacity.toLocaleString()}` : offered ? "Not published" : "Not offered"}
           note={seats ? (
             <>
               {seats.waitlist ? `${seats.waitlist} waitlisted · ` : ""}
@@ -190,7 +198,9 @@ export default function ChoiceSummary({
           </>
         ) : (
           <p className="text-xs leading-relaxed text-gray-600 dark:text-gray-400">
-            {offered
+            {!detail
+              ? `Checking the ${termLabel} schedule…`
+              : offered
               ? families.length > 1
                 ? "Choose a lecture under the sections to see its final, what else it needs, and a TSS link for exactly that choice."
                 : "Choose the section to see what it needs and a TSS link for exactly it."

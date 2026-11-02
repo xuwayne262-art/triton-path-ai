@@ -1,3 +1,4 @@
+import { parseUnits } from "./units";
 import { prereqKnown, sortCourses, type CourseRow, type SortKey } from "@/lib/plat";
 
 /**
@@ -104,8 +105,9 @@ export function applyFilters(rows: CourseRow[], f: ResultFilters): CourseRow[] {
     // no rated instructor cannot answer the question and is filtered out.
     if (maxLoad !== Infinity && !(c.pd != null && c.pd > 0 && c.pd <= maxLoad)) return false;
     if (maxUnits !== Infinity) {
-      const u = c.u ? parseFloat(c.u) : null;
-      if (u == null || u > maxUnits) return false;
+      // A variable-units course fits when it can be taken for few enough.
+      const u = parseUnits(c.u, c.t);
+      if (u == null || u.min > maxUnits) return false;
     }
     if (q && !`${c.k} ${c.t} ${c.p ?? ""}`.toLowerCase().includes(q)) return false;
     return true;

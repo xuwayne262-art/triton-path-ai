@@ -32,6 +32,7 @@ import {
 import { choiceText, decodeChoice, encodeChoice } from "@/lib/sectionChoice";
 import { ADD_INTENT_KEY, madeHere, parseAddIntent, type AddIntent } from "@/lib/planIntent";
 import { usePlanner } from "./PlannerProvider";
+import { coursesUnitsText } from "@/lib/units";
 
 /**
  * The term workspace: sections on the left, the week in the middle, the campus
@@ -153,7 +154,7 @@ export default function TermWorkspacePage() {
     selectedCourses, addToSchedule, removeFromSchedule, clearSchedule, restoreSchedule,
     sectionsByCode, tssByCode, selections, setSelection, chooseOption, autoPickFor, autoPickAll,
     restoreSelections, retrySections,
-    sectionStatus, events, optionEvents, conflictCodes, totalUnits,
+    sectionStatus, events, optionEvents, conflictCodes,
     plannedCourses, addAICourseToPlan, removePlannedCourse,
     platRows, platByCode, savedCourses, toggleSaved, addCourseByCode, termSettled,
     selectedMajor, selectedMinor, selectedCollege,
@@ -510,6 +511,7 @@ export default function TermWorkspacePage() {
         code: course.code,
         title: course.title,
         units: course.units,
+        unitsMax: course.unitsMax,
         role: roleOf(course),
         instructor: platByCode.get(course.code)?.p ?? null,
         sec: sectionsByCode[course.code],
@@ -731,7 +733,7 @@ export default function TermWorkspacePage() {
             <h1 className="text-sm font-bold">{termName || "This term"}</h1>
             <span className="text-xs tabular-nums text-gray-600 dark:text-gray-400">
               {selectedCourses.length} {selectedCourses.length === 1 ? "course" : "courses"} ·{" "}
-              {totalUnits} units
+              {coursesUnitsText(selectedCourses.map((sc) => sc.course))} units
             </span>
 
             {conflictCodes.size > 0 && (

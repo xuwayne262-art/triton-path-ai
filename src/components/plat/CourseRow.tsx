@@ -5,6 +5,7 @@ import { DifficultyTag, GradeBadge, RmpRating, SeatWarning } from "./Grade";
 import {
   courseHref, prereqKnown, prettyTime, splitDays, type CourseRow as Row,
 } from "@/lib/plat";
+import { unitsLabel } from "@/lib/units";
 
 /** "TuTh 9:30 AM" — compact enough to sit on the meta line. */
 function meetingText(row: Row): string | null {
@@ -57,7 +58,7 @@ export default function CourseRow({
           <SeatWarning avail={row.sa} limit={row.sl} at={row.sat ?? null} />
         </span>
         <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-gray-600 dark:text-gray-400">
-          {row.u && <span>{parseFloat(row.u)} units</span>}
+          {row.u && <span>{unitsLabel(row.u, row.t)}</span>}
           {meeting && <><Dot /><span>{meeting}</span></>}
           {!row.pr && prereqKnown(row) && (
             <><Dot /><span className="text-emerald-700 dark:text-emerald-400">no prereq listed</span></>

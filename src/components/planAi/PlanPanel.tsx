@@ -12,6 +12,7 @@ import { clockLabel } from "@/lib/planAi/vocabulary";
 import { minutes, tradeoffs, verified } from "@/lib/planAi/explain";
 import { targetWords, unitsLabel, type Settings } from "@/lib/planAi/conversation";
 import type { Proposal } from "@/lib/planAi/types";
+import { courseUnitsText } from "@/lib/units";
 
 /**
  * The live plan beside the conversation: the same plan the Planner shows,
@@ -187,7 +188,7 @@ export default function PlanPanel({
                 {slotCourses.map((p) => (
                   <li key={p.courseId} className="flex justify-between gap-3 px-3 py-2 text-sm">
                     <span><span className="font-semibold">{p.course.code}</span> <span className="text-xs text-gray-600 dark:text-gray-400">{p.course.title}</span></span>
-                    <span className="text-xs tabular-nums text-gray-700 dark:text-gray-300">{p.course.units} units</span>
+                    <span className="text-xs tabular-nums text-gray-700 dark:text-gray-300">{courseUnitsText(p.course)} units</span>
                   </li>
                 ))}
                 {(preview?.adds ?? []).map((a) => (

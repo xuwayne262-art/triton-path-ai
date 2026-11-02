@@ -194,6 +194,9 @@ function course(v: unknown): Course | null {
   out.id = str(v.id, 60) || code.toLowerCase().replace(/\s+/g, "");
   out.title = str(v.title, 200) || code;
   out.units = typeof v.units === "number" && Number.isFinite(v.units) && v.units >= 0 && v.units <= 30 ? v.units : 4;
+  // The top of a variable-units course's range; only kept when it is one.
+  if (typeof v.unitsMax === "number" && Number.isFinite(v.unitsMax) && v.unitsMax > (out.units as number) && v.unitsMax <= 30) out.unitsMax = v.unitsMax;
+  else delete out.unitsMax;
   for (const k of ["departments", "categories", "genEd"] as const) {
     if (k in v) out[k] = codes(v[k], 20, 60);
   }

@@ -36,6 +36,7 @@ import { seatSpan, spanLabel, sumSeatsAt } from "@/lib/freshness";
 import { ADD_INTENT_KEY, addIntentHref, storedIntent } from "@/lib/planIntent";
 import { tallySectionRows, talliedRows } from "@/lib/seats/tally";
 import { orderClassLevels } from "@/lib/prereqs";
+import { unitsLabel } from "@/lib/units";
 import { quarterByKey } from "@/lib/housing/terms";
 import { collegeForSubject, departmentForSubject } from "@/data/ucsdStructure";
 import type { CoursePin } from "@/components/plat/CourseMap";
@@ -337,11 +338,11 @@ export default function CourseDetailPage({
         {/* ── What it is, how it has graded, and the two actions ──────────── */}
         <header className="mt-5 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
           <div className="flex min-w-0 items-start gap-4">
-            <GradeBadge gpa={detail?.gpa} terms={detail?.terms ?? 0} size="lg" />
+            <GradeBadge gpa={detail?.gpa} terms={detail?.terms ?? 0} size="lg" loading={!detail} />
             <div className="min-w-0">
               <p className="font-mono text-sm font-bold text-[#182B49] dark:text-[#FFCD00]">
                 {code}
-                {detail?.u && <span className="ml-2 font-sans text-xs font-medium text-gray-600 dark:text-gray-400">{parseFloat(detail.u)} units</span>}
+                {detail?.u && <span className="ml-2 font-sans text-xs font-medium text-gray-600 dark:text-gray-400">{unitsLabel(detail.u, detail.t ?? title)}</span>}
               </p>
               <h1 className={`mt-0.5 ${PAGE_TITLE}`}>{title ?? "…"}</h1>
               <p className="mt-2 max-w-3xl text-sm leading-relaxed text-gray-700 dark:text-gray-300">
@@ -499,7 +500,7 @@ export default function CourseDetailPage({
 
               {detail && (detail.hist?.length ?? 0) > 0 && (
                 <Disclosure title="Every term's grades" hint={`${detail.hist!.length} ${detail.hist!.length === 1 ? "term" : "terms"}`}>
-                  <PastTerms detail={detail} />
+                  <PastTerms detail={detail} code={code} />
                 </Disclosure>
               )}
 
@@ -731,7 +732,7 @@ function LeadsTo({ code, leads }: { code: string; leads: string[] }) {
 }
 
 /** Every published term, newest first: the table the "Grades by term" chart draws. */
-function PastTerms({ detail }: { detail: CourseDetail }) {
+function PastTerms({ detail, code }: { detail: CourseDetail; code: string }) {
   const [all, setAll] = useState(false);
   const rows = detail.hist ?? [];
   const shown = all ? rows : rows.slice(0, TERMS_SHOWN);
@@ -755,7 +756,7 @@ function PastTerms({ detail }: { detail: CourseDetail }) {
               <td className="py-2 text-right tabular-nums">
                 {h[2] != null ? (
                   <span className="inline-flex items-center justify-end gap-2">
-                    <GradeBadge gpa={h[2]} terms={2} size="xs" />
+                    <GradeBadge gpa={h[2]} record={`${termName(h[0])} ${code}`} size="xs" />
                     {h[2].toFixed(2)}
                   </span>
                 ) : (
