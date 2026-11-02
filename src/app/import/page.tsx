@@ -259,6 +259,7 @@ export default function ImportPage() {
             history={review}
             preview={isPreview}
             replaces={isPreview && saved ? (saved as ParsedHistory & { savedAt?: string }).savedAt ?? "" : null}
+            shrinks={isPreview && saved ? shrinkage(saved, parsed) : null}
             phase={phase}
             onSave={save}
             onDelete={remove}
@@ -269,19 +270,37 @@ export default function ImportPage() {
   );
 }
 
+/**
+ * What a new paste would lose against the saved copy, when it is materially
+ * smaller: fewer courses or terms. A partial copy-select (one screen of a long
+ * page) parses fine and reads as complete, so replacing a full record with it
+ * must be a choice made knowingly. Null when nothing is lost.
+ */
+function shrinkage(saved: ParsedHistory, next: ParsedHistory | null): { courses: number; terms: string[] } | null {
+  if (!next) return null;
+  const nextTerms = new Set(next.terms.map((t) => t.code));
+  const lostTerms = saved.terms.filter((t) => t.courses.length && !nextTerms.has(t.code)).map((t) => t.label);
+  const fewer = saved.totals.courses - next.totals.courses;
+  return fewer > 0 || lostTerms.length ? { courses: Math.max(0, fewer), terms: lostTerms } : null;
+}
+
 function Review({
-  history, preview, replaces, phase, onSave, onDelete,
+  history, preview, replaces, shrinks, phase, onSave, onDelete,
 }: {
   history: ParsedHistory;
   preview: boolean;
   /** When a saved copy exists that saving this preview would replace: its save time ("" if unknown). */
   replaces: string | null;
+  /** What replacing the saved copy with this preview would drop, when anything. */
+  shrinks: { courses: number; terms: string[] } | null;
   phase: Phase;
   onSave: () => void;
   onDelete: () => void;
 }) {
   const t = history.totals;
   const busy = phase === "saving";
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [acceptShrink, setAcceptShrink] = useState(false);
 
   const programs = useMemo(
     () => [...history.majors, ...history.minors.map((m) => `${m} (minor)`)].join(" · "),
@@ -389,10 +408,27 @@ function Review({
       <div className="mt-8 flex flex-wrap items-center gap-2">
         {preview ? (
           <>
+            {shrinks && (
+              <div role="alert" className="basis-full rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:bg-amber-500/10 dark:text-amber-100">
+                <p className="font-semibold">
+                  This copy is smaller than the one you saved
+                  {shrinks.courses ? `: ${shrinks.courses} fewer ${shrinks.courses === 1 ? "course" : "courses"}` : ""}
+                  {shrinks.terms.length ? `${shrinks.courses ? "," : ":"} missing ${shrinks.terms.slice(0, 3).join(", ")}${shrinks.terms.length > 3 ? ` and ${shrinks.terms.length - 3} more` : ""}` : ""}.
+                </p>
+                <p className="mt-1 text-xs">
+                  A copy of only part of the TritonLink page looks like this. Select the whole page (Ctrl/⌘ + A) and paste again,
+                  or replace it anyway if courses really were removed.
+                </p>
+                <label className="mt-2 flex items-center gap-2 text-xs font-medium">
+                  <input type="checkbox" checked={acceptShrink} onChange={(e) => setAcceptShrink(e.target.checked)} />
+                  Replace my saved copy with this smaller one
+                </label>
+              </div>
+            )}
             <button
               type="button"
               onClick={onSave}
-              disabled={busy}
+              disabled={busy || (shrinks != null && !acceptShrink)}
               className="inline-flex items-center gap-2 rounded-lg bg-[#182B49] px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-[#FFCD00] dark:text-[#182B49]"
             >
               {busy && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -406,10 +442,25 @@ function Review({
               </p>
             )}
           </>
+        ) : confirmDelete ? (
+          <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-900 dark:bg-red-500/10 dark:text-red-100">
+            <span>Delete your saved Academic History? Degree progress stops counting it. This can&rsquo;t be undone.</span>
+            <button
+              type="button"
+              onClick={() => { setConfirmDelete(false); onDelete(); }}
+              disabled={busy}
+              className="rounded-lg bg-red-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+            >
+              Delete permanently
+            </button>
+            <button type="button" onClick={() => setConfirmDelete(false)} className="rounded-lg px-3 py-1.5 text-xs font-semibold hover:underline">
+              Keep it
+            </button>
+          </div>
         ) : (
           <button
             type="button"
-            onClick={onDelete}
+            onClick={() => setConfirmDelete(true)}
             disabled={busy}
             className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-white/15 dark:text-red-400 dark:hover:bg-red-500/10"
           >
