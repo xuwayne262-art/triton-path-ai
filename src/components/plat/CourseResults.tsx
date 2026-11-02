@@ -49,6 +49,7 @@ export default function CourseResults({
   loading = false,
   onResetAll,
   extraChips = [],
+  searchLabel,
 }: {
   rows: Row[];
   filters: ResultFilters;
@@ -63,6 +64,8 @@ export default function CourseResults({
   onResetAll?: () => void;
   /** What the page itself narrowed by, shown first among the chips so one row says everything applied. */
   extraChips?: { label: string; clear: () => void }[];
+  /** "Search within Economics": names the list the search narrows. */
+  searchLabel?: string;
 }) {
   const id = useId();
   const [showFilters, setShowFilters] = useState(false);
@@ -103,11 +106,25 @@ export default function CourseResults({
 
   const clearFilters = () => onChange({ ...DEFAULT_FILTERS, sort: filters.sort });
   const scope = filters.offeredOnly ? `on the ${termName ?? "current"} schedule` : "in the catalog";
+  // A subset says it is one: "11 matching courses", never "11 courses in the catalog".
+  const narrowed = chips.length > (filters.offeredOnly ? 1 : 0) || extraChips.length > 0;
 
   return (
     <div>
       {/* Names the list for the page outline, so its group headings sit under it. */}
       <h2 className="sr-only">Courses</h2>
+      {/* The search within this list is in plain sight, not behind Filters. */}
+      <div className="mb-3">
+        <label className="sr-only" htmlFor={`${id}-q`}>{searchLabel ?? "Search within these courses"}</label>
+        <input
+          id={`${id}-q`}
+          type="search"
+          value={filters.q}
+          onChange={(e) => set("q", e.target.value)}
+          placeholder={searchLabel ? `${searchLabel}: code, title or instructor` : "Search within these courses: code, title or instructor"}
+          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#182B49] focus-visible:ring-2 focus-visible:ring-[#182B49]/30 dark:border-white/10 dark:bg-white/5 dark:text-gray-100"
+        />
+      </div>
       <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 pb-4 dark:border-white/10">
         <p className="text-sm text-gray-600 dark:text-gray-400" aria-live="polite" aria-atomic="true">
           {loading ? (
@@ -115,7 +132,9 @@ export default function CourseResults({
           ) : (
             <>
               <span className="font-semibold text-gray-900 dark:text-gray-100">{results.length.toLocaleString()}</span>{" "}
-              {results.length === 1 ? "course" : "courses"} {scope}
+              {narrowed
+                ? `matching ${results.length === 1 ? "course" : "courses"}${filters.offeredOnly ? ` ${scope}` : ""}`
+                : `${results.length === 1 ? "course" : "courses"} ${scope}`}
             </>
           )}
         </p>
@@ -208,18 +227,7 @@ export default function CourseResults({
       )}
 
       <div id={`${id}-filters`} hidden={!showFilters} className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-5 dark:border-white/10 dark:bg-white/[0.03]">
-        <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300" htmlFor={`${id}-q`}>
-          Narrow these courses
-        </label>
-        <input
-          id={`${id}-q`}
-          type="search"
-          value={filters.q}
-          onChange={(e) => set("q", e.target.value)}
-          placeholder="Code, title or instructor"
-          className="mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#182B49] focus-visible:ring-2 focus-visible:ring-[#182B49]/30 dark:border-white/10 dark:bg-white/5 dark:text-gray-100"
-        />
-        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
           <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
             Max units
             <select

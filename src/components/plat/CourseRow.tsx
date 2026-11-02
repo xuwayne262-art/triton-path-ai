@@ -3,15 +3,15 @@
 import Link from "next/link";
 import { DifficultyTag, GradeBadge, RmpRating, SeatWarning } from "./Grade";
 import {
-  courseHref, prereqKnown, prettyTime, splitDays, type CourseRow as Row,
+  courseHref, prereqKnown, prettyRange, prettyTime, splitDays, type CourseRow as Row,
 } from "@/lib/plat";
 import { unitsLabel } from "@/lib/units";
 
-/** "TuTh 9:30 AM" — compact enough to sit on the meta line. */
+/** "TuTh 9:30–10:50 AM": start and end, so two rows can be compared for a clash. */
 function meetingText(row: Row): string | null {
   const days = splitDays(row.d);
   if (!days.length) return null;
-  return `${days.join("")} ${prettyTime(row.st)}`;
+  return `${days.join("")} ${row.en ? prettyRange(row.st, row.en) : prettyTime(row.st)}`;
 }
 
 /**
@@ -25,6 +25,13 @@ function meetingText(row: Row): string | null {
  * right column is one person — the instructor of the first lecture on this
  * term's schedule — and their scores across all of their courses. The row's
  * tooltip says which is which, and the list above it says it once in words.
+ *
+ * A course with several lectures says so ("2 lecture options, first: TuTh
+ * 9:30–10:50 AM") and names its other instructors ("+ Benjamin Ochoa"), so
+ * the first lecture is never passed off as the only one. On a phone, where
+ * the right column does not fit, the instructor and rating move under the
+ * title rather than disappearing. The grade letter is small: it describes the
+ * course's past classes, not the course or the person.
  */
 export default function CourseRow({
   row,
@@ -42,8 +49,8 @@ export default function CourseRow({
       href={courseHref(row.k)}
       className="group flex items-center gap-3.5 border-b border-gray-100 px-3 py-3 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#182B49] dark:border-white/5 dark:hover:bg-white/5 dark:focus-visible:ring-[#FFCD00]"
     >
-      <span className="flex w-11 shrink-0 flex-col items-center gap-0.5">
-        <GradeBadge gpa={row.g} terms={row.r} />
+      <span className="flex w-9 shrink-0 flex-col items-center gap-0.5">
+        <GradeBadge gpa={row.g} terms={row.r} size="sm" />
         {hasHistory && (
           <span className="text-[11px] font-semibold tabular-nums text-gray-600 dark:text-gray-400">{row.g!.toFixed(2)}</span>
         )}
@@ -59,7 +66,9 @@ export default function CourseRow({
         </span>
         <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-gray-600 dark:text-gray-400">
           {row.u && <span>{unitsLabel(row.u, row.t)}</span>}
-          {meeting && <><Dot /><span>{meeting}</span></>}
+          {meeting && (
+            <><Dot /><span>{row.nl && row.nl > 1 ? `${row.nl} lecture options, first: ${meeting}` : meeting}</span></>
+          )}
           {!row.pr && prereqKnown(row) && (
             <><Dot /><span className="text-emerald-700 dark:text-emerald-400">no prereq listed</span></>
           )}
@@ -72,11 +81,19 @@ export default function CourseRow({
           )}
           {note && <><Dot /><span className="text-indigo-700 dark:text-indigo-400">{note}</span></>}
         </span>
+        {/* The instructor, on a phone, where the column on the right has no room. */}
+        {row.p && (
+          <span className="mt-1 flex flex-wrap items-center gap-x-1.5 text-xs text-gray-700 sm:hidden dark:text-gray-300">
+            <span className="font-medium">{row.p}</span>
+            <RmpRating q={row.pq} n={row.pn} name={row.p} />
+            {row.pp?.length ? <span className="text-gray-600 dark:text-gray-400">+ {row.pp.join(", ")}</span> : null}
+          </span>
+        )}
       </span>
 
       <span
         className="hidden w-44 shrink-0 text-right sm:block"
-        title={row.p ? `${row.p}: the instructor of the first lecture on this term's schedule. RateMyProfessors scores are for them across all their courses.` : undefined}
+        title={row.p ? `${row.p}: the instructor of the first lecture on this term's schedule${row.pp?.length ? `; also teaching it: ${row.pp.join(", ")}` : ""}. RateMyProfessors scores are for ${row.p} across all their courses.` : undefined}
       >
         {row.p ? (
           <>
@@ -84,6 +101,11 @@ export default function CourseRow({
               <span className="truncate text-xs font-medium text-gray-800 dark:text-gray-200">{row.p}</span>
               <RmpRating q={row.pq} n={row.pn} name={row.p} />
             </span>
+            {row.pp?.length ? (
+              <span className="block truncate text-[11px] text-gray-600 dark:text-gray-400">
+                + {row.pp.length === 1 ? row.pp[0] : `${row.pp.length} others`}
+              </span>
+            ) : null}
             <DifficultyTag d={row.pd} name={row.p} />
           </>
         ) : (

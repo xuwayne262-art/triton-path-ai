@@ -180,6 +180,7 @@ function Department({ params }: { params: Promise<{ sub: string }> }) {
               termName={data?.meta.termName}
               loading={!data}
               emptyHint={`No ${title} courses match these filters.`}
+              searchLabel={`Search within ${title}`}
             />
           </div>
 

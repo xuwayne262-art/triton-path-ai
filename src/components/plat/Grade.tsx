@@ -4,6 +4,7 @@ import { Star } from "lucide-react";
 import { ratingTone, seatWarning, typicalGrade } from "@/lib/plat";
 import { useNow } from "./useNow";
 import { SeatAgeNote } from "./SeatAge";
+import { seatAge } from "@/lib/freshness";
 
 /**
  * The historical-average letter: the average GPA UCSD's grade archive
@@ -137,16 +138,20 @@ export function SeatWarning({ avail, limit, at }: { avail: number | null; limit:
   const now = useNow();
   const w = seatWarning(avail, limit);
   if (!w) return null;
+  // A count that is not from the last day is history: it says so in the label
+  // itself, not only in the date beside it.
+  const fresh = now != null && seatAge(at ?? null, now).kind === "recent";
   return (
     <span className="inline-flex flex-wrap items-baseline gap-x-1">
       <span
+        title="Seat counts come from UCSD's Class Planner and are not live. TSS has the current count."
         className={`rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${
           w === "Full"
             ? "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300"
             : "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300"
         }`}
       >
-        {w}
+        {fresh ? w : `${w} at last count`}
       </span>
       <SeatAgeNote at={at ?? null} now={now} />
     </span>

@@ -36,6 +36,10 @@ export interface CourseRow {
   pa: number | null;  // ...historical A rate
   pd: number | null;  // ...RateMyProfessors difficulty, drives the workload tag
   pg: number | null;  // ...their own average GPA for this course
+  /** Lecture options this term, when more than one; d/st/en/b/p describe the first. */
+  nl?: number;
+  /** This term's other instructors of those lectures, when any (at most 4). */
+  pp?: string[];
 }
 
 export interface Subject {
@@ -500,12 +504,13 @@ export function ratingTone(q: number | null | undefined): string {
 
 /**
  * Seats only earn screen space when they change a decision. "402 of 410 open"
- * is noise; "8 left" is not.
+ * is noise; "8 open" is not. It says "open", not "left": a count weeks old
+ * is history, and "8 left" read as a countdown it cannot be.
  */
 export function seatWarning(avail: number | null, limit: number | null): string | null {
   if (avail == null || limit == null || limit === 0) return null;
   if (avail === 0) return "Full";
-  if (avail / limit <= 0.15) return `${avail} left`;
+  if (avail / limit <= 0.15) return `${avail} open`;
   return null;
 }
 

@@ -27,6 +27,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { lectureOptions } from "./lecture-options.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CACHE = path.join(ROOT, ".data-cache");
@@ -884,6 +885,9 @@ function build() {
     // scheduled instructor back to their own grade record before reading ratings.
     const shown = (schedProf && c.profs.find((p) => sameInstructor(p.i, schedProf))) || curProf;
 
+    // Every lecture choice and its instructor, not just the first one's.
+    const options = c.offered ? lectureOptions(c.sec, schedProf || (shown ? shown.i : null)) : { nl: 0, pp: [] };
+
     index.push({
       k: c.code,
       s: c.sub,
@@ -915,6 +919,9 @@ function build() {
       pa: shown ? shown.A || null : null,
       pd: shown ? shown.rd : null,
       pg: shown && shown.g > 0 ? shown.g : null,
+      // Only when there is more than one lecture, or more than one instructor.
+      ...(options.nl > 1 ? { nl: options.nl } : {}),
+      ...(options.pp.length ? { pp: options.pp } : {}),
     });
 
     if (!bySubject.has(c.sub)) bySubject.set(c.sub, {});
