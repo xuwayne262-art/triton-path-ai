@@ -281,3 +281,14 @@ describe("Supabase failure hints", () => {
     assert.equal(hint(500, '{"message":"internal error"}'), "");
   });
 });
+
+describe("a course sent twice in one term", () => {
+  test("is stored once and counted once, whatever the browser sent", () => {
+    const row = { subject: "CSE", number: "11", title: "Accel Intro", units: 4, grade: "A", status: "graded" };
+    const r = sanitizeHistory({ ...oneTerm([row, row]), duplicates: [] });
+    assert.equal(r?.terms[0].courses.length, 1);
+    assert.equal(r?.totals.courses, 1);
+    assert.equal(r?.totals.unitsEarned, 4);
+    assert.deepEqual(r?.duplicates, ["CSE 11 · Fall Quarter 2025"]);
+  });
+});

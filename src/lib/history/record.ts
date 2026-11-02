@@ -1,4 +1,5 @@
 import type { HistoryCourse, HistoryTerm, ParsedHistory, TransferCourse } from "./parse";
+import { dedupeTerms } from "./parse";
 
 /**
  * What the server will accept as a saved Academic History.
@@ -111,6 +112,8 @@ export function sanitizeHistory(body: unknown): StoredHistory | null {
   const terms = list(b.terms, MAX_TERMS, term);
   const transferRows = list(b.transfer, MAX_TRANSFER, transfer);
   if (!terms.length && !transferRows.length) return null;
+  // Counted once on the server too: totals here are the record's, whatever was sent.
+  const duplicates = dedupeTerms(terms);
 
   let unitsEarned = 0;
   let unitsInProgress = 0;
@@ -147,6 +150,7 @@ export function sanitizeHistory(body: unknown): StoredHistory | null {
     terms,
     transfer: transferRows,
     warnings: list(b.warnings, MAX_WARNINGS, (x) => optStr(x, 200)),
+    duplicates: duplicates.slice(0, MAX_WARNINGS),
     totals: {
       courses,
       unitsEarned: round2(unitsEarned),

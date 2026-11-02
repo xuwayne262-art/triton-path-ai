@@ -68,6 +68,12 @@ export interface ParsedHistory {
   transfer: TransferCourse[];
   /** Lines that looked like data and did not parse. Shown, never swallowed. */
   warnings: string[];
+  /**
+   * Courses listed twice in the same term ("CAT 1 · Fall Quarter 2025"),
+   * counted once. A retake is in a different term and is not one of these;
+   * the same row twice in one term is a doubled paste.
+   */
+  duplicates?: string[];
   /** Totals the parser computed itself — not read off the page. */
   totals: {
     courses: number;
@@ -236,7 +242,7 @@ export function parseAcademicHistory(raw: string): ParsedHistory {
     .map((l) => l.replace(/[ \t]+/g, " ").trim());
 
   const out: ParsedHistory = {
-    college: null, majors: [], minors: [], terms: [], transfer: [], warnings: [],
+    college: null, majors: [], minors: [], terms: [], transfer: [], warnings: [], duplicates: [],
     totals: { courses: 0, unitsEarned: 0, unitsInProgress: 0, transferUnits: 0, gpa: null },
   };
 
@@ -348,6 +354,8 @@ export function parseAcademicHistory(raw: string): ParsedHistory {
     .filter((t) => t.courses.length)
     .sort((a, b) => termOrder(a.code) - termOrder(b.code));
 
+  out.duplicates = dedupeTerms(out.terms);
+
   // ── totals, computed rather than read ──
   // The page prints its own GPA, but a student who pastes a partial page would
   // carry a total that does not match the rows beneath it. Deriving it from the
@@ -376,6 +384,20 @@ export function parseAcademicHistory(raw: string): ParsedHistory {
   out.minors = dedupe(out.minors);
 
   return out;
+}
+
+/** Keeps the first of a course listed twice in one term; returns what was dropped, as "CAT 1 · Fall Quarter 2025". */
+export function dedupeTerms(terms: { label: string; courses: { code: string }[] }[]): string[] {
+  const dropped: string[] = [];
+  for (const t of terms) {
+    const seen = new Set<string>();
+    t.courses = t.courses.filter((c) => {
+      if (!seen.has(c.code)) { seen.add(c.code); return true; }
+      dropped.push(`${c.code} · ${t.label}`);
+      return false;
+    });
+  }
+  return dropped;
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;

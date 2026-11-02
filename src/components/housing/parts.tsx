@@ -145,8 +145,10 @@ export function CommuteLine({ measure, mode }: { measure: Measure; mode: Mode })
     ];
     title = week.days.map((d) => `${d.day}: ${d.there.minutes} min to ${d.first.event.code} in ${d.first.building.n}`).join("\n");
   }
-  // Every figure here is an estimate from straight-line distance, not a route.
+  // Every figure here is an estimate from straight-line distance, not a route,
+  // and it says so on screen, not only on hover (a phone has no hover).
   title = [title, "Estimated from straight-line distance, not a mapped route."].filter(Boolean).join("\n\n");
+  detail = [...detail, "straight-line estimate, not a route"];
 
   return (
     <div className="flex min-w-0 items-start gap-2 text-[13px] leading-snug" title={title}>

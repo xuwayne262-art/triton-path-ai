@@ -339,6 +339,13 @@ function Review({
         much; one who cannot has no way to tell a complete import from a
         partial one.
       */}
+      {(history.duplicates?.length ?? 0) > 0 && (
+        <p className="mt-5 rounded-lg bg-sky-50 px-4 py-3 text-xs text-sky-950 dark:bg-sky-500/10 dark:text-sky-100">
+          <span className="font-semibold">Listed twice in the same term, counted once:</span>{" "}
+          {history.duplicates!.slice(0, 6).join("; ")}{history.duplicates!.length > 6 ? `, and ${history.duplicates!.length - 6} more` : ""}.
+          A course you retook in another term is kept in both.
+        </p>
+      )}
       {history.warnings.length > 0 && (
         <div className="mt-5 rounded-lg bg-amber-50 px-4 py-3 text-xs text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
           <p className="font-semibold">

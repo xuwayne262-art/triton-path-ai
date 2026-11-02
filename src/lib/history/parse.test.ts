@@ -185,3 +185,19 @@ describe("parseAcademicHistory", () => {
     assert.deepEqual(p.terms.map((t) => t.code), ["FA25"]);
   });
 });
+
+describe("a course listed twice in one term", () => {
+  test("is counted once and named; a retake in another term is kept", () => {
+    const doubled = PAGE.replace(
+      "CAT 1 Culture Art and Technology 4.00 P 0.00",
+      "CAT 1 Culture Art and Technology 4.00 P 0.00\nCAT 1 Culture Art and Technology 4.00 P 0.00",
+    );
+    const h = parseAcademicHistory(doubled);
+    assert.equal(h.totals.courses, parseAcademicHistory(PAGE).totals.courses);
+    assert.deepEqual(h.duplicates, ["CAT 1 · Fall Quarter 2025"]);
+    const retake = PAGE.replace("MATH 18 Linear Algebra 4.00 IP", "MATH 18 Linear Algebra 4.00 IP\nCSE 11 Accel Intro to Programming 4.00 A 16.00");
+    const r = parseAcademicHistory(retake);
+    assert.deepEqual(r.duplicates, []);
+    assert.equal(r.totals.courses, parseAcademicHistory(PAGE).totals.courses + 1);
+  });
+});
