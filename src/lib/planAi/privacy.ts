@@ -3,17 +3,21 @@
  *
  * Gemini's unpaid tier lets Google keep and review what it is sent, and its
  * terms forbid sending personal or confidential information. So the model
- * gets one thing: the request as typed, screened, short — plus public course
- * vocabulary the server adds. Never the plan, the Academic History, grades,
- * names, emails or ids; "my plan" and "courses I've taken" are resolved here
- * after the model has said what kind of request it is.
+ * gets one thing: the request rebuilt from canonical planning tokens
+ * (outbound.ts), never the text as typed — plus public course vocabulary the
+ * server adds. Never the plan, the Academic History, grades, names, emails
+ * or ids; "my plan" and "courses I've taken" are resolved here after the
+ * model has said what kind of request it is.
  *
- * A request that looks like it carries personal details is not sent at all,
- * and the student is told why. Removing a name would not make a transcript
- * anonymous, so nothing is redacted and forwarded: it is kept back whole.
+ * Two layers, in order. The screen below keeps back whole any request that
+ * looks like it carries personal details (an email, an id, grades, a pasted
+ * record): removing a name would not make a transcript anonymous. Then the
+ * canonical construction emits only lexicon entries, catalog codes and
+ * numbers, so whatever the screen misses still is not copied out. The server
+ * repeats both and refuses what fails either.
  */
 
-import { minimizeForModel, type OutboundVocab } from "./outbound";
+import { canonicalRequest, type OutboundVocab } from "./outbound";
 
 export const MAX_MODEL_INPUT = 400;
 
@@ -74,22 +78,23 @@ const ALLOWED_CONTEXT = ["options", "pending"];
 export function buildInterpretRequest(
   text: string,
   context: { options: number; pending: boolean },
-  vocab?: OutboundVocab,
+  vocab: OutboundVocab,
 ):
   | { ok: true; body: InterpretRequest; withheld: string[] }
-  | { ok: false; reasons: SensitiveReason[] }
-  | { ok: false; reasons: []; withheld: string[] } {
-  const trimmed = text.replace(/\s+/g, " ").trim();
+  | { ok: false; kind: "sensitive"; reasons: SensitiveReason[] }
+  | { ok: false; kind: "withheld"; withheld: string[] }
+  | { ok: false; kind: "language" } {
   const reasons = screenSensitive(text);
-  if (reasons.length) return { ok: false, reasons };
-  // Only public planning vocabulary leaves; see outbound.ts.
-  const minimized = vocab ? minimizeForModel(trimmed, vocab) : { text: trimmed, withheld: [], meaningful: true };
-  if (!minimized.meaningful) return { ok: false, reasons: [], withheld: minimized.withheld };
+  if (reasons.length) return { ok: false, kind: "sensitive", reasons };
+  // Rebuilt from canonical tokens; nothing typed is copied. See outbound.ts.
+  const built = canonicalRequest(text, vocab);
+  if (built.unsupportedLanguage) return { ok: false, kind: "language" };
+  if (!built.meaningful || built.text.length < 2) return { ok: false, kind: "withheld", withheld: built.withheld };
   return {
     ok: true,
-    withheld: minimized.withheld,
+    withheld: built.withheld,
     body: {
-      text: minimized.text,
+      text: built.text.slice(0, MAX_MODEL_INPUT),
       context: {
         options: Math.max(0, Math.min(3, Math.trunc(Number(context.options) || 0))),
         pending: context.pending === true,

@@ -42,7 +42,7 @@ const request = (body: unknown, headers: Record<string, string> = {}) =>
   new Request("https://ucsdplans.com/api/plan-ai/interpret", {
     method: "POST", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body),
   });
-const ok = (text = "find me a course about climate after 10am") => ({ text, context: { options: 0, pending: false } });
+const ok = (text = "find a course after 10am") => ({ text, context: { options: 0, pending: false } });
 
 describe("nothing reaches the model unless every gate passes", () => {
   test("no session, an ineligible one, or another site", async () => {
@@ -105,7 +105,7 @@ describe("nothing reaches the model unless every gate passes", () => {
     }
     // What the browser sends after withholding passes.
     const { deps, calls } = fixture();
-    assert.equal((await handleInterpret(request(ok("find a GE after 10 because my … … us …")), deps)).status, 200);
+    assert.equal((await handleInterpret(request(ok("find a ge after 10")), deps)).status, 200);
     assert.deepEqual(calls, ["reserve", "model"]);
   });
 
@@ -130,7 +130,7 @@ describe("the one model call", () => {
     assert.equal(res.status, 200);
     assert.deepEqual(calls, ["reserve", "model"]);
     assert.equal(seen.length, 1);
-    assert.equal(seen[0].text, "find me a course about climate after 10am");
+    assert.equal(seen[0].text, "find a course after 10am");
     assert.ok(!seen[0].system.includes("alex"), "no identity in the prompt");
     const body = await res.json();
     assert.equal(body.interpretation.source, "model");
@@ -140,7 +140,7 @@ describe("the one model call", () => {
 
   test("fabricated course codes are rejected and named, not passed on", async () => {
     const { deps } = fixture({ interpret: async () => answer({ intent: "add_course", courses: ["CSE 11", "CSE 999", "FAKE 1"], topic: null }) });
-    const body = await (await handleInterpret(request(ok("add cse 11 and the other one")), deps)).json();
+    const body = await (await handleInterpret(request(ok("add CSE 11 and the other one")), deps)).json();
     assert.deepEqual(body.interpretation.courses, ["CSE 11"]);
     assert.deepEqual(body.rejected.sort(), ["CSE 999", "FAKE 1"]);
   });

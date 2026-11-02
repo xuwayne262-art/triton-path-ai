@@ -114,7 +114,7 @@ export function sensitiveReply(reasons: SensitiveReason[]): string {
 /** When everything a request needed the AI service for is personal, it stays here. */
 export function withheldReply(withheld: string[]): string {
   const words = withheld.slice(0, 4).map((w) => `“${w}”`);
-  return `I kept that on your device: ${words.length ? `${list(words)} ${withheld.length === 1 ? "isn't" : "aren't"}` : "it isn't"} course-planning words, so nothing was sent to the AI service. Try naming what you want in the plan, like a time, a day, units, a subject or a requirement.`;
+  return `I kept that on your device: ${words.length ? `${list(words)} ${withheld.length === 1 ? "isn't" : "aren't"}` : "it isn't"} something Plan with AI sends to the AI service, and the rest wasn't enough to act on. Say what you want in the plan, like a time, a day, units, a subject or a requirement, or use Change settings.`;
 }
 
 /** The answer to "what changes if I move…". */

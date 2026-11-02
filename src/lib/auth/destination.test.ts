@@ -14,7 +14,7 @@ describe("the login page's words for each destination", () => {
   test("Plan with AI says what it does and what stays private", () => {
     const d = destinationFor("/planner/ai");
     assert.equal(d.title, "Sign in to plan with AI");
-    assert.match(d.detail ?? "", /never your name, record or grades/);
+    assert.match(d.detail ?? "", /rebuilt from planning words/);
     assert.match(destinationFor("/planner").title, /Planner/);
   });
 

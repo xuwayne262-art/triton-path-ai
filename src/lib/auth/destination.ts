@@ -29,7 +29,7 @@ export function destinationFor(next: string): Destination {
     return {
       title: "Sign in to plan with AI",
       reason: "Describe the quarter you want and get options built from this term's real sections, checked against your own plan. Nothing changes until you choose it.",
-      detail: "Your plan and Academic History stay on UCSDPlans. Only course-planning words from what you type are ever sent to the AI service, never your name, record or grades. You'll come straight back here.",
+      detail: "Your plan and Academic History stay on UCSDPlans. When the AI service is used, it gets a short request rebuilt from planning words like times, days and course codes; the rest of what you type stays in your browser. You'll come straight back here.",
     };
   }
   if (path === "/planner" || path.startsWith("/planner/")) {

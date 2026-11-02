@@ -1,187 +1,219 @@
 /**
- * What the language model may be sent, word by word.
+ * What the language model may be sent: a request rebuilt from canonical
+ * planning tokens, never a fragment of what the student typed.
  *
- * privacy.ts screens a request for the shapes of personal details — emails,
- * ids, grades, names. A screen can only catch what it knows to look for, so
- * by itself it was the whole privacy guarantee: a sentence it did not
- * recognise ("I'm on academic probation and my dad is sick") went to the
- * model as typed.
+ * An earlier version filtered the student's words against a vocabulary and
+ * forwarded the fragments that passed. Two things broke that: a fragment was
+ * copied from the original text, so "course私密信息" passed as the ASCII word
+ * "course" with the rest attached; and public words — a course title's
+ * "depression" — can still state something personal.
  *
- * This module makes the boundary structural instead. A request leaves only
- * as words from a public vocabulary: the words of course planning, UCSD's
- * subject codes and names, college GE areas, Warren programs, words that
- * appear in published course titles, numbers, times and course codes. Any
- * other word is withheld and replaced with "…", and the student is told which
- * words stayed here. A word right after "my", "I'm", "I have" and the like
- * must be a planning word, because public words can still carry personal
- * context there ("my depression"). The server applies the same rule and
- * refuses a request that breaks it, so the browser is not trusted to have
- * done it.
+ * So the request is constructed, not filtered:
+ *  - the text is folded to ASCII lower case and split into tokens; a token
+ *    that is not plain ASCII after folding is never emitted;
+ *  - each token is emitted only as an entry of a closed lexicon of planning
+ *    words, a catalog course code ("CSE 11"), a subject code, a GE-area or
+ *    Warren-program word, or a number, time or range in canonical form;
+ *  - course-title words are not in the lexicon (topics are read locally);
+ *  - first-person words ("I", "my", "me") are dropped, and so is the rest of
+ *    any clause after a reason marker ("because", "since"), where personal
+ *    context lives;
+ *  - clauses are rejoined with " | ".
+ * Everything else stays on this device and is named to the student there.
  *
- * The screen stays as defence in depth; this is the guarantee.
+ * The server runs the same construction on what it receives and accepts the
+ * request only when that changes nothing (`isCanonicalRequest`), so a direct
+ * API call cannot carry anything the browser would have kept back.
+ *
+ * What this cannot promise: a sentence made only of planning words still
+ * means what it says. The lexicon is kept to words about schedules, load and
+ * requirements so that such a sentence says little about the person.
  */
 
 import { WARREN_PROGRAMS } from "./warren";
 
-/** The words of planning a quarter: commands, time, load, requirements, and the glue between them. */
+/** Words about planning a quarter: commands, time, load, requirements, and the glue between them. */
 const PLANNING = `
-a an the my me i i'm im i've ive i'd i'll for to with and or of in on at please can could you would like want wanna need
-needs some any that this these those it its it's is are be get give find show course courses class classes quarter quarters
-term terms schedule schedules plan plans one ones something anything also just only still really more much good nice around
-already chose chosen picked current currently have has had do does did so but if then than which what will should help let's
-lets make build create put together from into as by there their them they we our us your am being been was were how about
-over under within okay ok hi hello hey thanks thank whole entire draft drafts suggest suggestion suggestions recommend options
-option look looking take taking fits fit fitting work works working between new other another instead same now try trying
-might may satisfy satisfies satisfied count counts combination combo doesn't don't isn't aren't won't wouldn't can't cannot
-here where when both all each every bit very too maybe perhaps probably sure fine great cool thing things way able happens
-happen happened yes no not nothing none without except avoid avoiding free off keep keeping drop dropping add adding remove
-removing replace replacing swap swapping switch switching move moving undo redo compare comparing explain why because best
-better worst top highest high higher low lower lowest most least fewer few less many first second third fourth last next
-previous earlier later early late before after until till through starting start starts end ends ending finish finishes
-finishing day days daily week weeks weekday weekdays weekend weekends morning mornings afternoon afternoons evening evenings
-night nights noon midday am pm a.m a.m. p.m p.m. o'clock hour hours hr hrs minute minutes min mins time times break breaks gap gaps
-back-to-back straight row long longer short shorter monday mondays tuesday tuesdays wednesday wednesdays thursday thursdays
-friday fridays mon tue tues wed thu thur thurs fri mw mwf tth tuth tr unit units credit credits load light lighter heavy
-heavier easy easier easiest hard harder hardest difficult workload chill ge ges gen ed eds general education requirement
-requirements require required requires prereq prereqs prerequisite prerequisites eligible eligibility major majors minor
-minors college colleges upper lower division div elective electives seat seats open full waitlist waitlisted online remote
-hybrid in-person person lecture lectures discussion discussions lab labs section sections final finals exam exams midterm
-midterms professor professors prof profs instructor instructors teacher rated rating ratings rmp grade grades graded gpa
-average fall winter spring summer year years freshman sophomore junior senior first-year transfer pofc program programs
-concentration area areas study studies dei ahi diversity equity inclusion american history institutions humanities social
-natural science sciences quantitative arts art writing language languages core sequence revelle muir marshall warren erc
-roosevelt eleanor sixth seventh eighth campus ucsd uc san diego taught teach teaches teaching offered offering available
-fill fills filled fulfill fulfills fulfilling meet meets meeting meetings topic topics subject subjects department
-departments interesting fun related kind kinds type types similar ideally prefer preferably preference rather either neither
-nor whether also too even though although while during per total maximum minimum max min least most exactly about roughly
-one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen twenty
+a an the for to with and or of in on at please can could you would like want need needs some any that this these those it
+its is are be get give find show course courses class classes quarter quarters term terms schedule schedules plan plans one
+ones something anything also just only still more much around already chose chosen picked current currently have has had do
+does did but if then than which what will should help make build create put together from into as by there them they how
+about over under within okay ok whole entire draft drafts suggest suggestion suggestions recommend options option look looking
+take taking fits fit fitting between new other another instead same now try might may satisfy satisfies satisfied count
+counts combination combo don't doesn't can't cannot here where when both all each every bit very too maybe probably way able
+yes no not nothing none without except avoid avoiding free off keep keeping drop dropping add adding remove removing replace
+replacing swap swapping switch switching move moving undo redo compare comparing explain why best better worst top highest
+high higher low lower lowest most least fewer few less many first second third fourth last next previous earlier later early
+late before after until till through starting start starts end ends ending finish finishes finishing day days daily week
+weeks weekday weekdays weekend weekends morning mornings afternoon afternoons evening evenings night nights noon midday am pm
+o'clock hour hours hr hrs minute minutes min mins time times break breaks gap gaps back-to-back straight row long longer short
+shorter monday mondays tuesday tuesdays wednesday wednesdays thursday thursdays friday fridays mon tue tues wed thu thur thurs
+fri mw mwf tth tuth tr unit units credit credits load light lighter heavy heavier easy easier easiest hard harder ge ges gen
+ed general education requirement requirements require required requires prereq prereqs prerequisite prerequisites eligible
+major majors minor minors college colleges upper lower division div elective electives seat seats open full waitlist online
+remote hybrid in-person lecture lectures discussion discussions lab labs section sections final finals exam exams midterm
+midterms professor professors prof profs instructor instructors rated rating ratings rmp grade grades gpa average fall
+winter spring summer year years freshman sophomore junior senior first-year transfer pofc program programs concentration area
+areas dei ahi diversity equity inclusion american history institutions humanities social natural science sciences
+quantitative arts writing language languages core sequence revelle muir marshall warren erc roosevelt eleanor sixth seventh
+eighth campus ucsd taught teach teaches teaching offered offering available fulfill fulfills meet meets meeting meetings
+subject subjects department departments related similar prefer preferably rather either neither whether even per total
+maximum minimum max exactly roughly one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen
+sixteen seventeen eighteen twenty
 `.trim().split(/\s+/);
 
-const PLANNING_SET: ReadonlySet<string> = new Set(PLANNING);
+/** Glue that carries no request by itself: a request of only these is not worth a model call. */
+const GLUE = new Set(`
+a an the for to with and or of in on at please can could you would like want need needs some any that this these those it
+its is are be get give that also just only still around already but if then than which what will should help from into as by
+there them they how about over under within okay ok here where when both all each every bit very too maybe probably way able
+even per either neither whether rather
+`.trim().split(/\s+/));
 
-/** First-person phrases after which only a planning word may follow. */
-const PERSONAL_LEAD = new Set(["my", "i'm", "im", "i've", "ive", "i'd", "mine"]);
-const PERSONAL_LEAD_PAIRS = new Set(["i am", "i have", "i had", "i was", "i feel", "i've been", "i got", "i need", "i struggle", "i suffer"]);
-/** Words a first-person lead may skip over before the word that matters. */
-const SKIP_AFTER_LEAD = new Set(["a", "an", "the", "been", "got", "currently", "really", "very", "so", "on", "in", "taking"]);
+/** Dropped without comment: they frame a request as being about the person, and add nothing a parser needs. */
+const FIRST_PERSON = new Set(["i", "i'm", "im", "i've", "ive", "i'd", "id", "i'll", "me", "my", "mine", "myself", "we", "our", "us", "ours"]);
 
-/** Course code, number, time, range or ordinal: never personal on its own. */
-const SHAPED = [
-  /^\d{1,3}[a-z]{0,4}$/, // 11, 20a, 15l, 1st? (ordinals below)
-  /^\d{1,2}(?::\d{2})?(?:am|pm|a|p)?$/, // 10, 10am, 3:30pm
-  /^\d{1,2}(?::\d{2})?-\d{1,2}(?::\d{2})?(?:am|pm)?$/, // 12-16, 9-5
-  /^\d{1,2}(?:st|nd|rd|th)$/,
-  /^'\d\d$/, // '27
-  /^20\d\d$/, // 2027
-];
+/** A clause's remainder after one of these is the student's reason, which is theirs to keep. */
+const REASON = new Set(["because", "since", "cause", "cuz", "coz", "bc", "due"]);
+
+const NUMBER = /^\d{1,2}$/;
+const TIME = /^(\d{1,2})(?::([0-5]\d))?(am|pm|a|p)$/;
+const RANGE = /^(\d{1,2})-(\d{1,2})$/;
+const COURSE_NUMBER = /^\d{1,3}[a-z]{0,4}$/;
 
 export interface OutboundVocab {
-  /** Lower-case words the model may receive besides the planning words. */
-  words: ReadonlySet<string>;
-  /** Lower-case subject codes: as much a planning word as "units" ("keep my CSE 12"). */
-  codes: ReadonlySet<string>;
+  /** Lower-case words that may be sent. */
+  lexicon: ReadonlySet<string>;
+  /** Lower-case subject codes, "cse". */
+  subjects: ReadonlySet<string>;
+  /** Catalog course codes as written, "CSE 11". */
+  courses: ReadonlySet<string>;
 }
 
-const WORD = /[a-z0-9][a-z0-9'.:-]*/g;
-
-/** Splits a phrase into the words this module reasons about. */
-const wordsOf = (text: string) => (text.toLowerCase().match(WORD) ?? []).map((w) => w.replace(/[.:'-]+$/, ""));
+const asciiWords = (text: string) => (text.toLowerCase().match(/[a-z]+(?:[-'][a-z]+)*/g) ?? []);
 
 /**
- * The public words beyond planning: subject codes and names, GE areas,
- * Warren programs, and the words of published course titles. Built from the
+ * The lexicon for this dataset: planning words, plus the public words of GE
+ * area and Warren program names and subject codes and names. Built from the
  * dataset on both sides of the boundary, so browser and server agree.
  */
 export function outboundVocab(input: {
   subjects: { code: string; name?: string }[];
   areas?: { area: string }[];
-  titles?: Iterable<string>;
+  courses?: Iterable<string>;
 }): OutboundVocab {
-  const words = new Set<string>();
-  const codes = new Set(input.subjects.map((s) => s.code.toLowerCase()));
-  const addAll = (text: string | undefined) => { for (const w of wordsOf(text ?? "")) if (w.length > 1 && !/^\d+$/.test(w)) words.add(w); };
-  for (const s of input.subjects) { words.add(s.code.toLowerCase()); addAll(s.name); }
-  for (const a of input.areas ?? []) addAll(a.area);
-  for (const p of WARREN_PROGRAMS) addAll(p.name);
-  for (const t of input.titles ?? []) addAll(t);
-  return { words, codes };
+  const lexicon = new Set(PLANNING);
+  const add = (text: string | undefined) => { for (const w of asciiWords(text ?? "")) if (w.length > 1) lexicon.add(w); };
+  for (const s of input.subjects) add(s.name);
+  for (const a of input.areas ?? []) add(a.area);
+  for (const p of WARREN_PROGRAMS) add(p.name);
+  for (const w of FIRST_PERSON) lexicon.delete(w);
+  return {
+    lexicon,
+    subjects: new Set(input.subjects.map((s) => s.code.toLowerCase())),
+    courses: new Set(input.courses ?? []),
+  };
 }
 
-const isPlanning = (w: string, vocab: OutboundVocab) => PLANNING_SET.has(w) || vocab.codes.has(w) || SHAPED.some((re) => re.test(w));
-
-function isPublic(w: string, vocab: OutboundVocab): boolean {
-  return isPlanning(w, vocab) || vocab.words.has(w);
-}
-
-export interface Minimized {
-  /** What may be sent: the request with every withheld word replaced by "…". */
+export interface CanonicalRequest {
+  /** What may be sent: canonical tokens only, clauses joined by " | ". */
   text: string;
-  /** The words that stayed in the browser, as the student typed them. */
+  /** Pieces of the request kept on this device, as typed — for the student's eyes only, never sent or logged. */
   withheld: string[];
-  /** Whether anything worth sending is left once filler is set aside. */
+  /** Whether anything beyond glue is left to interpret. */
   meaningful: boolean;
+  /** Mostly written in a script the planner does not read. */
+  unsupportedLanguage: boolean;
 }
 
-/** The request as the model may see it. */
-export function minimizeForModel(text: string, vocab: OutboundVocab): Minimized {
-  const out: string[] = [];
-  const withheld: string[] = [];
-  let meaningful = false;
-  // Tokens kept with their original spelling and the separators between them.
-  const parts = text.split(/(\s+)/);
-  let leadArmed = false;
-  /**
-   * Set once a clause has withheld a word: the rest of it, to the next
-   * punctuation, keeps planning words only. "my mom has cancer" must not
-   * send "cancer" because a course title happens to use it.
-   */
-  let tainted = false;
-  let prev = "";
-  for (const part of parts) {
-    if (!part || /^\s+$/.test(part)) { if (part) out.push(" "); continue; }
-    const words = wordsOf(part);
-    if (!words.length) {
-      // Pure punctuation keeps its place; it also ends a clause.
-      out.push(part.replace(/[^,.;:!?()"'-]/g, ""));
-      if (/[,.;:!?]/.test(part)) { leadArmed = false; tainted = false; }
-      continue;
-    }
-    let keep = true;
-    for (const w of words) {
-      const pair = `${prev} ${w}`;
-      if (leadArmed && !SKIP_AFTER_LEAD.has(w)) {
-        // The word a first-person lead points at must be about planning.
-        if (!isPlanning(w, vocab)) keep = false;
-        leadArmed = false;
-      } else if (tainted ? !isPlanning(w, vocab) : !isPublic(w, vocab)) {
-        keep = false;
-      }
-      if (PERSONAL_LEAD.has(w) || PERSONAL_LEAD_PAIRS.has(pair)) leadArmed = true;
-      prev = w;
-    }
-    if (keep) {
-      out.push(part);
-      if (words.some((w) => !PLANNING_SET.has(w) || /^\d/.test(w) || !FILLERISH.has(w))) meaningful = true;
-    } else {
-      out.push("…");
-      withheld.push(part.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, ""));
-      leadArmed = false;
-      tainted = true;
-    }
-    if (/[,.;:!?]$/.test(part)) { leadArmed = false; tainted = false; }
+/** ASCII fold: compatibility forms and accents go, invisible format characters go. */
+function fold(text: string): string {
+  return text.normalize("NFKD").replace(/\p{M}+/gu, "").replace(/\p{Cf}+/gu, "");
+}
+
+/** "10", "10am", "3:30pm", "12-16": a canonical spelling, or null. */
+function canonicalNumber(token: string): string | null {
+  if (NUMBER.test(token)) return String(Number(token));
+  const t = TIME.exec(token);
+  if (t) {
+    const h = Number(t[1]);
+    if (h < 1 || h > 12) return null;
+    return `${h}${t[2] ? `:${t[2]}` : ""}${t[3].startsWith("a") ? "am" : "pm"}`;
   }
-  const sent = out.join("").replace(/\s+/g, " ").replace(/(?:…\s*){2,}/g, "… ").trim();
-  return { text: sent, withheld: [...new Set(withheld.filter(Boolean))], meaningful };
+  const r = RANGE.exec(token);
+  if (r) return `${Number(r[1])}-${Number(r[2])}`;
+  return null;
 }
 
-/** Glue words that do not make a request worth a model call by themselves. */
-const FILLERISH = new Set(PLANNING.slice(0, PLANNING.indexOf("yes")));
+/** Builds the request the model may see; see the module comment. */
+export function canonicalRequest(input: string, vocab: OutboundVocab): CanonicalRequest {
+  const letters = input.match(/\p{L}/gu) ?? [];
+  const nonLatin = letters.filter((ch) => !/[a-z]/i.test(fold(ch))).length;
+  const unsupportedLanguage = letters.length > 0 && nonLatin / letters.length > 0.3;
+
+  const withheld: string[] = [];
+  const clauses: string[] = [];
+  let meaningful = false;
+
+  // Clauses are split on the original punctuation; "a.m." is not a clause end.
+  const parts = fold(input).replace(/\b([ap])\.m\./gi, "$1m").split(/[.,;:!?\n|]+/);
+  for (const part of parts) {
+    const raw = part.trim().split(/\s+/).filter(Boolean);
+    const out: string[] = [];
+    let reason = false;
+    for (let i = 0; i < raw.length; i++) {
+      if (reason) { withheld.push(raw[i]); continue; }
+      const piece = raw[i];
+      // A piece with anything outside plain ASCII after folding is never emitted.
+      if (/[^\x20-\x7e]/.test(piece)) { withheld.push(piece); continue; }
+      const token = piece.toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, "");
+      if (!token) continue;
+      if (REASON.has(token)) { reason = true; withheld.push(piece); continue; }
+      if (FIRST_PERSON.has(token)) continue;
+      // A course code: subject code then number, emitted as the catalog writes it.
+      if (vocab.subjects.has(token) && i + 1 < raw.length) {
+        const num = raw[i + 1].toLowerCase().replace(/[^a-z0-9]+$/g, "");
+        const code = `${token.toUpperCase()} ${num.toUpperCase()}`;
+        if (COURSE_NUMBER.test(num) && vocab.courses.has(code)) {
+          out.push(code);
+          meaningful = true;
+          i++;
+          continue;
+        }
+      }
+      const glued = /^([a-z]{2,5})(\d{1,3}[a-z]{0,4})$/.exec(token);
+      if (glued && vocab.courses.has(`${glued[1].toUpperCase()} ${glued[2].toUpperCase()}`)) {
+        out.push(`${glued[1].toUpperCase()} ${glued[2].toUpperCase()}`);
+        meaningful = true;
+        continue;
+      }
+      if (vocab.subjects.has(token)) { out.push(token); meaningful = true; continue; }
+      // "10 am" is one time, written the way a time is: "10am".
+      const next = raw[i + 1]?.toLowerCase().replace(/[^a-z]+$/g, "");
+      if (NUMBER.test(token) && (next === "am" || next === "pm")) {
+        const time = canonicalNumber(`${token}${next}`);
+        if (time) { out.push(time); meaningful = true; i++; continue; }
+      }
+      const n = canonicalNumber(token);
+      if (n) { out.push(n); meaningful = true; continue; }
+      if (vocab.lexicon.has(token)) {
+        out.push(token);
+        if (!GLUE.has(token)) meaningful = true;
+        continue;
+      }
+      withheld.push(piece);
+    }
+    if (out.length) clauses.push(out.join(" "));
+  }
+  return { text: clauses.join(" | "), withheld, meaningful: meaningful && !unsupportedLanguage, unsupportedLanguage };
+}
 
 /**
- * The server's side of the boundary: true when every word of `text` is one
- * the browser was allowed to send. "…" stands for withheld words and passes.
+ * The server's side: true only when `text` is already in canonical form —
+ * building it again changes nothing and keeps nothing back.
  */
-export function withinOutboundVocab(text: string, vocab: OutboundVocab): boolean {
-  const m = minimizeForModel(text, vocab);
-  return m.withheld.length === 0;
+export function isCanonicalRequest(text: string, vocab: OutboundVocab): boolean {
+  if (!text || /[^\x20-\x7e]/.test(text)) return false;
+  const again = canonicalRequest(text, vocab);
+  return again.withheld.length === 0 && again.text === text;
 }

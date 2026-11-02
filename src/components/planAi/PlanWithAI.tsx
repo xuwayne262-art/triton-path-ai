@@ -207,7 +207,7 @@ export default function PlanWithAI() {
             <p id="plan-ai-disclosure" className="mt-2 text-[11px] leading-relaxed text-gray-600 dark:text-gray-400">
               {ai.model === false
                 ? "AI chat is off right now. Buttons and simple commands like \"add CSE 11\" or \"undo\" still work."
-                : "Requests the planner can't read itself go to Google Gemini. Your plan and Academic History stay here. Leave out personal details. "}
+                : "When the planner can't read a request itself, it sends Google Gemini a short version rebuilt from planning words (times, days, units, course codes, requirements). Other words, your plan and your Academic History stay here. "}
               {ai.model !== false && (
                 <button type="button" onClick={() => setDisclosure((v) => !v)} aria-expanded={disclosure} className="inline-flex min-h-6 items-center font-semibold underline underline-offset-2">Details</button>
               )}

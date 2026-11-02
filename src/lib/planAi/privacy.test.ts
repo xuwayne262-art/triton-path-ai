@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildInterpretRequest, onlyAllowedFields, screenSensitive } from "./privacy";
+import { outboundVocab } from "./outbound";
+
+const vocab = outboundVocab({ subjects: [{ code: "CSE" }], courses: ["CSE 20"] });
 
 test("ordinary planning requests may go to the model", () => {
   for (const text of [
@@ -28,7 +31,7 @@ test("personal and academic details are kept back", () => {
 });
 
 test("the outbound body is built from an allowlist and nothing else", () => {
-  const built = buildInterpretRequest("  no classes before 10  ", { options: 7, pending: true, ...({ plan: ["CSE 11"], email: "a@ucsd.edu" } as object) } as { options: number; pending: boolean });
+  const built = buildInterpretRequest("  no classes before 10  ", { options: 7, pending: true, ...({ plan: ["CSE 11"], email: "a@ucsd.edu" } as object) } as { options: number; pending: boolean }, vocab);
   assert.equal(built.ok, true);
   if (!built.ok) return;
   assert.deepEqual(built.body, { text: "no classes before 10", context: { options: 3, pending: true } });
@@ -36,6 +39,6 @@ test("the outbound body is built from an allowlist and nothing else", () => {
   assert.ok(onlyAllowedFields(built.body));
   assert.equal(onlyAllowedFields({ ...built.body, history: {} }), false);
   assert.equal(onlyAllowedFields({ text: "x", context: { options: 0, pending: false, plan: 1 } }), false);
-  const blocked = buildInterpretRequest("I got a C in CSE 20", { options: 0, pending: false });
+  const blocked = buildInterpretRequest("I got a C in CSE 20", { options: 0, pending: false }, vocab);
   assert.equal(blocked.ok, false);
 });

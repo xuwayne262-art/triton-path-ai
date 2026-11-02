@@ -89,7 +89,7 @@ export function modelVocab(index: PlatIndex, ge: GEFile): ModelVocab {
     subjects: index.subjects.map((s) => ({ code: s.code, name: s.name })),
     codes: new Set(index.courses.map((c) => c.k)),
     areas: ge.areas.filter((a) => a.college !== "campus").map((a) => ({ key: a.key, college: a.college, area: a.area })),
-    outbound: outboundVocab({ subjects: index.subjects, areas: ge.areas, titles: index.courses.map((c) => c.t) }),
+    outbound: outboundVocab({ subjects: index.subjects, areas: ge.areas, courses: index.courses.map((c) => c.k) }),
   };
 }
 

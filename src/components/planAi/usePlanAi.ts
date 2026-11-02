@@ -31,10 +31,13 @@ import { collegeKey } from "@/lib/planAi/vocabulary";
 import { eventsForRow, groupSections, sameSelection, selectedSections, type CalEvent } from "@/lib/sections";
 import { majorSubjects, platRowToCourse } from "@/lib/plannerBridge";
 import { takeHandoff } from "@/lib/planAi/handoff";
-import { outboundVocab, type OutboundVocab } from "@/lib/planAi/outbound";
+import { canonicalRequest, outboundVocab, type OutboundVocab } from "@/lib/planAi/outbound";
 import { findTargets } from "@/lib/planAi/conversation";
 import type { CourseCard, Interpretation, PlanTarget, Proposal } from "@/lib/planAi/types";
 import type { Action, AssistantMessage, ChatMessage, Choice } from "./types";
+
+/** For a request mostly in a script the local reader does not know; nothing is sent. */
+const LANGUAGE_REPLY = "Plan with AI reads requests in English, so I didn't send this anywhere. The buttons and settings below work in any language: choose a quarter, a time, days and a requirement there.";
 
 /**
  * Plan with AI's conversation: the one place that turns what the student
@@ -141,7 +144,7 @@ export function usePlanAi(): PlanAiState {
   // The same public vocabulary the server checks against (outbound.ts): built
   // only once the subjects and GE areas are here, and until then nothing is sent.
   const outbound = useMemo<OutboundVocab | null>(() => (indexSubjects.length && ge
-    ? outboundVocab({ subjects: indexSubjects, areas: ge.areas, titles: platRows.map((r) => r.t) })
+    ? outboundVocab({ subjects: indexSubjects, areas: ge.areas, courses: platRows.map((r) => r.k) })
     : null), [indexSubjects, ge, platRows]);
 
   const fingerprint = useMemo(() => planFingerprint({
@@ -580,12 +583,15 @@ export function usePlanAi(): PlanAiState {
   /** At most one model call, for words the local parser could not place. */
   const interpret = useCallback(async (text: string, local: Interpretation): Promise<{ reading: Interpretation; fallback: string | null; notes: string[] }> => {
     const l = live.current;
+    // A request in another script gets its answer here, whether or not the AI service is on.
+    if (l.outbound && canonicalRequest(text, l.outbound).unsupportedLanguage) return { reading: local, fallback: LANGUAGE_REPLY, notes: [] };
     if (!l.model || !l.outbound) return { reading: local, fallback: UNAVAILABLE, notes: [] };
     if (Date.now() < pausedUntil.current) return { reading: local, fallback: UNAVAILABLE, notes: ["AI chat is paused for a moment after a busy period."] };
     const optionsShown = shown.current?.kind === "options" ? shown.current.ids.length : shown.current?.kind === "cards" ? shown.current.codes.length : 0;
-    const built = buildInterpretRequest(text, { options: Math.min(optionsShown, 3), pending: Boolean(pending.current) }, l.outbound ?? undefined);
+    const built = buildInterpretRequest(text, { options: Math.min(optionsShown, 3), pending: Boolean(pending.current) }, l.outbound);
     if (!built.ok) {
-      if ("withheld" in built) return { reading: local, fallback: withheldReply(built.withheld), notes: [] };
+      if (built.kind === "language") return { reading: local, fallback: LANGUAGE_REPLY, notes: [] };
+      if (built.kind === "withheld") return { reading: local, fallback: withheldReply(built.withheld), notes: [] };
       return { reading: local, fallback: sensitiveReply(built.reasons), notes: [] };
     }
     // Withheld words are named, so the student knows what the AI service did not see.
