@@ -25,12 +25,13 @@ import { checkText, minutes, relaxationText } from "@/lib/planAi/explain";
 import { clockLabel } from "@/lib/planAi/vocabulary";
 import { requirementsFor } from "@/lib/planAi/requirements";
 import {
-  constraintClause, findReply, missText, moveReply, optionsReply, problemText, sensitiveReply, syncProblem,
+  constraintClause, findReply, missText, moveReply, optionsReply, problemText, sensitiveReply, syncProblem, withheldReply,
 } from "@/lib/planAi/replies";
 import { collegeKey } from "@/lib/planAi/vocabulary";
 import { eventsForRow, groupSections, sameSelection, selectedSections, type CalEvent } from "@/lib/sections";
 import { majorSubjects, platRowToCourse } from "@/lib/plannerBridge";
 import { takeHandoff } from "@/lib/planAi/handoff";
+import { outboundVocab, type OutboundVocab } from "@/lib/planAi/outbound";
 import type { CourseCard, Interpretation, PlanTarget, Proposal } from "@/lib/planAi/types";
 import type { Action, AssistantMessage, ChatMessage, Choice } from "./types";
 
@@ -99,6 +100,7 @@ export function usePlanAi(): PlanAiState {
   const [status, setStatus] = useState("");
   const [model, setModel] = useState<boolean | null>(null);
   const [ge, setGe] = useState<GEFile | null>(null);
+  const [indexSubjects, setIndexSubjects] = useState<{ code: string; name: string }[]>([]);
   const [seatsAsOf, setSeatsAsOf] = useState<string | null>(null);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const [proposals, setProposals] = useState<Map<string, Proposal>>(() => new Map());
@@ -106,7 +108,7 @@ export function usePlanAi(): PlanAiState {
   // ── Data the engine reads ──────────────────────────────────────────────────
   useEffect(() => {
     loadGE().then(setGe).catch(() => setGe(null));
-    loadIndex().then((d) => setSeatsAsOf(d.meta.seatsAsOf ?? null)).catch(() => {});
+    loadIndex().then((d) => { setSeatsAsOf(d.meta.seatsAsOf ?? null); setIndexSubjects(d.subjects); }).catch(() => {});
     fetch("/api/plan-ai", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : { model: false }))
       .then((b) => setModel(b?.model === true))
@@ -135,6 +137,12 @@ export function usePlanAi(): PlanAiState {
     departments: DEPARTMENTS.map((d) => ({ name: d.name, subjects: d.subjects })),
   }), [platRows, platByCode, ge]);
 
+  // The same public vocabulary the server checks against (outbound.ts): built
+  // only once the subjects and GE areas are here, and until then nothing is sent.
+  const outbound = useMemo<OutboundVocab | null>(() => (indexSubjects.length && ge
+    ? outboundVocab({ subjects: indexSubjects, areas: ge.areas, titles: platRows.map((r) => r.t) })
+    : null), [indexSubjects, ge, platRows]);
+
   const fingerprint = useMemo(() => planFingerprint({
     term, schedule: selectedCourses, sections: selections, planned: plannedCourses,
   }), [term, selectedCourses, selections, plannedCourses]);
@@ -144,8 +152,8 @@ export function usePlanAi(): PlanAiState {
   }), [term, plannedCourses, selectedCourses]);
 
   // The latest of everything, for async work that outlives the render it started in.
-  const live = useRef({ data, vocab, fingerprint, targets, settings, model, proposals, changeLog, selectedCourses, selections, plannedCourses, selectedMajor, selectedCollege, history, termName, term });
-  live.current = { data, vocab, fingerprint, targets, settings, model, proposals, changeLog, selectedCourses, selections, plannedCourses, selectedMajor, selectedCollege, history, termName, term };
+  const live = useRef({ data, vocab, outbound, fingerprint, targets, settings, model, proposals, changeLog, selectedCourses, selections, plannedCourses, selectedMajor, selectedCollege, history, termName, term });
+  live.current = { data, vocab, outbound, fingerprint, targets, settings, model, proposals, changeLog, selectedCourses, selections, plannedCourses, selectedMajor, selectedCollege, history, termName, term };
 
   const ready = hydrated && termSettled && platRows.length > 0 && ge != null && settings != null;
 
@@ -383,17 +391,35 @@ export function usePlanAi(): PlanAiState {
     // Checked again now that the account's latest is in: another device may
     // have changed the plan this suggestion's checks were made against.
     if (base && isStale({ base }, storedFingerprint())) return { ok: false as const, code: "STALE", text: "" };
-    let res: Response;
-    try {
-      res = await fetch("/api/plan-ai/apply", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ owner: agreed.owner, baseRev: agreed.rev, change: { ...change, term: live.current.term } }),
-      });
-    } catch {
-      return { ok: false as const, text: "Your plan couldn't reach the server, so nothing was saved. Try again." };
+    // A request that fails in flight may still have been saved; the same change
+    // id sent again is answered as a duplicate if so, and applied if not. So an
+    // unclear outcome is asked again, never reported as "nothing changed".
+    type ApplyBody = { status?: string; code?: string; error?: string; problems?: PatchProblem[]; change?: { id: string; label: string } };
+    let res = null as Response | null;
+    let body = null as ApplyBody | null;
+    for (const wait of [0, 1_000, 3_000]) {
+      if (wait) await new Promise((r) => setTimeout(r, wait));
+      try {
+        res = await fetch("/api/plan-ai/apply", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ owner: agreed.owner, baseRev: agreed.rev, change: { ...change, term: live.current.term } }),
+        });
+        body = await res.json().catch(() => null) as ApplyBody | null;
+      } catch {
+        res = null;
+        body = null;
+      }
+      const unclear = !res || body?.code === "SAVE_OUTCOME_UNKNOWN" || (res.status >= 500 && !body?.code);
+      if (!unclear) break;
     }
-    const body = await res.json().catch(() => null) as { status?: string; code?: string; error?: string; problems?: PatchProblem[]; change?: { id: string; label: string } } | null;
+    if (!res || body?.code === "SAVE_OUTCOME_UNKNOWN" || (res.status >= 500 && !body?.code)) {
+      return {
+        ok: false as const,
+        code: "UNKNOWN",
+        text: "I couldn't confirm whether that was saved. Your change is kept here, and checking again can't save it twice.",
+      };
+    }
     if (body && (res.ok || res.status === 409 || res.status === 404)) adoptAccountPlan(body);
     if (res.ok && body?.change) return { ok: true as const, status: body.status ?? "applied", change: body.change };
     return { ok: false as const, code: body?.code, problems: body?.problems ?? [], text: body?.error ?? "Your plan couldn't be saved. Nothing changed." };
@@ -434,9 +460,9 @@ export function usePlanAi(): PlanAiState {
         notes: problems,
         followUps: result.code === "PLAN_CHANGED" || result.code === "PATCH_CONFLICT"
           ? [{ label: "Update the suggestion", action: { kind: "run", flow: lastFlow.current?.flow ?? "find" }, primary: true }]
-          : [{ label: "Retry", action: { kind: "ops", ops, target: live.current.settings?.target ?? termTarget(live.current.term), label: key }, primary: true }],
+          : [{ label: result.code === "UNKNOWN" ? "Check again" : "Retry", action: { kind: "ops", ops, target: live.current.settings?.target ?? termTarget(live.current.term), label: key }, primary: true }],
       });
-      setStatus("Not saved. Nothing changed in your plan.");
+      setStatus(result.code === "UNKNOWN" ? "Save status unknown. Check again to confirm." : "Not saved. Nothing changed in your plan.");
       return false;
     } finally {
       setBusy(null);
@@ -553,11 +579,16 @@ export function usePlanAi(): PlanAiState {
   /** At most one model call, for words the local parser could not place. */
   const interpret = useCallback(async (text: string, local: Interpretation): Promise<{ reading: Interpretation; fallback: string | null; notes: string[] }> => {
     const l = live.current;
-    if (!l.model) return { reading: local, fallback: UNAVAILABLE, notes: [] };
+    if (!l.model || !l.outbound) return { reading: local, fallback: UNAVAILABLE, notes: [] };
     if (Date.now() < pausedUntil.current) return { reading: local, fallback: UNAVAILABLE, notes: ["AI chat is paused for a moment after a busy period."] };
     const optionsShown = shown.current?.kind === "options" ? shown.current.ids.length : shown.current?.kind === "cards" ? shown.current.codes.length : 0;
-    const built = buildInterpretRequest(text, { options: Math.min(optionsShown, 3), pending: Boolean(pending.current) });
-    if (!built.ok) return { reading: local, fallback: sensitiveReply(built.reasons), notes: [] };
+    const built = buildInterpretRequest(text, { options: Math.min(optionsShown, 3), pending: Boolean(pending.current) }, l.outbound ?? undefined);
+    if (!built.ok) {
+      if ("withheld" in built) return { reading: local, fallback: withheldReply(built.withheld), notes: [] };
+      return { reading: local, fallback: sensitiveReply(built.reasons), notes: [] };
+    }
+    // Withheld words are named, so the student knows what the AI service did not see.
+    const keptHere = built.withheld.length ? [`Kept on your device, not sent to the AI service: ${built.withheld.slice(0, 6).map((w) => `“${w}”`).join(", ")}.`] : [];
     setBusy("Reading your request");
     try {
       const res = await fetch("/api/plan-ai/interpret", {
@@ -600,7 +631,7 @@ export function usePlanAi(): PlanAiState {
       };
       const notes = body.rejected?.length ? [`Not in UCSD's catalog, so left out: ${body.rejected.join(", ")}.`] : [];
       if (m.unsupported.length) notes.push(`Not applied: ${m.unsupported.join("; ")}.`);
-      return { reading, fallback: null, notes };
+      return { reading, fallback: null, notes: [...keptHere, ...notes] };
     } catch {
       return { reading: local, fallback: UNAVAILABLE, notes: [] };
     } finally {

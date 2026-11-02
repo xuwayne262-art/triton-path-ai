@@ -2,6 +2,8 @@ import { auth } from "@/auth";
 import { isEligibleEmail, normalizeEmail } from "@/lib/auth/eligibility";
 import { MAX_BODY_BYTES, sanitizeHistory } from "@/lib/history/record";
 import { historyStore, STORE_UNAVAILABLE, storageKey, storeDiagnosis } from "@/lib/history/store";
+import { readBoundedJson } from "@/lib/ai/httpBody";
+import { crossSiteResponse, fromAnotherSite } from "@/lib/http/origin";
 
 /**
  * `/api/history` — one student's imported Academic History.
@@ -92,23 +94,17 @@ export async function PUT(request: Request): Promise<Response> {
   const email = await owner();
   if (!email) return json({ error: "Sign in to continue.", code: "AUTH_REQUIRED" }, 401);
 
-  // Length is checked before the body is read, so an oversized upload is
-  // refused rather than buffered.
-  const declared = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) {
-    return json({ error: "That record is too large.", code: "HISTORY_TOO_LARGE" }, 413);
-  }
+  if (fromAnotherSite(request)) return crossSiteResponse();
 
-  let body: unknown;
-  try {
-    const text = await request.text();
-    if (text.length > MAX_BODY_BYTES) {
-      return json({ error: "That record is too large.", code: "HISTORY_TOO_LARGE" }, 413);
-    }
-    body = JSON.parse(text);
-  } catch {
-    return json({ error: "Could not read that record.", code: "HISTORY_BAD_JSON" }, 400);
+  // Counted as the bytes arrive, so an oversized upload is refused rather than
+  // buffered, whatever its Content-Length claims.
+  const read = await readBoundedJson(request, MAX_BODY_BYTES);
+  if (!read.ok) {
+    return read.reason === "too-large"
+      ? json({ error: "That record is too large.", code: "HISTORY_TOO_LARGE" }, 413)
+      : json({ error: "Could not read that record.", code: "HISTORY_BAD_JSON" }, 400);
   }
+  const body = read.value;
 
   const record = sanitizeHistory(body);
   if (!record) {
@@ -132,9 +128,10 @@ export async function PUT(request: Request): Promise<Response> {
   return json(record, 200);
 }
 
-export async function DELETE(): Promise<Response> {
+export async function DELETE(request: Request): Promise<Response> {
   const email = await owner();
   if (!email) return json({ error: "Sign in to continue.", code: "AUTH_REQUIRED" }, 401);
+  if (fromAnotherSite(request)) return crossSiteResponse();
 
   const store = historyStore();
   if (!store) return unavailable();

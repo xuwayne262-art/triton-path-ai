@@ -41,29 +41,21 @@ function isJsonContentType(header: string | null): boolean {
   return mediaType === "application/json";
 }
 
-/**
- * Reads the request body, refusing to buffer more than {@link MAX_BODY_BYTES}.
- *
- * Returns the parsed JSON value — its *shape* is still unknown and must be
- * validated separately.
- */
-export async function readJsonBody(req: Request): Promise<BodyResult> {
-  if (!isJsonContentType(req.headers.get("content-type"))) {
-    return {
-      ok: false,
-      status: 415,
-      code: "UNSUPPORTED_MEDIA_TYPE",
-      error: "Content-Type must be application/json.",
-    };
-  }
+export type BytesResult =
+  | { ok: true; bytes: Uint8Array }
+  | { ok: false; reason: "too-large" | "unreadable" };
 
-  // Early exit only — an absent or lying header falls through to the real
-  // check below, which counts bytes as they arrive.
+/**
+ * The request body as bytes, never more than `maxBytes` of them. Counting
+ * happens as the bytes arrive, so a missing or false Content-Length cannot
+ * make the server buffer an unbounded body; the header is only an early exit.
+ */
+export async function readBoundedBytes(req: Request, maxBytes: number): Promise<BytesResult> {
   const declared = Number(req.headers.get("content-length"));
-  if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) return TOO_LARGE;
+  if (Number.isFinite(declared) && declared > maxBytes) return { ok: false, reason: "too-large" };
 
   const body = req.body;
-  if (!body) return MALFORMED;
+  if (!body) return { ok: false, reason: "unreadable" };
 
   const reader = body.getReader();
   const chunks: Uint8Array[] = [];
@@ -76,23 +68,60 @@ export async function readJsonBody(req: Request): Promise<BodyResult> {
       if (!value) continue;
 
       received += value.byteLength;
-      if (received > MAX_BODY_BYTES) {
+      if (received > maxBytes) {
         // Stop pulling immediately; do not buffer or parse the remainder.
         await reader.cancel().catch(() => {});
-        return TOO_LARGE;
+        return { ok: false, reason: "too-large" };
       }
       chunks.push(value);
     }
   } catch {
-    // Client hung up or the stream errored — nothing safe to parse.
-    return MALFORMED;
+    // Client hung up or the stream errored — nothing safe to use.
+    return { ok: false, reason: "unreadable" };
   } finally {
     reader.releaseLock();
   }
+  return { ok: true, bytes: concat(chunks, received) };
+}
+
+/**
+ * The body as parsed JSON, read through {@link readBoundedBytes}. The value's
+ * *shape* is still unknown and must be validated separately.
+ */
+export async function readBoundedJson(req: Request, maxBytes: number): Promise<{ ok: true; value: unknown } | { ok: false; reason: "too-large" | "unreadable" | "malformed" }> {
+  const read = await readBoundedBytes(req, maxBytes);
+  if (!read.ok) return read;
+  try {
+    const text = new TextDecoder("utf-8", { fatal: true }).decode(read.bytes);
+    if (text.trim() === "") return { ok: false, reason: "malformed" };
+    return { ok: true, value: JSON.parse(text) };
+  } catch {
+    return { ok: false, reason: "malformed" };
+  }
+}
+
+/**
+ * Reads the request body, refusing to buffer more than {@link MAX_BODY_BYTES}.
+ *
+ * Returns the parsed JSON value — its *shape* is still unknown and must be
+ * validated separately.
+ */
+export async function readJsonBody(req: Request, maxBytes = MAX_BODY_BYTES): Promise<BodyResult> {
+  if (!isJsonContentType(req.headers.get("content-type"))) {
+    return {
+      ok: false,
+      status: 415,
+      code: "UNSUPPORTED_MEDIA_TYPE",
+      error: "Content-Type must be application/json.",
+    };
+  }
+
+  const read = await readBoundedBytes(req, maxBytes);
+  if (!read.ok) return read.reason === "too-large" ? TOO_LARGE : MALFORMED;
 
   let text: string;
   try {
-    text = new TextDecoder("utf-8", { fatal: false }).decode(concat(chunks, received));
+    text = new TextDecoder("utf-8", { fatal: false }).decode(read.bytes);
   } catch {
     return MALFORMED;
   }

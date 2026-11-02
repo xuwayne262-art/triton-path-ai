@@ -5,6 +5,7 @@ import {
 import { housingStore, photoBelongsTo, type HousingStore } from "@/lib/housing/store";
 import { todayInSanDiego } from "@/lib/housing/terms";
 import { failed, json, readJson, signInFirst, unavailable, viewer, type Viewer } from "@/lib/housing/viewer";
+import { crossSiteResponse, fromAnotherSite } from "@/lib/http/origin";
 
 /**
  * `/api/housing/:id` — one listing.
@@ -137,7 +138,8 @@ export async function PATCH(request: Request, ctx: Ctx): Promise<Response> {
   }
 }
 
-export async function DELETE(_req: Request, ctx: Ctx): Promise<Response> {
+export async function DELETE(request: Request, ctx: Ctx): Promise<Response> {
+  if (fromAnotherSite(request)) return crossSiteResponse();
   const got = await load(ctx);
   if (!got.ok) return got.res;
   const { me, store, listing } = got;

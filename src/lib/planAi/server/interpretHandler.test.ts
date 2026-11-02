@@ -92,6 +92,23 @@ describe("nothing reaches the model unless every gate passes", () => {
     }
   });
 
+  test("words outside the public planning vocabulary are refused, not trusted to the screen", async () => {
+    for (const text of [
+      "find a GE after 10 because my landlord evicts us soon",
+      "light load, my depression is bad",
+    ]) {
+      const { deps, calls } = fixture();
+      const res = await handleInterpret(request(ok(text)), deps);
+      assert.equal(res.status, 422, text);
+      assert.equal((await res.json()).code, "OUTSIDE_VOCABULARY", text);
+      assert.deepEqual(calls, [], text);
+    }
+    // What the browser sends after withholding passes.
+    const { deps, calls } = fixture();
+    assert.equal((await handleInterpret(request(ok("find a GE after 10 because my … … us …")), deps)).status, 200);
+    assert.deepEqual(calls, ["reserve", "model"]);
+  });
+
   test("an exhausted budget or an unreachable one stops before the model", async () => {
     const limited = fixture({ reserve: async () => ({ ok: false, reason: "site_day", retryAfter: 3600 }) });
     const res = await handleInterpret(request(ok()), limited.deps);

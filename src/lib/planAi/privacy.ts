@@ -13,6 +13,8 @@
  * anonymous, so nothing is redacted and forwarded: it is kept back whole.
  */
 
+import { minimizeForModel, type OutboundVocab } from "./outbound";
+
 export const MAX_MODEL_INPUT = 400;
 
 export type SensitiveReason =
@@ -72,14 +74,22 @@ const ALLOWED_CONTEXT = ["options", "pending"];
 export function buildInterpretRequest(
   text: string,
   context: { options: number; pending: boolean },
-): { ok: true; body: InterpretRequest } | { ok: false; reasons: SensitiveReason[] } {
+  vocab?: OutboundVocab,
+):
+  | { ok: true; body: InterpretRequest; withheld: string[] }
+  | { ok: false; reasons: SensitiveReason[] }
+  | { ok: false; reasons: []; withheld: string[] } {
   const trimmed = text.replace(/\s+/g, " ").trim();
   const reasons = screenSensitive(text);
   if (reasons.length) return { ok: false, reasons };
+  // Only public planning vocabulary leaves; see outbound.ts.
+  const minimized = vocab ? minimizeForModel(trimmed, vocab) : { text: trimmed, withheld: [], meaningful: true };
+  if (!minimized.meaningful) return { ok: false, reasons: [], withheld: minimized.withheld };
   return {
     ok: true,
+    withheld: minimized.withheld,
     body: {
-      text: trimmed,
+      text: minimized.text,
       context: {
         options: Math.max(0, Math.min(3, Math.trunc(Number(context.options) || 0))),
         pending: context.pending === true,

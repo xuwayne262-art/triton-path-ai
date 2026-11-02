@@ -1,6 +1,7 @@
 import { housingStore, photoBelongsTo } from "@/lib/housing/store";
 import { PHOTO_REF } from "@/lib/housing/listing";
 import { failed, json, signInFirst, unavailable, viewer } from "@/lib/housing/viewer";
+import { crossSiteResponse, fromAnotherSite } from "@/lib/http/origin";
 
 /**
  * `/api/housing/photos/:ref`
@@ -37,7 +38,8 @@ export async function GET(_req: Request, ctx: Ctx): Promise<Response> {
   }
 }
 
-export async function DELETE(_req: Request, ctx: Ctx): Promise<Response> {
+export async function DELETE(request: Request, ctx: Ctx): Promise<Response> {
+  if (fromAnotherSite(request)) return crossSiteResponse();
   const me = await viewer();
   if (!me) return signInFirst();
   const { ref } = await ctx.params;

@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { MAX_BODY_BYTES, readJsonBody } from "./httpBody";
+import { MAX_BODY_BYTES, readBoundedJson, readJsonBody } from "./httpBody";
 
 /**
  * `Content-Length` is a forbidden header on a real `Request`, so a fetch client
@@ -154,5 +154,24 @@ describe("size limit", () => {
     const filler = "x".repeat(MAX_BODY_BYTES - 32);
     const res = await readJsonBody(fakeRequest(streamOf(JSON.stringify({ m: filler }))));
     assert.equal(res.ok, true);
+  });
+});
+
+describe("readBoundedJson", () => {
+  test("refuses a body over its own cap even when Content-Length lies", async () => {
+    const big = JSON.stringify({ x: "y".repeat(5_000) });
+    const r = await readBoundedJson(fakeRequest(streamOf(big), { "content-type": "application/json", "content-length": "10" }), 1_000);
+    assert.deepEqual(r, { ok: false, reason: "too-large" });
+  });
+
+  test("counts bytes, not characters", async () => {
+    // 400 three-byte characters are 1,200 bytes but 400 string characters.
+    const r = await readBoundedJson(fakeRequest(streamOf(JSON.stringify("€".repeat(400)))), 1_000);
+    assert.deepEqual(r, { ok: false, reason: "too-large" });
+  });
+
+  test("reads a body under the cap, and calls bad JSON malformed", async () => {
+    assert.deepEqual(await readBoundedJson(fakeRequest(streamOf('{"a":1}')), 1_000), { ok: true, value: { a: 1 } });
+    assert.deepEqual(await readBoundedJson(fakeRequest(streamOf("{")), 1_000), { ok: false, reason: "malformed" });
   });
 });

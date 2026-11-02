@@ -3,6 +3,8 @@ import { isEligibleEmail, normalizeEmail } from "@/lib/auth/eligibility";
 import { storeDiagnosis } from "@/lib/history/store";
 import { cleanDocs, EMPTY_DOCS, MAX_PLAN_BYTES } from "@/lib/plan/record";
 import { ownerTag, planKey, planStore, type StoredPlan } from "@/lib/plan/store";
+import { readBoundedJson } from "@/lib/ai/httpBody";
+import { crossSiteResponse, fromAnotherSite } from "@/lib/http/origin";
 
 /**
  * `/api/plan` — the signed-in student's plan, so it follows them to every
@@ -78,18 +80,17 @@ export async function PUT(request: Request): Promise<Response> {
   const email = await owner();
   if (!email) return json({ error: "Sign in to continue.", code: "AUTH_REQUIRED" }, 401);
 
-  const tooLarge = () => json({ error: "That plan is too large to save.", code: "PLAN_TOO_LARGE" }, 413);
-  const declared = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(declared) && declared > MAX_PLAN_BYTES) return tooLarge();
+  if (fromAnotherSite(request)) return crossSiteResponse();
 
-  let body: { owner?: unknown; baseRev?: unknown; docs?: unknown };
-  try {
-    const text = await request.text();
-    if (text.length > MAX_PLAN_BYTES) return tooLarge();
-    body = JSON.parse(text);
-  } catch {
-    return json({ error: "Could not read that plan.", code: "PLAN_BAD_JSON" }, 400);
+  // Counted as the bytes arrive: a false or missing Content-Length cannot make
+  // the server buffer more than one plan's worth.
+  const read = await readBoundedJson(request, MAX_PLAN_BYTES);
+  if (!read.ok) {
+    return read.reason === "too-large"
+      ? json({ error: "That plan is too large to save.", code: "PLAN_TOO_LARGE" }, 413)
+      : json({ error: "Could not read that plan.", code: "PLAN_BAD_JSON" }, 400);
   }
+  const body = (read.value && typeof read.value === "object" ? read.value : {}) as { owner?: unknown; baseRev?: unknown; docs?: unknown };
 
   const baseRev = body?.baseRev;
   if (typeof baseRev !== "number" || !Number.isInteger(baseRev) || baseRev < 0 || typeof body.owner !== "string") {

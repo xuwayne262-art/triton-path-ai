@@ -2,6 +2,7 @@ import { z } from "zod";
 import { isEligibleEmail, normalizeEmail } from "@/lib/auth/eligibility";
 import { readJsonBody } from "@/lib/ai/httpBody";
 import { MAX_MODEL_INPUT, onlyAllowedFields, screenSensitive } from "../privacy";
+import { withinOutboundVocab } from "../outbound";
 import { systemPrompt, validateModelIntent, type ModelVocab } from "../intentSchema";
 import type { PlanAiEvent, QuotaDecision } from "./quota";
 
@@ -71,9 +72,21 @@ export async function handleInterpret(request: Request, deps: InterpretDependenc
   let decision: QuotaDecision;
   try {
     vocab = await deps.vocab();
+  } catch (error) {
+    console.error("[plan-ai] vocabulary unavailable:", error instanceof Error ? error.message : String(error));
+    return json({ error: UNAVAILABLE, code: "AI_UNAVAILABLE" }, 503);
+  }
+  // The structural side of the boundary: only public planning words reach the
+  // model. The browser withholds the rest; a request that still holds any is
+  // refused here, before it costs anything, rather than trusted.
+  if (!withinOutboundVocab(text, vocab.outbound)) {
+    void deps.metric("sensitive_block");
+    return json({ error: "That request had words Plan with AI keeps on your device, so it wasn't sent to the AI service.", code: "OUTSIDE_VOCABULARY" }, 422);
+  }
+  try {
     decision = await deps.reserve(email);
   } catch (error) {
-    console.error("[plan-ai] vocabulary or quota unavailable:", error instanceof Error ? error.message : String(error));
+    console.error("[plan-ai] quota unavailable:", error instanceof Error ? error.message : String(error));
     return json({ error: UNAVAILABLE, code: "AI_UNAVAILABLE" }, 503);
   }
   if (!decision.ok) {

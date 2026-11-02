@@ -1,67 +1,67 @@
 import { housingStore, newPhotoRef } from "@/lib/housing/store";
 import { failed, json, signInFirst, unavailable, viewer } from "@/lib/housing/viewer";
+import { readBoundedBytes } from "@/lib/ai/httpBody";
+import { crossSiteResponse, fromAnotherSite } from "@/lib/http/origin";
+import { cleanJpeg } from "@/lib/housing/jpeg";
+import { reservePhoto } from "@/lib/housing/photoRate";
 
 /**
  * `POST /api/housing/photos` — one listing photo, as JPEG bytes. 201 { ref }.
  *
  * The page re-encodes every photo in the browser before it is sent: scaled to
- * 1600 px, and drawn onto a canvas, which is what strips the EXIF block — and
- * with it the GPS position a phone writes into every picture it takes. So the
- * server only ever accepts JPEG, and only at the size that re-encode produces.
+ * 1600 px, and drawn onto a canvas, which strips the EXIF block — and with it
+ * the GPS position a phone writes into every picture. The server does not rely
+ * on that: it reads at most MAX_BYTES as they arrive, refuses anything that is
+ * not a complete JPEG, and cuts every metadata segment out itself (jpeg.ts)
+ * before storing it.
  *
- * Uploads are counted per student per server instance. That is a brake, not a
- * quota — serverless instances do not share memory — but every uploader is a
- * signed-in @ucsd.edu student, and a photo that never joins a listing is small.
+ * Uploads are limited per student per hour in a store every server instance
+ * shares (photoRate.ts). When that count cannot be kept, uploads are refused
+ * rather than unlimited.
  */
 
 export const dynamic = "force-dynamic";
 
 const MAX_BYTES = 700 * 1024;
 const MIN_BYTES = 1024;
-const PER_HOUR = 40;
-const recent = new Map<string, number[]>();
-
-function allow(owner: string, now = Date.now()): boolean {
-  const hour = now - 3_600_000;
-  const times = (recent.get(owner) ?? []).filter((t) => t > hour);
-  if (times.length >= PER_HOUR) {
-    recent.set(owner, times);
-    return false;
-  }
-  times.push(now);
-  recent.set(owner, times);
-  if (recent.size > 5_000) recent.delete(recent.keys().next().value!);
-  return true;
-}
 
 export async function POST(request: Request): Promise<Response> {
   const me = await viewer();
   if (!me) return signInFirst();
+  if (fromAnotherSite(request)) return crossSiteResponse();
 
   if (request.headers.get("content-type")?.split(";")[0].trim() !== "image/jpeg") {
     return json({ error: "Photos are sent as JPEG.", code: "PHOTO_TYPE" }, 415);
   }
-  const declared = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(declared) && declared > MAX_BYTES) {
-    return json({ error: "That photo is too large.", code: "PHOTO_TOO_LARGE" }, 413);
+  const read = await readBoundedBytes(request, MAX_BYTES);
+  if (!read.ok) {
+    return read.reason === "too-large"
+      ? json({ error: "That photo is too large.", code: "PHOTO_TOO_LARGE" }, 413)
+      : json({ error: "That photo didn't arrive whole. Try again.", code: "PHOTO_UNREADABLE" }, 400);
   }
-
-  const bytes = new Uint8Array(await request.arrayBuffer());
-  if (bytes.length > MAX_BYTES) return json({ error: "That photo is too large.", code: "PHOTO_TOO_LARGE" }, 413);
-  // A JPEG opens with a start-of-image marker; anything else is not one,
-  // whatever its header claimed.
-  if (bytes.length < MIN_BYTES || bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff) {
-    return json({ error: "That is not a photo we can use.", code: "PHOTO_TYPE" }, 415);
-  }
-  if (!allow(me.key)) {
-    return json({ error: "That is a lot of photos for one hour. Try again later.", code: "PHOTO_RATE" }, 429);
-  }
+  if (read.bytes.length < MIN_BYTES) return json({ error: "That is not a photo we can use.", code: "PHOTO_TYPE" }, 415);
+  const clean = cleanJpeg(read.bytes);
+  if (!clean.ok) return json({ error: "That is not a photo we can use.", code: "PHOTO_TYPE" }, 415);
 
   const store = housingStore();
   if (!store) return unavailable();
+
+  const rate = await reservePhoto(me.key.replace(/^own:/, ""));
+  if (!rate.ok) {
+    if ("unavailable" in rate) {
+      return json({ error: "Photo uploads are paused for a moment. Your listing is kept; try adding photos again shortly.", code: "PHOTO_LIMIT_UNAVAILABLE" }, 503, { "Retry-After": "60" });
+    }
+    const minutes = Math.ceil(rate.retryAfter / 60);
+    return json(
+      { error: `That is a lot of photos for one hour. You can add more in about ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`, code: "PHOTO_RATE", retryAfter: rate.retryAfter },
+      429,
+      { "Retry-After": String(rate.retryAfter) },
+    );
+  }
+
   const ref = newPhotoRef(me.key);
   try {
-    await store.putPhoto(ref, bytes);
+    await store.putPhoto(ref, clean.bytes);
     return json({ ref }, 201);
   } catch (err) {
     return failed("upload the photo", err);

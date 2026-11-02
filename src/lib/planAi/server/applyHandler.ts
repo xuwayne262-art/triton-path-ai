@@ -92,6 +92,8 @@ export async function handleApply(request: Request, deps: ApplyDependencies): Pr
   if (!store) return json({ error: "Saving plans to your account isn't set up on this deployment.", code: "PLAN_STORE_UNCONFIGURED" }, 503);
   const tag = deps.ownerTag(email);
   const key = deps.planKey(email);
+  /** Set once the write is sent: from then on, a failure may hide a save that happened. */
+  let writing = false;
 
   try {
     const current = await store.get(key);
@@ -160,6 +162,7 @@ export async function handleApply(request: Request, deps: ApplyDependencies): Pr
     };
     const nextLog = [...log.map((c) => (target && c.id === target.id ? { ...c, undoneBy: change.id } : c)), entry].slice(-MAX_LOG);
     const docs = cleanDocs({ ...(current?.docs ?? EMPTY_DOCS), planner: { ...doc, log: nextLog } });
+    writing = true;
     const result = await store.put(key, baseRev, docs);
     if (!result.ok) {
       void deps.metric("apply_conflict");
@@ -169,7 +172,32 @@ export async function handleApply(request: Request, deps: ApplyDependencies): Pr
     return json({ ...planReply(tag, result.plan), status: "applied", change: { id: change.id, label } });
   } catch (err) {
     void deps.metric("apply_failed");
-    console.error(`[plan-ai] apply failed: ${err instanceof Error ? err.message : String(err)}`);
-    return json({ error: "Your plan couldn't be saved. Nothing changed.", code: "PLAN_SAVE_FAILED" }, 502);
+    console.error(`[plan-ai] apply failed${writing ? " during the write" : ""}: ${err instanceof Error ? err.message : String(err)}`);
+    if (!writing) return json({ error: "Your plan couldn't be saved. Nothing changed.", code: "PLAN_SAVE_FAILED" }, 502);
+    return reconcile(store, key, tag, change.id, baseRev);
+  }
+}
+
+/**
+ * The write was sent and then something failed: the database may have saved
+ * it and lost only the answer. The plan's own log says which — a change id is
+ * written with the change — so it is read back rather than guessed at.
+ */
+async function reconcile(store: PlanStore, key: string, tag: string, id: string, baseRev: number): Promise<Response> {
+  try {
+    const now = await store.get(key);
+    const saved = now?.docs.planner?.log?.find((c) => c.id === id);
+    if (saved) return json({ ...planReply(tag, now), status: "applied", change: { id: saved.id, label: saved.label } });
+    if ((now?.rev ?? 0) === baseRev) {
+      return json({ ...planReply(tag, now), error: "Your plan couldn't be saved. Nothing changed.", code: "PLAN_SAVE_FAILED" }, 502);
+    }
+    // Moved on without this change: another save won the race. Nothing of this one landed.
+    return json({ ...planReply(tag, now), code: "PLAN_CHANGED", error: "Your plan changed in another tab or device." }, 409);
+  } catch {
+    return json({
+      error: "We couldn't confirm whether that change was saved. It's kept here; checking again can't save it twice.",
+      code: "SAVE_OUTCOME_UNKNOWN",
+      changeId: id,
+    }, 503);
   }
 }

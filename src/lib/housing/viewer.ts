@@ -1,6 +1,8 @@
 import { auth } from "@/auth";
 import { isEligibleEmail, normalizeEmail } from "@/lib/auth/eligibility";
 import { ownerKey } from "./store";
+import { readBoundedJson } from "@/lib/ai/httpBody";
+import { crossSiteResponse, fromAnotherSite } from "@/lib/http/origin";
 
 /**
  * Who is asking, as the housing routes need it: the verified address (for the
@@ -25,8 +27,8 @@ export async function viewer(): Promise<Viewer | null> {
 
 export const NO_STORE = { "Cache-Control": "no-store" } as const;
 
-export const json = (body: unknown, status = 200) =>
-  Response.json(body, { status, headers: NO_STORE });
+export const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
+  Response.json(body, { status, headers: { ...NO_STORE, ...headers } });
 
 export const signInFirst = () => json({ error: "Sign in to continue.", code: "AUTH_REQUIRED" }, 401);
 
@@ -53,17 +55,10 @@ export function failed(op: string, err: unknown): Response {
  * too large, and again after when it lied.
  */
 export async function readJson(request: Request, maxBytes: number): Promise<{ ok: true; body: unknown } | { ok: false; res: Response }> {
-  const declared = Number(request.headers.get("content-length") ?? "0");
-  if (Number.isFinite(declared) && declared > maxBytes) {
-    return { ok: false, res: json({ error: "That is too large.", code: "HOUSING_TOO_LARGE" }, 413) };
-  }
-  try {
-    const text = await request.text();
-    if (text.length > maxBytes) {
-      return { ok: false, res: json({ error: "That is too large.", code: "HOUSING_TOO_LARGE" }, 413) };
-    }
-    return { ok: true, body: JSON.parse(text) };
-  } catch {
-    return { ok: false, res: json({ error: "Could not read that.", code: "HOUSING_BAD_JSON" }, 400) };
-  }
+  if (fromAnotherSite(request)) return { ok: false, res: crossSiteResponse() };
+  const read = await readBoundedJson(request, maxBytes);
+  if (read.ok) return { ok: true, body: read.value };
+  return read.reason === "too-large"
+    ? { ok: false, res: json({ error: "That is too large.", code: "HOUSING_TOO_LARGE" }, 413) }
+    : { ok: false, res: json({ error: "Could not read that.", code: "HOUSING_BAD_JSON" }, 400) };
 }

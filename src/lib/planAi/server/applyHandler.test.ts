@@ -161,6 +161,34 @@ describe("applying", () => {
     assert.equal(store.plans.size, 0);
   });
 
+  test("a write that saved but lost its answer is reported as saved, and a retry is a duplicate", async () => {
+    const { deps, store } = fixture();
+    const put = store.put.bind(store);
+    store.put = async (k, rev, docs) => { await put(k, rev, docs); throw new Error("connection reset"); };
+    const res = await handleApply(request(change(ID1)), deps);
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.status, "applied");
+    assert.equal(body.change.id, ID1);
+    store.put = put;
+    const again = await handleApply(request(change(ID1)), deps);
+    assert.equal((await again.json()).status, "duplicate");
+    assert.equal(store.plans.get(key("alex@ucsd.edu"))!.docs.planner!.log?.length, 1);
+  });
+
+  test("a write whose outcome can't be read back says so instead of 'nothing changed'", async () => {
+    const { deps, store } = fixture();
+    let down = false;
+    const get = store.get.bind(store);
+    store.put = async () => { down = true; throw new Error("timeout"); };
+    store.get = async (k) => { if (down) throw new Error("still down"); return get(k); };
+    const res = await handleApply(request(change(ID1)), deps);
+    assert.equal(res.status, 503);
+    const body = await res.json();
+    assert.equal(body.code, "SAVE_OUTCOME_UNKNOWN");
+    assert.ok(!/Nothing changed/.test(body.error));
+  });
+
   test("a change made for an earlier term's schedule is refused", async () => {
     const { deps } = fixture();
     const res = await handleApply(request(change(ID1, [ADD_CSE11], { term: "SU26" })), deps);

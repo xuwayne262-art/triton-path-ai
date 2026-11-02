@@ -109,6 +109,12 @@ export function sensitiveReply(reasons: SensitiveReason[]): string {
   return `I didn't send that to the AI service because it looks like it includes ${what}. Your saved Academic History is already used here without leaving UCSDPlans. Try asking without personal details.`;
 }
 
+/** When everything a request needed the AI service for is personal, it stays here. */
+export function withheldReply(withheld: string[]): string {
+  const words = withheld.slice(0, 4).map((w) => `“${w}”`);
+  return `I kept that on your device: ${words.length ? `${list(words)} ${withheld.length === 1 ? "isn't" : "aren't"}` : "it isn't"} course-planning words, so nothing was sent to the AI service. Try naming what you want in the plan, like a time, a day, units, a subject or a requirement.`;
+}
+
 /** The answer to "what changes if I move…". */
 export function moveReply(m: MoveConsequences): string {
   const where = slotWords(m.to);

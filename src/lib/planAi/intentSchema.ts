@@ -3,6 +3,7 @@ import type { GEFile, PlatIndex } from "@/lib/plat";
 import type { Interpretation, IntentKind, Preference, QuarterRef, RequirementRef } from "./types";
 import { REQUIREMENT_WORDS, findCourseCodes, parseClock } from "./vocabulary";
 import { WARREN_PROGRAMS, programById } from "./warren";
+import { outboundVocab, type OutboundVocab } from "./outbound";
 
 /**
  * The one model call: a request in, a typed interpretation out.
@@ -77,6 +78,8 @@ export interface ModelVocab {
   subjects: { code: string; name: string }[];
   codes: ReadonlySet<string>;
   areas: { key: string; college: string; area: string }[];
+  /** The words a request may hold; anything else was meant to stay in the browser. */
+  outbound: OutboundVocab;
 }
 
 export function modelVocab(index: PlatIndex, ge: GEFile): ModelVocab {
@@ -86,6 +89,7 @@ export function modelVocab(index: PlatIndex, ge: GEFile): ModelVocab {
     subjects: index.subjects.map((s) => ({ code: s.code, name: s.name })),
     codes: new Set(index.courses.map((c) => c.k)),
     areas: ge.areas.filter((a) => a.college !== "campus").map((a) => ({ key: a.key, college: a.college, area: a.area })),
+    outbound: outboundVocab({ subjects: index.subjects, areas: ge.areas, titles: index.courses.map((c) => c.t) }),
   };
 }
 
