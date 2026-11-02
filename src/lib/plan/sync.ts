@@ -363,7 +363,10 @@ export function createSync(env: SyncEnv) {
 
     /** The tab is back in view: pick up anything saved elsewhere meanwhile. */
     refresh() {
-      if (!started || status === "unavailable" || status === "signed-out") return;
+      // Signed out is checked again too: a student who signs back in (in
+      // another tab, or after the badge's "Sign in again") returns to this
+      // one, and its edits made meanwhile are then saved, not stranded.
+      if (!started || status === "unavailable") return;
       leaving = false;
       if (env.now() - lastPull < REFRESH_GAP_MS) return;
       wantPull = true;

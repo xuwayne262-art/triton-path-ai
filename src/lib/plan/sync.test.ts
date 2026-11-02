@@ -385,3 +385,53 @@ describe("when the account cannot be reached", () => {
     assert.equal(account.puts.length, 0);
   });
 });
+
+describe("a session that expires while the planner is open", () => {
+  test("the edit stays on the device, and is saved once signed in again", async () => {
+    const account = await accountWith(["CSE 11"]);
+    const laptop = device(account);
+    await laptop.open();
+    assert.equal(laptop.sync.status(), "synced");
+
+    account.failWith = 401;
+    laptop.edit(add("MATH 20A"));
+    await laptop.settle();
+    assert.equal(laptop.sync.status(), "signed-out");
+    assert.deepEqual(codesOf(account.docs), ["CSE 11"], "nothing sent while signed out");
+    assert.deepEqual(codesOf(laptop.read()), ["CSE 11", "MATH 20A"], "the edit is kept here");
+
+    // Signing in again brings the student back to the page, which checks the account.
+    account.failWith = null;
+    await laptop.refocus();
+    laptop.edit(() => {});
+    await laptop.settle();
+    assert.deepEqual(codesOf(account.docs), ["CSE 11", "MATH 20A"]);
+    assert.equal(laptop.sync.status(), "synced");
+  });
+});
+
+describe("a browser whose storage refuses writes", () => {
+  test("says so, keeps nothing stale to send, and recovers when storage works", async () => {
+    const { writeLocalDoc, accountSyncStatus } = await import("./sync");
+    const g = globalThis as { localStorage?: Pick<Storage, "setItem" | "getItem" | "removeItem"> };
+    const saved = g.localStorage;
+    const store = new Map<string, string>();
+    let full = true;
+    g.localStorage = {
+      setItem: (k, v) => { if (full) throw new DOMException("quota", "QuotaExceededError"); store.set(k, v); },
+      getItem: (k) => store.get(k) ?? null,
+      removeItem: (k) => { store.delete(k); },
+    };
+    try {
+      assert.equal(writeLocalDoc(PLANNER_KEY, planner(["CSE 11"])), false);
+      assert.notEqual(accountSyncStatus(), "synced");
+      assert.match(accountSyncStatus(), /^storage-/);
+      assert.equal(store.size, 0, "nothing half-written");
+      full = false;
+      assert.equal(writeLocalDoc(PLANNER_KEY, planner(["CSE 11"])), true);
+      assert.doesNotMatch(accountSyncStatus(), /^storage-/);
+    } finally {
+      if (saved) g.localStorage = saved; else delete g.localStorage;
+    }
+  });
+});
