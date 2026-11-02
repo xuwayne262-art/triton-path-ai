@@ -2,7 +2,7 @@ import { housingStore, newPhotoRef } from "@/lib/housing/store";
 import { failed, json, signInFirst, unavailable, viewer } from "@/lib/housing/viewer";
 import { readBoundedBytes } from "@/lib/ai/httpBody";
 import { crossSiteResponse, fromAnotherSite } from "@/lib/http/origin";
-import { cleanJpeg } from "@/lib/housing/jpeg";
+import { sanitizePhoto } from "@/lib/housing/jpeg";
 import { reservePhoto } from "@/lib/housing/photoRate";
 
 /**
@@ -11,9 +11,9 @@ import { reservePhoto } from "@/lib/housing/photoRate";
  * The page re-encodes every photo in the browser before it is sent: scaled to
  * 1600 px, and drawn onto a canvas, which strips the EXIF block — and with it
  * the GPS position a phone writes into every picture. The server does not rely
- * on that: it reads at most MAX_BYTES as they arrive, refuses anything that is
- * not a complete JPEG, and cuts every metadata segment out itself (jpeg.ts)
- * before storing it.
+ * on that: it reads at most MAX_BYTES as they arrive, decodes the JPEG to
+ * pixels (refusing anything truncated, corrupt or oversized), turns it upright
+ * and encodes new bytes with no metadata at all (jpeg.ts). Only those are stored.
  *
  * Uploads are limited per student per hour in a store every server instance
  * shares (photoRate.ts). When that count cannot be kept, uploads are refused
@@ -40,8 +40,16 @@ export async function POST(request: Request): Promise<Response> {
       : json({ error: "That photo didn't arrive whole. Try again.", code: "PHOTO_UNREADABLE" }, 400);
   }
   if (read.bytes.length < MIN_BYTES) return json({ error: "That is not a photo we can use.", code: "PHOTO_TYPE" }, 415);
-  const clean = cleanJpeg(read.bytes);
-  if (!clean.ok) return json({ error: "That is not a photo we can use.", code: "PHOTO_TYPE" }, 415);
+  const clean = await sanitizePhoto(read.bytes);
+  if (!clean.ok) {
+    const error = {
+      "not-jpeg": "Photos are sent as JPEG. Try adding it again.",
+      unreadable: "That photo couldn't be read; it may be damaged or cut short. Try another copy of it.",
+      "too-large": "That photo has too many pixels. Try a smaller copy.",
+      "too-small": "That image is too small to show in a listing.",
+    }[clean.reason];
+    return json({ error, code: "PHOTO_TYPE", reason: clean.reason }, 415);
+  }
 
   const store = housingStore();
   if (!store) return unavailable();
