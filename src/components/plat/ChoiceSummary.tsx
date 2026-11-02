@@ -43,8 +43,46 @@ function SeatLine({ s, now }: { s: SectionTuple; now: number | null }) {
   );
 }
 
+/**
+ * What the one "add" button says and whether it can be pressed, shared by the
+ * summary and the phone's action bar so the two never disagree.
+ */
+export function addAction({ code, detail, families, selection, signedIn, planner }: {
+  code: string;
+  detail: CourseDetail | undefined;
+  families: LectureFamily[];
+  selection: SectionSelection | undefined;
+  signedIn: boolean | null;
+  planner: PlannerEntry | null;
+}): { label: string; disabled: boolean; recap: string } {
+  const summary = summarizeChoice(detail?.sec ?? [], families, selection);
+  const choice = summary && selection ? choiceText(families, selection) : "";
+  // Already in the Planner with exactly this choice, there is nothing to add;
+  // with another one, the button offers to switch the Planner over to it.
+  const sameAsPlanner = Boolean(
+    planner?.scheduled && selection && planner.sections && sameSelection(planner.sections, selection),
+  );
+  const label = signedIn === false
+    ? (summary?.complete ? `Sign in to add ${choice} to Planner` : `Sign in to add ${code} to Planner`)
+    : summary
+      ? (!summary.complete
+        ? `Choose a ${summary.missing[0]} to add these sections`
+        : sameAsPlanner
+          ? "These sections are in your Planner"
+          : planner?.scheduled ? `Switch Planner to ${choice}` : `Add ${choice} to Planner`)
+      : planner?.scheduled ? `${code} is in your Planner` : `Add ${code} to Planner`;
+  const disabled = detail?.offered !== 1
+    || (summary != null && !summary.complete)
+    || sameAsPlanner
+    || (!summary && planner?.scheduled === true);
+  const recap = summary
+    ? summary.complete ? `${code}: ${choice}` : `${code}: ${choice.split(" + ")[0]}, still needs a ${summary.missing.join(" and a ")}`
+    : families.length > 1 ? `${code}: choose a lecture below, or add it without sections` : `${code}`;
+  return { label, disabled, recap };
+}
+
 export default function ChoiceSummary({
-  code, detail, families, selection, termLabel, signedIn, planner, onAdd, onClear,
+  code, detail, families, selection, termLabel, signedIn, planner, onAdd, onClear, addedNotice,
 }: {
   code: string;
   detail: CourseDetail | undefined;
@@ -55,6 +93,8 @@ export default function ChoiceSummary({
   signedIn: boolean | null;
   planner: PlannerEntry | null;
   onAdd: () => void;
+  /** Shown in place of the button after an add made from this page. */
+  addedNotice?: React.ReactNode;
   onClear: () => void;
 }) {
   const now = useNow();
@@ -95,24 +135,7 @@ export default function ChoiceSummary({
   })();
   const midterms = summary?.exams.filter((e) => e[TYPE] !== "FI") ?? [];
 
-  // Already in the Planner with exactly this choice, there is nothing to add;
-  // with another one, the button offers to switch the Planner over to it.
-  const sameAsPlanner = Boolean(
-    planner?.scheduled && selection && planner.sections && sameSelection(planner.sections, selection),
-  );
-  const addLabel = signedIn === false
-    ? (summary?.complete ? `Sign in to add ${choice} to Planner` : `Sign in to add ${code} to Planner`)
-    : summary
-      ? (!summary.complete
-        ? `Choose a ${summary.missing[0]} to add these sections`
-        : sameAsPlanner
-          ? "These sections are in your Planner"
-          : planner?.scheduled ? `Switch Planner to ${choice}` : `Add ${choice} to Planner`)
-      : planner?.scheduled ? `${code} is in your Planner` : `Add ${code} to Planner`;
-  const addDisabled = !offered
-    || (summary != null && !summary.complete)
-    || sameAsPlanner
-    || (!summary && planner?.scheduled === true);
+  const { label: addLabel, disabled: addDisabled } = addAction({ code, detail, families, selection, signedIn, planner });
 
   return (
     <section aria-labelledby="glance-title" className="rounded-2xl border border-gray-200 p-5 dark:border-white/10">
@@ -222,6 +245,7 @@ export default function ChoiceSummary({
       {/* ── What to do next ─────────────────────────────────────────────── */}
       {offered && (
         <div className="mt-4 flex flex-col gap-2">
+          {addedNotice ?? (
           <button
             type="button"
             onClick={onAdd}
@@ -231,6 +255,7 @@ export default function ChoiceSummary({
             {signedIn === false ? <LogIn className="h-4 w-4" aria-hidden /> : <CalendarPlus className="h-4 w-4" aria-hidden />}
             {addLabel}
           </button>
+          )}
           {tssUrl && (
             <a
               href={tssUrl}

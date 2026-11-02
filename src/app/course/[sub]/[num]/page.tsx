@@ -43,6 +43,12 @@ import type { CoursePin } from "@/components/plat/CourseMap";
 import WhenVisible from "@/components/plat/WhenVisible";
 import { afterIdle } from "@/lib/idle";
 import { compareHref, parseCompare, rememberedCompare, withCode } from "@/lib/compare";
+import CourseActionBar, { AddedNotice, type AddedState } from "@/components/plat/CourseActionBar";
+import { addAction } from "@/components/plat/ChoiceSummary";
+import { addOnDevice, undoOnDevice } from "@/lib/plan/onDevice";
+import type { PatchData } from "@/lib/plan/patch";
+import type { PlanOp } from "@/lib/plan/change";
+import { PLANNER_EVENT, PLANNER_KEY, useAccountSync, writeLocalDoc } from "@/lib/plan/sync";
 
 const CourseMap = dynamic(() => import("@/components/plat/CourseMap"), {
   ssr: false,
@@ -159,7 +165,55 @@ export default function CourseDetailPage({
    * when need be, with a nonce this tab keeps so the Planner knows it was a
    * click here and not a link from somewhere (lib/planIntent.ts).
    */
-  const addToPlanner = () => {
+  // ── Adding from this page ──────────────────────────────────────────────
+  // Applied to this browser's plan here (lib/plan/onDevice.ts) so the student
+  // stays on the course with View plan and Undo; the sync engine saves it to
+  // the account. Anything that does not fit cleanly goes to the Planner.
+  const syncStatus = useAccountSync();
+  const [added, setAdded] = useState<(AddedState & { inverse: PlanOp[]; data: PatchData }) | null>(null);
+  const [addProblem, setAddProblem] = useState("");
+  const readPlan = (): unknown => {
+    try { return JSON.parse(localStorage.getItem(PLANNER_KEY) ?? "null"); } catch { return null; }
+  };
+  const keep = (doc: unknown): boolean => {
+    if (!writeLocalDoc(PLANNER_KEY, doc)) {
+      setAddProblem("This browser couldn't keep the change (its storage is full or blocked), so nothing changed. Open the Planner to try there.");
+      return false;
+    }
+    window.dispatchEvent(new Event(PLANNER_EVENT));
+    return true;
+  };
+  const addToPlanner = async () => {
+    setAddProblem("");
+    if (signedIn !== false && detail) {
+      const summary = summarizeChoice(detail.sec, families, selection);
+      const pick = summary?.complete && selection ? selection : null;
+      const idx = await loadIndex().catch(() => null);
+      if (idx && (!term || idx.meta.term === term)) {
+        const data: PatchData = {
+          term: idx.meta.term, termName: idx.meta.termName,
+          rowFor: (c) => idx.courses.find((r) => r.k === c),
+          sectionsFor: (c) => (c === code ? detail.sec : undefined),
+        };
+        const result = addOnDevice(readPlan(), code, pick, data);
+        if (result.kind === "applied") {
+          if (keep(result.doc)) setAdded({ code, label: result.label, undone: false, inverse: result.inverse, data });
+          return;
+        }
+      }
+    }
+    handOffToPlanner();
+  };
+  const undoAdd = () => {
+    if (!added) return;
+    const result = undoOnDevice(readPlan(), added.inverse, added.data);
+    if (result.kind !== "applied") {
+      setAddProblem("Your plan changed since, so this wasn't undone. Open the Planner to change it there.");
+      return;
+    }
+    if (keep(result.doc)) setAdded({ ...added, undone: true });
+  };
+  const handOffToPlanner = () => {
     const summary = summarizeChoice(detail?.sec ?? [], families, selection);
     const intent = {
       code,
@@ -341,11 +395,19 @@ export default function CourseDetailPage({
   const leads = detail?.unl ?? [];
   const offered = detail?.offered === 1;
   const ratingFor = term ? { term, termName: termLabel, code } : null;
+  const addedNotice = added ? (
+    <>
+      <AddedNotice added={added} status={syncStatus} onUndo={undoAdd} />
+      {addProblem && <p role="alert" className="text-xs text-red-800 dark:text-red-300">{addProblem}</p>}
+    </>
+  ) : addProblem ? <p role="alert" className="text-xs text-red-800 dark:text-red-300">{addProblem}</p> : undefined;
   const summaryProps = {
     code, detail, families, selection, termLabel, signedIn, planner,
-    onAdd: addToPlanner,
-    onClear: () => setSelection(undefined),
+    onAdd: () => { void addToPlanner(); },
+    onClear: () => { setSelection(undefined); setAdded(null); },
+    addedNotice: added ? addedNotice : undefined,
   };
+  const action = addAction({ code, detail, families, selection, signedIn, planner });
 
   return (
     <PlatShell>
@@ -624,10 +686,24 @@ export default function CourseDetailPage({
           <aside className="hidden min-w-0 lg:col-span-5 lg:block" aria-label={`${code} at a glance`}>
             <div className="sticky top-32 xl:top-24">
               <ChoiceSummary {...summaryProps} />
+              {!added && addProblem && <div className="mt-2">{addedNotice}</div>}
             </div>
           </aside>
         </div>
       </div>
+      {offered && (
+        <CourseActionBar
+          recap={action.recap}
+          label={action.label}
+          disabled={action.disabled}
+          signedOut={signedIn === false}
+          onAdd={() => { void addToPlanner(); }}
+          added={added}
+          status={syncStatus}
+          onUndo={undoAdd}
+          problem={addProblem}
+        />
+      )}
     </PlatShell>
   );
 }
