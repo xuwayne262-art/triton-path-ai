@@ -1160,6 +1160,10 @@ function build() {
   let sizeSubjects = 0;
   for (const [sub, courses] of bySubject) {
     sizeSubjects += write(path.join("subject", `${sub}.json`), {
+      // The build this file belongs to: the browser checks it against the
+      // index it already holds, so a tab open across a data deploy never
+      // mixes two snapshots (src/lib/plat.ts, loadSubject).
+      ...(meta.retrieved ? { v: meta.retrieved } : {}),
       code: sub,
       name: SUBJECT_NAMES[sub] || sub,
       term: sched.term,

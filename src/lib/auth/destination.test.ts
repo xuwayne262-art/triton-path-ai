@@ -11,6 +11,13 @@ describe("the login page's words for each destination", () => {
     assert.match(destinationFor("/").title, /UCSDPlans/);
   });
 
+  test("Plan with AI says what it does and what stays private", () => {
+    const d = destinationFor("/planner/ai");
+    assert.equal(d.title, "Sign in to plan with AI");
+    assert.match(d.detail ?? "", /never your name, record or grades/);
+    assert.match(destinationFor("/planner").title, /Planner/);
+  });
+
   test("a choice handed to the Planner is promised back, by course", () => {
     const d = destinationFor("/planner?add=BILD%204&pick=B%2CLA%3AB03&n=0123456789");
     assert.match(d.detail ?? "", /BILD 4 and the sections you chose/);

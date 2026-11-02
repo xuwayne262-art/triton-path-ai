@@ -161,6 +161,13 @@ function checkCourses(ds) {
   const wrongTerm = Object.entries(ds.subjects).filter(([, f]) => f.term !== term).map(([s]) => s);
   if (wrongTerm.length) error(`subject files from another term than ${term}: ${some(wrongTerm)}`);
 
+  // Every subject file names the build it came from; the browser treats a
+  // difference from the index as a deploy mid-session, so a published set
+  // must agree with itself.
+  const built = ds.index.meta?.retrieved;
+  const otherBuild = built ? Object.entries(ds.subjects).filter(([, f]) => f.v && f.v !== built).map(([s]) => s) : [];
+  if (otherBuild.length) error(`subject files from another build than index.json (${built}): ${some(otherBuild)}`);
+
   const offeredInFiles = new Set();
   const noSections = [];
   const unnamed = [];

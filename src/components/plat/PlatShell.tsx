@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CalendarDays, LogIn, Moon, Sun } from "lucide-react";
 import AccountMenu from "./AccountMenu";
+import DatasetNotice from "./DatasetNotice";
 import ContactMenu from "./ContactMenu";
 import ResourcesMenu, { RESOURCES } from "./ResourcesMenu";
 import SearchBox from "./SearchBox";
@@ -155,6 +156,7 @@ export default function PlatShell({
         </nav>
       </header>
 
+      <DatasetNotice />
       <main id="main" tabIndex={-1} className="outline-none">{children}</main>
 
       <footer className="mt-20 border-t border-gray-200 py-8 dark:border-white/10">

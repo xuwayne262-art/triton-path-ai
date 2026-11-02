@@ -8,6 +8,7 @@ import ContactMenu from "@/components/plat/ContactMenu";
 import TridentMark from "@/components/plat/TridentMark";
 import ProgramPicker from "@/components/planner/ProgramPicker";
 import SyncBadge from "@/components/planner/SyncBadge";
+import DatasetNotice from "@/components/plat/DatasetNotice";
 import { PlannerProvider, usePlanner } from "./PlannerProvider";
 
 /**
@@ -128,6 +129,7 @@ function PlannerChrome({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       </header>
+      <DatasetNotice />
 
       {/* Each page supplies its own panes. */}
       <div className="flex min-h-0 flex-1 overflow-hidden">{children}</div>

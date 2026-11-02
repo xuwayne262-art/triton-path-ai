@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import {
   HttpError, collegeGEs, collegeName, dayLabel, geLabel, gpaTier, LETTER_SCALE, loadIndex, loadJSON, loadSubject,
   prereqKnown, ratingTone, refreshedDay, refreshedLabel, sortCourses, termName, termOrder, tidyTitle, typicalGrade,
@@ -348,5 +348,25 @@ describe("the dataset's people and history", () => {
     assert.ok(ge.lists["campus:DEI"].length >= 150, `${ge.lists["campus:DEI"].length} DEI courses`);
     assert.ok(!ge.lists["campus:DEI"].includes("CSE 12"), "a prerequisite named in the Senate list is not a DEI course");
     assert.ok(ge.meta.campus?.dei.url.startsWith("https://senate.ucsd.edu/"));
+  });
+});
+
+describe("dataset versions", () => {
+  test("a subject file from another build than the index is a mismatch", async () => {
+    const { datasetMismatch } = await import("./plat");
+    assert.equal(datasetMismatch("2026-10-24T18:17:26.823Z", "2026-10-25T18:00:00.000Z"), true);
+    assert.equal(datasetMismatch("2026-10-24T18:17:26.823Z", "2026-10-24T18:17:26.823Z"), false);
+    // Files from before the stamp existed, or an index without one, are not called stale.
+    assert.equal(datasetMismatch("2026-10-24T18:17:26.823Z", undefined), false);
+    assert.equal(datasetMismatch(undefined, "2026-10-24T18:17:26.823Z"), false);
+  });
+
+  test("every published subject file belongs to the published index's build", () => {
+    const index = JSON.parse(readFileSync(new URL("../../public/data/plat/index.json", import.meta.url), "utf8")) as PlatIndex;
+    const dir = new URL("../../public/data/plat/subject/", import.meta.url);
+    for (const name of readdirSync(dir)) {
+      const file = JSON.parse(readFileSync(new URL(name, dir), "utf8")) as { v?: string };
+      assert.equal(file.v, index.meta.retrieved, name);
+    }
   });
 });

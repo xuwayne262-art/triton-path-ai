@@ -48,13 +48,17 @@ function files(dir, sub = "") {
   );
 }
 
+/** A subject file's build stamp (`v`, the index's `retrieved`) is a read-at time like the others. */
+const subjectStamp = (j) => { delete j.v; };
+
 function normalised(dir, rel) {
   const file = path.join(dir, rel);
   if (!fs.existsSync(file)) return null;
   const text = fs.readFileSync(file, "utf8");
-  if (!rel.endsWith(".json") || !STAMPS[rel]) return text;
+  const strip = STAMPS[rel] ?? (rel.startsWith("subject/") ? subjectStamp : null);
+  if (!rel.endsWith(".json") || !strip) return text;
   const json = JSON.parse(text);
-  STAMPS[rel](json);
+  strip(json);
   return JSON.stringify(json);
 }
 

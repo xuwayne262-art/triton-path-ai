@@ -217,6 +217,8 @@ export interface CourseDetail {
 }
 
 export interface SubjectFile {
+  /** The build it belongs to: the index's meta.retrieved. Absent on files built before it was written. */
+  v?: string;
   code: string;
   name: string;
   term: string;
@@ -320,7 +322,37 @@ export const loadSubject = (sub: string) =>
   loadJSON<SubjectFile>(`/data/plat/subject/${encodeURIComponent(sub)}.json`, (file) => {
     for (const c of Object.values(file.courses)) c.t = tidyTitle(c.t);
     return file;
+  }).then(async (file) => {
+    // A tab open across a data deploy holds the old index; a subject file
+    // fetched now is the new build's. Mixing them could show sections the
+    // index does not list, so the page is told and offers a reload instead.
+    if (file.v) {
+      const index = await loadIndex().catch(() => null);
+      if (index?.meta.retrieved && datasetMismatch(index.meta.retrieved, file.v)) noteDatasetChanged();
+    }
+    return file;
   });
+
+/** True when a subject file was built from a different read than the index held. */
+export function datasetMismatch(indexVersion: string | undefined, subjectVersion: string | undefined): boolean {
+  return Boolean(indexVersion && subjectVersion && indexVersion !== subjectVersion);
+}
+
+let datasetChanged = false;
+const datasetWatchers = new Set<() => void>();
+
+/** Marks the course data on screen as older than the site's; see useDatasetChanged. */
+export function noteDatasetChanged(): void {
+  if (datasetChanged) return;
+  datasetChanged = true;
+  for (const w of datasetWatchers) w();
+}
+
+export const datasetChangedSnapshot = () => datasetChanged;
+export function subscribeDatasetChanged(cb: () => void): () => void {
+  datasetWatchers.add(cb);
+  return () => { datasetWatchers.delete(cb); };
+}
 
 // ── Enrollment calendar ──────────────────────────────────────────────────────
 
