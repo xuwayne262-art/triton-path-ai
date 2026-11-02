@@ -313,6 +313,12 @@ export default function CourseDetailPage({
     );
   }
 
+  // Until the course's own file is here there is nothing true to show below
+  // the header: one skeleton, with the header's room kept, rather than the
+  // real layout with placeholders that the arriving content then pushes down
+  // (that shift measured 0.6 CLS on a throttled phone).
+  if (!detail) return <PlatShell><CourseSkeleton code={code} /></PlatShell>;
+
   const quarter = quarterByKey(term);
   const leads = detail?.unl ?? [];
   const offered = detail?.offered === 1;
@@ -776,6 +782,28 @@ function PastTerms({ detail, code }: { detail: CourseDetail; code: string }) {
         From the UCSD Associated Students Instructor Grade Archive, which publishes each class&rsquo;s
         average GPA and the share of each letter, not how many students took it.
       </p>
+    </div>
+  );
+}
+
+/** The course page's shape while its subject file loads: never a negative fact, nothing that will move. */
+function CourseSkeleton({ code }: { code: string }) {
+  const bar = "animate-pulse rounded bg-gray-100 motion-reduce:animate-none dark:bg-white/5";
+  return (
+    <div className={`mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 ${PAGE_PAD}`} aria-busy="true">
+      <p role="status" className="sr-only">Loading {code}…</p>
+      <div className={`h-3 w-48 ${bar}`} />
+      <div className="mt-5 flex min-h-[11rem] items-start gap-4">
+        <div className={`h-16 w-16 shrink-0 rounded-xl ${bar}`} />
+        <div className="min-w-0 flex-1">
+          <p className="font-mono text-sm font-bold text-[#182B49] dark:text-[#FFCD00]">{code}</p>
+          <div className={`mt-2 h-7 w-3/4 ${bar}`} />
+          <div className={`mt-2 h-7 w-1/2 ${bar}`} />
+          <div className={`mt-4 h-4 w-full max-w-xl ${bar}`} />
+          <div className={`mt-2 h-4 w-5/6 max-w-lg ${bar}`} />
+        </div>
+      </div>
+      <div className={`mt-10 h-[60vh] rounded-2xl ${bar}`} />
     </div>
   );
 }
