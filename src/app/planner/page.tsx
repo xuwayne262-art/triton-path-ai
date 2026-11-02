@@ -33,6 +33,9 @@ import { choiceText, decodeChoice, encodeChoice } from "@/lib/sectionChoice";
 import { ADD_INTENT_KEY, madeHere, parseAddIntent, type AddIntent } from "@/lib/planIntent";
 import { usePlanner } from "./PlannerProvider";
 import { coursesUnitsText } from "@/lib/units";
+import IssueList from "@/components/planner/IssueList";
+import { examIssues, overlapIssues, type PlanIssue } from "@/lib/planner/issues";
+import { oneOffLabel } from "@/lib/sections";
 
 /**
  * The term workspace: sections on the left, the week in the middle, the campus
@@ -394,6 +397,23 @@ export default function TermWorkspacePage() {
     }
     return out;
   }, [selectedCourses, sectionsByCode, selections, roleOf]);
+
+  // ── What needs a decision, in words ─────────────────────────────────────────
+
+  const issues = useMemo((): PlanIssue[] => {
+    const out: PlanIssue[] = [...overlapIssues(events)];
+    out.push(...examIssues(exams.map((e) => ({ code: e.code, row: e.row, label: oneOffLabel(e.row) }))));
+    const onWeek = new Set(events.filter((e) => !e.ghost).map((e) => e.code));
+    for (const { course } of selectedCourses) {
+      const st = sectionStatus(course.code);
+      if (st.failed) out.push({ kind: "unknown", code: course.code, why: "failed" });
+      else if (st.loading) continue;
+      else if (!st.available) out.push({ kind: "unknown", code: course.code, why: "unpublished" });
+      else if (!st.complete) out.push({ kind: "incomplete", code: course.code, missing: st.missing, started: st.started });
+      else if (!onWeek.has(course.code)) out.push({ kind: "unknown", code: course.code, why: "tba" });
+    }
+    return out;
+  }, [events, exams, selectedCourses, sectionStatus]);
 
   // ── Interactions ────────────────────────────────────────────────────────────
 
@@ -891,6 +911,11 @@ export default function TermWorkspacePage() {
               if (e.target === e.currentTarget) setFocusCode(null);
             }}
           >
+            <IssueList
+              issues={issues}
+              onChoose={(code) => { pickTab("sections"); if (isPhone) pickView("courses"); setFocusCode(code); }}
+              onRetry={retrySections}
+            />
             <WeekCalendar
               events={events}
               ghosts={ghosts}
