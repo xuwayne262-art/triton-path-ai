@@ -314,6 +314,7 @@ export function tidyTitle(title: string): string {
 export const loadIndex = () =>
   loadJSON<PlatIndex>("/data/plat/index.json", (file) => {
     for (const c of file.courses) c.t = tidyTitle(c.t);
+    if (file.meta?.retrieved) noteVersion("index", file.meta.retrieved);
     return file;
   });
 export const loadGE = () => loadJSON<GEFile>("/data/plat/ge.json");
@@ -322,16 +323,23 @@ export const loadSubject = (sub: string) =>
   loadJSON<SubjectFile>(`/data/plat/subject/${encodeURIComponent(sub)}.json`, (file) => {
     for (const c of Object.values(file.courses)) c.t = tidyTitle(c.t);
     return file;
-  }).then(async (file) => {
+  }).then((file) => {
     // A tab open across a data deploy holds the old index; a subject file
     // fetched now is the new build's. Mixing them could show sections the
     // index does not list, so the page is told and offers a reload instead.
-    if (file.v) {
-      const index = await loadIndex().catch(() => null);
-      if (index?.meta.retrieved && datasetMismatch(index.meta.retrieved, file.v)) noteDatasetChanged();
-    }
+    // Compared with whatever has loaded — never by fetching the index here,
+    // which would put 280KB back in front of the course page.
+    if (file.v) noteVersion("subject", file.v);
     return file;
   });
+
+/** Build versions seen in this tab, by file kind; two different ones mean a deploy happened mid-session. */
+const seenVersions = { index: new Set<string>(), subject: new Set<string>() };
+function noteVersion(kind: "index" | "subject", v: string): void {
+  seenVersions[kind].add(v);
+  const all = new Set([...seenVersions.index, ...seenVersions.subject]);
+  if (all.size > 1) noteDatasetChanged();
+}
 
 /** True when a subject file was built from a different read than the index held. */
 export function datasetMismatch(indexVersion: string | undefined, subjectVersion: string | undefined): boolean {

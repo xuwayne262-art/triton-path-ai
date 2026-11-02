@@ -21,6 +21,12 @@ import {
 import { DEFAULT_FILTERS, filtersFromQuery, filtersToQuery, type ResultFilters } from "./courseFilters";
 
 export interface GeState {
+  /**
+   * Which kind of requirement is being browsed: a college's GE lists, or a
+   * university requirement (DEI, AHI) on its own. A link with `req` is the
+   * university mode, so links made before modes existed open as they did.
+   */
+  mode: "college" | "university";
   /** A college key from the GE file ("sixth"), or null until one is chosen. */
   college: string | null;
   /** Area keys of that college ("sixth:Modes of Inquiry · Humanities"); empty means all of them. */
@@ -33,7 +39,7 @@ export interface GeState {
   discipline: string | null;
 }
 
-export const EMPTY_GE: GeState = { college: null, areas: [], req: null, also: [], discipline: null };
+export const EMPTY_GE: GeState = { mode: "college", college: null, areas: [], req: null, also: [], discipline: null };
 
 /** "sixth:Modes of Inquiry · Humanities" -> "modes-of-inquiry-humanities", for the address bar. */
 export const areaSlug = (key: string) =>
@@ -94,7 +100,9 @@ export function parseGeQuery(
 
   const filters = filtersFromQuery(params, base);
 
-  return { state: { college, areas: discipline ? [] : areas, req, also: req ? [] : also, discipline }, filters, problems };
+  const mode = req || (params.get("mode") ?? "").trim().toLowerCase() === "university" ? "university" : "college";
+
+  return { state: { mode, college, areas: discipline ? [] : areas, req, also: req ? [] : also, discipline }, filters, problems };
 }
 
 /** The query that reproduces a state; defaults are left out, so a plain page has a plain address. */
@@ -107,6 +115,7 @@ export function geQueryString(
   if (state.college) q.set("college", state.college);
   if (state.areas.length) q.set("area", state.areas.map(areaSlug).join(","));
   if (state.req) q.set("req", reqSlug(state.req));
+  else if (state.mode === "university") q.set("mode", "university");
   if (state.also.length) q.set("also", state.also.map(reqSlug).join(","));
   if (state.discipline) q.set("d", state.discipline);
   filtersToQuery(filters, base, q);

@@ -6,13 +6,14 @@ import Link from "next/link";
 import { ArrowUpRight, ExternalLink, Info } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import PageHeader from "@/components/plat/PageHeader";
-import { PAGE_GAP, PAGE_PAD, SECTION_TITLE } from "@/components/plat/typeScale";
+import { PAGE_GAP, PAGE_PAD } from "@/components/plat/typeScale";
 import CourseResults, { DEFAULT_FILTERS, type ResultFilters } from "@/components/plat/CourseResults";
 import {
   CAMPUS, UNIVERSITY_REQUIREMENTS, collegeName, loadGE, loadIndex,
   type GEFile, type PlatIndex,
 } from "@/lib/plat";
 import { EMPTY_GE, geQueryString, geResults, parseGeQuery, type GeState } from "@/lib/geQuery";
+import { afterIdle } from "@/lib/idle";
 import { cleanPlanner } from "@/lib/plan/record";
 import { PLANNER_KEY } from "@/lib/plan/sync";
 import { COLLEGE_SOURCES } from "@/data/collegeSources";
@@ -67,7 +68,7 @@ function GESearch() {
   const [failed, setFailed] = useState(false);
   const [memory, setMemory] = useState<{ key: string; from: "here" | "planner" } | null>(null);
 
-  useEffect(() => { loadIndex().then(setIndex).catch(() => setFailed(true)); }, []);
+  const [indexFailed, setIndexFailed] = useState(false);
   useEffect(() => { loadGE().then(setGE).catch(() => setFailed(true)); }, []);
 
   const parsed = useMemo(
@@ -89,13 +90,25 @@ function GESearch() {
       const m = rememberedCollege();
       if (m && colleges.includes(m.key)) {
         setMemory(m);
-        go({ ...EMPTY_GE, college: m.key }, filters, { replace: true });
+        go({ ...EMPTY_GE, mode: state.mode, college: m.key }, filters, { replace: true });
       }
     }, 0);
     return () => window.clearTimeout(t);
     // Only on arrival: later choices are the student's, made in the address.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ge]);
+
+  // The choices are drawn from ge.json (~10KB). The course index (~280KB) is
+  // needed only to list courses, so it is fetched as soon as a list is
+  // wanted, and otherwise once the page is idle, never in front of the page.
+  const wantsList = Boolean(state.req || (state.mode === "college" && state.college));
+  const [indexAttempt, setIndexAttempt] = useState(0);
+  useEffect(() => {
+    if (!ge) return;
+    const load = () => { loadIndex().then((d) => { setIndex(d); setIndexFailed(false); }).catch(() => setIndexFailed(true)); };
+    if (wantsList) { load(); return; }
+    return afterIdle(load, 4000);
+  }, [ge, wantsList, indexAttempt]);
 
   const areas = useMemo(() => ge?.areas.filter((a) => a.college === state.college) ?? [], [ge, state.college]);
   const reqs = useMemo(() => REQ_KEYS.filter((k) => ge?.lists[k]), [ge]);
@@ -118,7 +131,7 @@ function GESearch() {
     set({ areas: state.areas.includes(key) ? state.areas.filter((a) => a !== key) : [...state.areas, key], discipline: null, req: null });
   const toggleAlso = (key: string) =>
     set({ also: state.also.includes(key) ? state.also.filter((a) => a !== key) : [...state.also, key], req: null });
-  const resetAll = () => go({ ...EMPTY_GE, college: state.college }, BASE);
+  const resetAll = () => go({ ...EMPTY_GE, mode: state.mode, college: state.college }, BASE);
   // The text filter changes the address as it is typed, without a history entry per letter.
   const onFilters = (f: ResultFilters) => go(state, f, { replace: f.q !== filters.q });
 
@@ -135,9 +148,11 @@ function GESearch() {
     ...state.also.map((k) => ({ label: `Also ${reqLabel(k)}`, clear: () => toggleAlso(k) })),
   ];
 
-  if (!ge || !index) {
+  if (!ge) {
     return <PlatShell>{failed ? <GEFailed /> : <GELoading />}</PlatShell>;
   }
+  const termName = index?.meta.termName ?? "this term";
+  const setMode = (mode: GeState["mode"]) => go({ ...state, mode, req: mode === "college" ? null : state.req, also: mode === "university" ? [] : state.also }, filters);
 
   return (
     <PlatShell>
@@ -174,7 +189,24 @@ function GESearch() {
           </p>
         )}
 
-        <div className={`${PAGE_GAP} space-y-7`}>
+        {/* ── Which kind of requirement: two modes, never two competing sets of controls ── */}
+        <div role="radiogroup" aria-label="Kind of requirement" className={`${PAGE_GAP} grid grid-cols-2 gap-1 rounded-xl bg-gray-100 p-1 dark:bg-white/5`}>
+          {([["college", "College requirements", "Your college's GE lists"], ["university", "University requirements", "DEI and American History & Institutions"]] as const).map(([m, label, hint]) => (
+            <label
+              key={m}
+              className={`cursor-pointer rounded-lg px-3 py-2 text-center transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-[#182B49] dark:has-[:focus-visible]:ring-[#FFCD00] ${
+                state.mode === m ? "bg-white shadow-sm dark:bg-white/10" : "hover:bg-white/60 dark:hover:bg-white/[0.06]"
+              }`}
+            >
+              <input type="radio" name="ge-mode" className="sr-only" checked={state.mode === m} onChange={() => setMode(m)} />
+              <span className={`block text-sm font-semibold ${state.mode === m ? "text-[#182B49] dark:text-[#FFCD00]" : "text-gray-700 dark:text-gray-300"}`}>{label}</span>
+              <span className="block text-[11px] text-gray-600 dark:text-gray-400">{hint}</span>
+            </label>
+          ))}
+        </div>
+
+        {state.mode === "college" ? (
+        <div className="mt-7 space-y-7">
           {/* ── 1. College ─────────────────────────────────────────────────── */}
           <Step n={1} title="Your college" hint={
             memory
@@ -193,10 +225,10 @@ function GESearch() {
           {state.college && !isWarren && (
             <Step
               n={2}
-              title={`${collegeName(state.college)} GE requirements`}
+              title={`${collegeName(state.college)} GE areas`}
               hint={state.areas.length
-                ? `Showing courses on any selected area (${state.areas.length} of ${areas.length}).`
-                : `Showing every area with a list (${areas.length}). Select areas to narrow to courses on any of them.`}
+                ? `Showing courses on ANY of the ${state.areas.length} selected ${state.areas.length === 1 ? "area" : "areas"}.`
+                : `Showing every area with a list (${areas.length}). Select areas to see courses on ANY of them.`}
             >
               <CheckChips
                 options={areas.map((a) => ({ value: a.key, label: a.area }))}
@@ -252,87 +284,98 @@ function GESearch() {
             </Step>
           )}
 
-          {/* ── 3. Also fulfills ───────────────────────────────────────────── */}
-          {state.college && reqs.length > 0 && !state.req && (
+          {/* ── 3. Also on a university list: an optional intersection ─────── */}
+          {state.college && reqs.length > 0 && (
             <Step
               n={3}
-              title="Also fulfills (optional)"
-              hint="Keeps only courses that are also on that UCSD list. Whether one course may count for both depends on your college's rules."
+              title="Also on a university list (optional)"
+              hint="Narrows to courses that are ALSO on every list you tick. Being on two lists doesn't mean one course counts for both; that depends on your college's rules, which this page doesn't check."
             >
               <CheckChips
                 options={reqs.map((k) => ({ value: k, label: reqLabel(k) }))}
                 values={state.also}
                 onToggle={toggleAlso}
-                legend="Also fulfills"
+                legend="Also on a university list"
                 tone="emerald"
               />
             </Step>
           )}
-
-          {/* ── Or a university requirement on its own ─────────────────────── */}
-          {reqs.length > 0 && (
-            <div className="rounded-xl border border-gray-200 px-4 py-3 dark:border-white/10">
-              <p className={SECTION_TITLE}>University requirements · every college</p>
-              <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-400">From UCSD&rsquo;s own lists. Browse one by itself:</p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {reqs.map((k) => (
-                  <button
-                    key={k}
-                    type="button"
-                    aria-pressed={state.req === k}
-                    onClick={() => set(state.req === k ? { req: null } : { req: k, areas: [], discipline: null, also: [] })}
-                    className={chipClass(state.req === k, "emerald")}
-                  >
-                    {reqLabel(k)}
-                  </button>
-                ))}
-              </div>
-              {state.req && campus && (
-                <p className="mt-3 flex flex-wrap items-center gap-x-1 text-xs leading-relaxed text-gray-700 dark:text-gray-300">
-                  {state.req.endsWith(":DEI") ? (
-                    <>
-                      From the Academic Senate&rsquo;s list of approved courses
-                      {campus.dei.termName && campus.dei.asOf ? `, with ${campus.dei.termName}'s offerings as of ${campus.dei.asOf}` : ""}. A course
-                      counts only if taken in or after the quarter its approval began. Check the
-                      <a href={campus.dei.url} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-0.5 font-semibold underline underline-offset-2">
-                        Senate list <ExternalLink className="h-3 w-3" aria-hidden />
-                      </a>.
-                    </>
-                  ) : (
-                    <>
-                      From the UCSD General Catalog. {campus.ahi.note} AP, IB and high-school credit can satisfy it too. See
-                      <a href={campus.ahi.url} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-0.5 font-semibold underline underline-offset-2">
-                        the catalog <ExternalLink className="h-3 w-3" aria-hidden />
-                      </a>.
-                    </>
-                  )}
-                </p>
-              )}
-            </div>
-          )}
         </div>
+        ) : (
+        <div className="mt-7 space-y-7">
+          <Step n={1} title="University requirement" hint={state.req ? undefined : "Every UCSD student needs these, whatever the college. Choose one to list its courses."}>
+            <RadioChips
+              name="requirement"
+              value={state.req}
+              options={reqs.map((k) => ({ value: k, label: reqLabel(k) }))}
+              onChange={(k) => set({ req: k, areas: [], discipline: null, also: [] })}
+            />
+            {state.req && campus && (
+              <p className="mt-3 flex flex-wrap items-center gap-x-1 text-xs leading-relaxed text-gray-700 dark:text-gray-300">
+                {state.req.endsWith(":DEI") ? (
+                  <>
+                    From the Academic Senate&rsquo;s list of approved courses
+                    {campus.dei.termName && campus.dei.asOf ? `, with ${campus.dei.termName}'s offerings as of ${campus.dei.asOf}` : ""}. A course
+                    counts only if taken in or after the quarter its approval began. Check the
+                    <a href={campus.dei.url} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-0.5 font-semibold underline underline-offset-2">
+                      Senate list <ExternalLink className="h-3 w-3" aria-hidden />
+                    </a>.
+                  </>
+                ) : (
+                  <>
+                    From the UCSD General Catalog. {campus.ahi.note} AP, IB and high-school credit can satisfy it too. See
+                    <a href={campus.ahi.url} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-0.5 font-semibold underline underline-offset-2">
+                      the catalog <ExternalLink className="h-3 w-3" aria-hidden />
+                    </a>.
+                  </>
+                )}
+              </p>
+            )}
+          </Step>
+        </div>
+        )}
 
         <div className="mt-10">
-          {!state.college && !state.req ? (
+          {!wantsList ? (
             <p className="rounded-xl border border-dashed border-gray-300 px-4 py-10 text-center text-sm text-gray-600 dark:border-white/15 dark:text-gray-400">
-              Choose your college above, or a university requirement, to list its courses.
+              {state.mode === "college" ? "Choose your college above to list its GE courses." : "Choose DEI or American History & Institutions above to list its courses."}
             </p>
+          ) : indexFailed && !index ? (
+            <div role="alert" className="rounded-xl border border-gray-200 px-4 py-8 text-center text-sm text-gray-700 dark:border-white/10 dark:text-gray-300">
+              The course list didn&rsquo;t arrive. Your choices above are kept.
+              <button
+                type="button"
+                onClick={() => setIndexAttempt((n) => n + 1)}
+                className="ml-2 font-semibold text-[#182B49] underline dark:text-[#FFCD00]"
+              >
+                Try again
+              </button>
+            </div>
           ) : (
+            <>
+            {/* What a listing means, by source: possible for college lists, official for university lists. */}
+            <p className="mb-3 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
+              {state.req
+                ? "On UCSD's official list. Its own conditions still apply (for DEI, the quarter a course's approval began), so this is not a check of your record."
+                : "Possibly applies: from a student-compiled list for your college, not verified against your college's rules or your catalog year."}
+            </p>
             <CourseResults
+              loading={!index}
               rows={results?.rows ?? []}
               filters={filters}
               onChange={onFilters}
               noteFor={results?.noteFor}
-              termName={index.meta.termName}
+              termName={index?.meta.termName}
               extraChips={[
                 ...(state.college && !state.req ? [{ label: collegeName(state.college), clear: () => go({ ...EMPTY_GE }, filters) }] : []),
                 ...chips,
               ]}
               onResetAll={resetAll}
               emptyHint={state.also.length
-                ? `No course on ${state.areas.length ? "the selected areas" : `${collegeName(state.college ?? "")}'s lists`} is also on the ${state.also.map(reqLabel).join(" and ")} list${filters.offeredOnly ? ` and on the ${index.meta.termName} schedule` : ""}.`
+                ? `No course on ${state.areas.length ? "the selected areas" : `${collegeName(state.college ?? "")}'s lists`} is also on the ${state.also.map(reqLabel).join(" and ")} list${filters.offeredOnly ? ` and on the ${termName} schedule` : ""}.`
                 : "No listed course matches these filters."}
             />
+            </>
           )}
           {results && results.unknown.length > 0 && (
             <p className="mt-5 text-xs leading-relaxed text-gray-600 dark:text-gray-400">

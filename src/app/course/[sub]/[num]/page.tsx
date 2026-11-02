@@ -41,6 +41,7 @@ import { quarterByKey } from "@/lib/housing/terms";
 import { collegeForSubject, departmentForSubject } from "@/data/ucsdStructure";
 import type { CoursePin } from "@/components/plat/CourseMap";
 import WhenVisible from "@/components/plat/WhenVisible";
+import { afterIdle } from "@/lib/idle";
 
 const CourseMap = dynamic(() => import("@/components/plat/CourseMap"), {
   ssr: false,
@@ -95,9 +96,21 @@ export default function CourseDetailPage({
   const signInHref = useSignInHref();
   const { theme } = useTheme();
 
-  useEffect(() => { loadIndex().then(setIndex).catch(() => {}); }, [attempt]);
+  // The page is drawn from this subject's file (~60KB). The campus-wide index
+  // (~280KB, 2.3MB to parse) and the professor list (~220KB) only add the
+  // related-courses shelf, prerequisite links and RateMyProfessors scores, so
+  // they are fetched once the course is on screen and the browser is idle,
+  // instead of racing the subject file and holding up the first real paint.
+  const ready = subject !== null;
+  useEffect(() => {
+    if (!ready) return;
+    return afterIdle(() => { loadIndex().then(setIndex).catch(() => {}); });
+  }, [ready, attempt]);
   useEffect(() => { loadBuildings().then(setBuildings).catch(() => {}); }, []);
-  useEffect(() => { loadProfessors().then((f) => setProfs(f.professors)).catch(() => setProfs([])); }, []);
+  useEffect(() => {
+    if (!ready) return;
+    return afterIdle(() => { loadProfessors().then((f) => setProfs(f.professors)).catch(() => setProfs([])); });
+  }, [ready]);
   useEffect(() => {
     loadSubject(sub)
       .then(setSubject)
@@ -116,8 +129,9 @@ export default function CourseDetailPage({
   const detail: CourseDetail | undefined = subject?.courses[code];
   const row = index?.courses.find((c) => c.k === code);
   const title = detail?.t ?? row?.t;
-  const term = index?.meta.term ?? null;
-  const termLabel = index?.meta.termName ?? "This term";
+  // The subject file names its term, so the schedule can be shown before the index arrives.
+  const term = subject?.term ?? index?.meta.term ?? null;
+  const termLabel = subject?.termName ?? index?.meta.termName ?? "This term";
 
   // ── The section choice ─────────────────────────────────────────────────
   const families = useMemo(() => groupSections(detail?.sec ?? []), [detail]);
@@ -318,7 +332,7 @@ export default function CourseDetailPage({
   const quarter = quarterByKey(term);
   const leads = detail?.unl ?? [];
   const offered = detail?.offered === 1;
-  const ratingFor = index ? { term: index.meta.term, termName: index.meta.termName, code } : null;
+  const ratingFor = term ? { term, termName: termLabel, code } : null;
   const summaryProps = {
     code, detail, families, selection, termLabel, signedIn, planner,
     onAdd: addToPlanner,

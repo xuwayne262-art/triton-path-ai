@@ -23,6 +23,17 @@ describe("the GE page's address", () => {
     assert.deepEqual(back.problems, []);
   });
 
+  test("the two modes: a bookmark with req opens University, and an empty University mode is kept", () => {
+    assert.equal(parse("req=dei").state.mode, "university");
+    assert.equal(parse("college=sixth").state.mode, "college");
+    const uni = { ...EMPTY_GE, mode: "university" as const, college: "sixth" };
+    const qs = geQueryString(uni, base, base);
+    assert.equal(qs, "?college=sixth&mode=university");
+    assert.deepEqual(parse(qs.slice(1)).state, uni);
+    // A chosen requirement says the mode by itself.
+    assert.equal(geQueryString({ ...uni, req: "campus:DEI" }, base, base), "?college=sixth&req=dei");
+  });
+
   test("carries the list filters too, and leaves defaults out", () => {
     const filters = { ...base, q: "film", offeredOnly: true, openOnly: true, units: "4", load: "3.2", sort: "rating" as const };
     const qs = geQueryString({ ...EMPTY_GE, college: "muir" }, filters, base);

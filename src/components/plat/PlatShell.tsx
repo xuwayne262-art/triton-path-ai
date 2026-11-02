@@ -13,6 +13,7 @@ import TridentMark from "./TridentMark";
 import { useTheme } from "./theme";
 import { useAccount, useSignInHref } from "./useSignedIn";
 import { loadIndex, refreshedLabel, type IndexMeta } from "@/lib/plat";
+import { afterIdle } from "@/lib/idle";
 import { seatSpan, spanLabel } from "@/lib/freshness";
 
 /**
@@ -51,7 +52,9 @@ export default function PlatShell({
   const signInHref = useSignInHref();
   const [meta, setMeta] = useState<IndexMeta | null>(null);
 
-  useEffect(() => { loadIndex().then((d) => setMeta(d.meta)).catch(() => {}); }, []);
+  // Only the footer's source line uses this, below the fold: fetched when idle,
+  // so the index never competes with what a page is drawing first.
+  useEffect(() => afterIdle(() => { loadIndex().then((d) => setMeta(d.meta)).catch(() => {}); }, 3000), []);
   const refreshed = refreshedLabel(meta?.refreshed);
   // Class Planner counts each section's seats on its own clock, so one dataset
   // holds counts weeks apart: the footer gives the span, never one date.
