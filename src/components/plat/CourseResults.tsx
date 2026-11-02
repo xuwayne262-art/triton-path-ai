@@ -139,7 +139,8 @@ export default function CourseResults({
           )}
         </p>
 
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+        {/* Below 640px the controls take a row of their own and wrap, so a 360px screen never scrolls sideways. */}
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">
           <div
             role="radiogroup"
             aria-label="Which courses to list"
@@ -170,7 +171,7 @@ export default function CourseResults({
             <select
               value={filters.sort}
               onChange={(e) => set("sort", e.target.value as SortKey)}
-              className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:border-[#182B49] focus-visible:ring-2 focus-visible:ring-[#182B49]/30 dark:border-white/10 dark:bg-white/5 dark:text-gray-100"
+              className="min-w-0 max-w-[12rem] rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-900 outline-none sm:max-w-none focus:border-[#182B49] focus-visible:ring-2 focus-visible:ring-[#182B49]/30 dark:border-white/10 dark:bg-white/5 dark:text-gray-100"
             >
               {SORTS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
             </select>
