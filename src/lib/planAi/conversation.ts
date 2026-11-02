@@ -188,3 +188,14 @@ export function targetWords(t: PlanTarget): string {
 export function codesIn(items: (CourseCard | Proposal)[]): string[] {
   return [...new Set(items.flatMap((x) => ("ops" in x ? x.adds.map((a) => a.code) : [x.code])))];
 }
+
+/**
+ * The courses a "find" request searches among: those it named, less the ones
+ * it said to keep. "keep ECON 110B and find a GE after 10" names ECON 110B to
+ * hold in place, not to look for; searching for it (already in the plan) left
+ * nothing to find.
+ */
+export function findTargets(named: string[], keep: string[]): string[] {
+  const kept = new Set(keep);
+  return named.filter((c) => !kept.has(c));
+}

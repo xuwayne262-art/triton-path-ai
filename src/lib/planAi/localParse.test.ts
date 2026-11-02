@@ -218,3 +218,14 @@ describe("constraints", () => {
     assert.equal(isComplete(p), false);
   });
 });
+
+describe("keep a course and find another", () => {
+  test("the kept course is held in place, not searched for", async () => {
+    const { findTargets } = await import("./conversation");
+    const p = parse("keep ECON 110B and find a GE after 10 a.m.");
+    assert.equal(p.kind, "find_fitting_course");
+    assert.deepEqual(p.keep, ["ECON 110B"]);
+    assert.deepEqual(findTargets(p.courses, p.keep), []);
+    assert.deepEqual(findTargets(["CSE 11", "ECON 1"], ["ECON 1"]), ["CSE 11"]);
+  });
+});

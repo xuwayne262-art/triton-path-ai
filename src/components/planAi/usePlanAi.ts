@@ -32,6 +32,7 @@ import { eventsForRow, groupSections, sameSelection, selectedSections, type CalE
 import { majorSubjects, platRowToCourse } from "@/lib/plannerBridge";
 import { takeHandoff } from "@/lib/planAi/handoff";
 import { outboundVocab, type OutboundVocab } from "@/lib/planAi/outbound";
+import { findTargets } from "@/lib/planAi/conversation";
 import type { CourseCard, Interpretation, PlanTarget, Proposal } from "@/lib/planAi/types";
 import type { Action, AssistantMessage, ChatMessage, Choice } from "./types";
 
@@ -919,9 +920,13 @@ export function usePlanAi(): PlanAiState {
       case "build_quarter":
         await runOptions(s, "build");
         return;
-      case "find_fitting_course":
-        await runFind(s, p.courses);
+      case "find_fitting_course": {
+        // "keep ECON 110B and find a GE": a kept course is fixed in the week,
+        // not what to search for. Passing it on made it the whole search, and
+        // since it was already in the plan the search found nothing.
+        await runFind(s, findTargets(p.courses, [...p.keep, ...s.keep]));
         return;
+      }
       case "clarify":
         if (p.ask === "easier") {
           say({
