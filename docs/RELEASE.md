@@ -73,11 +73,14 @@ each names what to check before going on.
 
 ### Lab performance, before and after (same conditions)
 
-| Page | Before | After |
+| Page | Before (commit 4e0cc28) | After (this branch, final build) |
 | --- | --- | --- |
-| `/course/ECON/110B` | perf 51, LCP 7.5 s, CLS 0.001, TBT 812 ms | perf 70, LCP 4.6 s, CLS 0.005, TBT 553 ms |
-| `/ge` | perf 64, LCP 6.1 s, CLS 0.001, TBT 557 ms | perf ~78, LCP 4.2 s, CLS 0.001, TBT 346 ms |
-| `/` | — | perf ~80, LCP 2.9 s, CLS 0.039 |
+| `/course/ECON/110B` | perf 51/58/34, LCP 7.5 s, CLS 0.001, TBT 812 ms, 1,066 KB | perf 64/71/71, LCP 4.6 s, CLS 0.005, TBT 510 ms, 1,091 KB |
+| `/ge` | perf 64/64/63, LCP 6.1 s, CLS 0.001, TBT 557 ms, 723 KB | perf 79/81/81, LCP 4.1 s, CLS 0.001, TBT 283 ms, 723 KB |
+| `/` | — | perf 82/86/84, LCP 2.9 s, CLS 0.039, TBT 447 ms |
+
+Total bytes barely change: the index and professor list still load, but after
+the course is on screen rather than in front of it.
 
 LCP on the course page is still above the 2.5 s "good" threshold: the subject
 file is requested only after the JavaScript runs. Rendering course pages on the
