@@ -3,7 +3,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { cleanShortlist } from "@/lib/plan/record";
 import {
-  noteLocalChange, SHORTLIST_EVENT, SHORTLIST_KEY, useAccountSync,
+  SHORTLIST_EVENT, SHORTLIST_KEY, useAccountSync, writeLocalDoc,
 } from "@/lib/plan/sync";
 
 const EMPTY: string[] = [];
@@ -12,8 +12,11 @@ const EMPTY: string[] = [];
 // hand React a new array each render and loop forever.
 let cache: string[] = EMPTY;
 let cacheRaw: string | null = null;
+/** The list as this tab last set it when storage refused it; null once storage holds it. */
+let memoryShortlist: string[] | null = null;
 
 function read(): string[] {
+  if (memoryShortlist) return memoryShortlist;
   let raw: string | null = null;
   try { raw = localStorage.getItem(SHORTLIST_KEY); } catch { return EMPTY; }
   if (raw === cacheRaw) return cache;
@@ -49,9 +52,9 @@ export function useShortlist() {
   const toggle = useCallback((code: string) => {
     const current = read();
     const next = current.includes(code) ? current.filter((c) => c !== code) : [...current, code];
-    try { localStorage.setItem(SHORTLIST_KEY, JSON.stringify(next)); } catch {}
+    // In memory for this tab even when storage refuses; the badge says it isn't kept.
+    memoryShortlist = writeLocalDoc(SHORTLIST_KEY, next) ? null : next;
     window.dispatchEvent(new Event(SHORTLIST_EVENT));
-    noteLocalChange();
   }, []);
 
   return { codes, toggle, has: (code: string) => codes.includes(code) };

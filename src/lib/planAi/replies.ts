@@ -100,6 +100,8 @@ export function syncProblem(status: SyncStatus): string {
     case "signed-out": return "You've been signed out, so nothing was saved. Sign in again and retry.";
     case "unavailable": return "Saving plans to your account isn't set up on this deployment, so nothing was saved.";
     case "error": return "Your plan couldn't be saved to your account just now. Nothing changed.";
+    case "storage-full":
+    case "storage-blocked": return "This browser isn't keeping your plan (its storage is full or blocked), so I didn't save anything rather than risk saving an older copy. Free some storage or leave private browsing, then try again.";
     default: return "Your plan isn't in step with your account yet. Try again in a moment.";
   }
 }

@@ -3,7 +3,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { clamp5, cleanRatings, type TermRating, type TermRatings } from "@/lib/plan/record";
 import {
-  noteLocalChange, RATINGS_EVENT, RATINGS_KEY, useAccountSync,
+  RATINGS_EVENT, RATINGS_KEY, useAccountSync, writeLocalDoc,
 } from "@/lib/plan/sync";
 
 export type { TermRating, TermRatings };
@@ -29,7 +29,11 @@ function parse(raw: string | null): TermRatings {
   return Object.keys(out).length ? out : EMPTY;
 }
 
+/** Ratings as this tab last set them when storage refused them; null once storage holds them. */
+let memoryRatings: TermRatings | null = null;
+
 function read(): TermRatings {
+  if (memoryRatings) return memoryRatings;
   let raw: string | null = null;
   try { raw = localStorage.getItem(RATINGS_KEY); } catch { return EMPTY; }
   if (raw === cacheRaw) return cache;
@@ -79,9 +83,8 @@ export function useTermRatings() {
         at: new Date().toISOString(),
       },
     };
-    try { localStorage.setItem(RATINGS_KEY, JSON.stringify(next)); } catch {}
+    memoryRatings = writeLocalDoc(RATINGS_KEY, next) ? null : next;
     window.dispatchEvent(new Event(RATINGS_EVENT));
-    noteLocalChange();
   }, []);
 
   const clear = useCallback((key: string) => {
@@ -89,9 +92,8 @@ export function useTermRatings() {
     if (!(key in current)) return;
     const next = { ...current };
     delete next[key];
-    try { localStorage.setItem(RATINGS_KEY, JSON.stringify(next)); } catch {}
+    memoryRatings = writeLocalDoc(RATINGS_KEY, next) ? null : next;
     window.dispatchEvent(new Event(RATINGS_EVENT));
-    noteLocalChange();
   }, []);
 
   return { ratings, save, clear };

@@ -37,7 +37,7 @@ import {
 import { inTerm, LEGACY_TERM, termRank } from "@/lib/plan/term";
 import type { PlanChange } from "@/lib/plan/change";
 import {
-  noteLocalChange, PLANNER_EVENT, PLANNER_KEY, useAccountSync, type SyncStatus,
+  PLANNER_EVENT, PLANNER_KEY, useAccountSync, writeLocalDoc, type SyncStatus,
 } from "@/lib/plan/sync";
 import { currentPlanSlot } from "@/lib/planSlot";
 import { programLabel } from "@/data/ucsdMajorsMinors";
@@ -477,8 +477,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       ...(Object.keys(pastTerms).length ? { past: pastTerms } : {}),
       ...(changeLog.length ? { log: changeLog } : {}),
     };
-    try { localStorage.setItem(PLANNER_KEY, JSON.stringify(payload)); } catch {}
-    noteLocalChange();
+    writeLocalDoc(PLANNER_KEY, payload);
   }, [
     hydrated, newerPlanTerm, selectedMajor, selectedMinor, selectedCollege,
     selectedCourses, plannedCourses, selections, planTerm, pastTerms, changeLog,

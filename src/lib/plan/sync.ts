@@ -63,7 +63,11 @@ export type SyncStatus =
   | "unavailable"
   /** The account refused the plan outright; retried on the next edit. */
   | "error"
-  | "signed-out";
+  | "signed-out"
+  /** This browser refuses storage (private mode, blocked site data): edits live only in this tab. */
+  | "storage-blocked"
+  /** A write to this browser's storage just failed (full): the newest edits are not kept here, nor sent. */
+  | "storage-full";
 
 interface Remote {
   owner: string;
@@ -432,7 +436,11 @@ export function createSync(env: SyncEnv) {
 
 let engine: ReturnType<typeof createSync> | null | undefined;
 let shown: SyncStatus = "idle";
+/** Set when a local write failed; cleared by the next one that succeeds. Outranks the engine's status. */
+let storageTrouble: "storage-blocked" | "storage-full" | null = null;
 const watchers = new Set<() => void>();
+const notify = () => { for (const w of watchers) w(); };
+const currentStatus = (): SyncStatus => storageTrouble ?? shown;
 
 /**
  * Created on first use in the browser, never on the server. A browser that
@@ -447,6 +455,7 @@ function browserEngine() {
     window.localStorage.setItem(probe, "1");
     window.localStorage.removeItem(probe);
   } catch {
+    storageTrouble = "storage-blocked";
     return (engine = null);
   }
 
@@ -460,7 +469,7 @@ function browserEngine() {
   });
   e.subscribe(() => {
     shown = e.status();
-    for (const w of watchers) w();
+    notify();
   });
   window.addEventListener("focus", e.refresh);
   window.addEventListener("online", e.refresh);
@@ -488,7 +497,7 @@ export function useAccountSync(): SyncStatus {
   useEffect(() => {
     browserEngine()?.start();
   }, []);
-  return useSyncExternalStore(subscribeStatus, () => shown, () => "idle");
+  return useSyncExternalStore(subscribeStatus, currentStatus, () => "idle");
 }
 
 /** Call after writing any of the three documents, so the edit reaches the account. */
@@ -496,10 +505,45 @@ export function noteLocalChange(): void {
   browserEngine()?.noteLocalChange();
 }
 
+/**
+ * Writes one of the plan's documents to this browser and, only if that
+ * worked, schedules the save to the account. A write that throws (storage
+ * full or blocked) used to be swallowed: the page carried on as if saved, and
+ * the next sync read the older copy still in storage and sent that. Now the
+ * failure is shown, and nothing is sent until a write succeeds, so an older
+ * copy never goes out in place of newer edits.
+ */
+export function writeLocalDoc(key: string, value: unknown): boolean {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    if (storageTrouble !== "storage-full") {
+      storageTrouble = browserEngine() ? "storage-full" : "storage-blocked";
+      notify();
+    }
+    return false;
+  }
+  if (storageTrouble) {
+    storageTrouble = null;
+    notify();
+  }
+  noteLocalChange();
+  return true;
+}
+
+/** Tries the account again now: after a failed save, or once the connection is back. */
+export function retryAccountSync(): void {
+  const e = browserEngine();
+  if (!e) return;
+  e.refresh();
+  e.noteLocalChange();
+}
+
 /** Saves now and waits for the account to agree; see the engine's `settle`. */
 export function settleAccountPlan(): Promise<{ owner: string; rev: number } | null> {
   const e = browserEngine();
-  if (!e) return Promise.resolve(null);
+  // With a failed local write, storage holds an older copy than the screen: settling would send it.
+  if (!e || storageTrouble) return Promise.resolve(null);
   e.start();
   return e.settle();
 }
@@ -511,5 +555,6 @@ export function adoptAccountPlan(body: unknown): boolean {
 
 /** How the sync stands right now, for code outside React. */
 export function accountSyncStatus(): SyncStatus {
-  return browserEngine()?.status() ?? "idle";
+  const engineStatus = browserEngine()?.status() ?? "idle";
+  return storageTrouble ?? engineStatus;
 }
