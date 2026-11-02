@@ -1,7 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
-import { prereqCodes, prereqSegments } from "./prereqs";
+import { orderClassLevels, prereqCodes, prereqSegments } from "./prereqs";
 import type { PlatIndex, SubjectFile } from "./plat";
 
 describe("reading course codes out of a prerequisite sentence", () => {
@@ -69,5 +69,27 @@ describe("\"Leads to\" in the dataset", () => {
   test("CSE 12 leads to the courses that build on it", () => {
     const unl = courses.get("CSE 12")?.unl ?? [];
     for (const next of ["CSE 100", "CSE 101", "CSE 105"]) assert.ok(unl.includes(next), next);
+  });
+});
+
+describe("orderClassLevels", () => {
+  test("puts class levels in academic order", () => {
+    assert.equal(
+      orderClassLevels("Limited to class level: Freshman, Junior, Sophomore, Senior"),
+      "Limited to class level: Freshman, Sophomore, Junior, Senior",
+    );
+    assert.equal(orderClassLevels("Limited to class level: Junior, Sophomore, Senior"), "Limited to class level: Sophomore, Junior, Senior");
+  });
+
+  test("leaves the rest of the restriction alone", () => {
+    assert.equal(
+      orderClassLevels("Limited to class level: Senior, Junior; Limited to major: Data Science, Cognitive Science"),
+      "Limited to class level: Junior, Senior; Limited to major: Data Science, Cognitive Science",
+    );
+    assert.equal(orderClassLevels("Limited to major: Music"), "Limited to major: Music");
+  });
+
+  test("keeps unknown levels after known ones, in their own order", () => {
+    assert.equal(orderClassLevels("Limited to class level: Extension, Senior, Freshman"), "Limited to class level: Freshman, Senior, Extension");
   });
 });

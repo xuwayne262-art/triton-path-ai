@@ -640,7 +640,15 @@ export function usePlanAi(): PlanAiState {
       }
       p = { ...p, keep: [...new Set([...p.keep, ...resolvedKeep])] };
     }
-    const oneOff = p.kind === "add_course" || p.kind === "remove_course" || p.kind === "replace_course" || p.kind === "move_course" || p.kind === "undo";
+    const namesCourses = p.kind === "add_course" || p.kind === "remove_course" || p.kind === "replace_course" || p.kind === "move_course";
+    if (namesCourses && p.optionRef == null && !p.courses.length && p.unknownCodes.length) {
+      // Every course named is unknown. Falling through would search for something
+      // else ("add CSE 999") or act on the course last in focus ("move CSE 999").
+      const codes = p.unknownCodes.join(", ");
+      say({ text: `${codes} ${p.unknownCodes.length === 1 ? "isn't" : "aren't"} in UCSD's catalog, so I didn't change anything. Check the course code.`, tone: "error", notes: notes.filter((n) => !n.startsWith("Not in UCSD's catalog")) });
+      return;
+    }
+    const oneOff = namesCourses || p.kind === "undo";
     const merged = absorb(s, p, oneOff ? null : target);
     s = merged.settings;
     setSettings(s);
@@ -767,6 +775,10 @@ export function usePlanAi(): PlanAiState {
       case "replace_course": {
         const old = p.courses[0];
         if (!old) { say({ text: "Which course should I replace?", notes }); return; }
+        if (!p.replacement && p.unknownCodes.length) {
+          say({ text: `${p.unknownCodes.join(", ")} ${p.unknownCodes.length === 1 ? "isn't" : "aren't"} in UCSD's catalog, so ${old} stays. Check the course code.`, tone: "error" });
+          return;
+        }
         if (!p.replacement) {
           // A replacement of the same kind, fitted where the old one was.
           s = { ...s, keep: s.keep.filter((k) => k !== old) };
@@ -810,6 +822,11 @@ export function usePlanAi(): PlanAiState {
           return;
         }
         const entry = l.plannedCourses.find((x) => x.course.code === code);
+        if (entry && entry.year === target.slot.year && entry.quarter === target.slot.quarter) {
+          // Already there: a move onto itself would log a change (and an undo) that does nothing.
+          say({ text: `${code} is already in ${target.label}.`, tone: "info", notes });
+          return;
+        }
         const c = ctx();
         const consequences = await moveConsequences(c, code, target.slot);
         const ops: PlanOp[] = entry

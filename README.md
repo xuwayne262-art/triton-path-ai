@@ -2,10 +2,13 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Signing in
 
-UCSDPlans is private. Every page, API route and dataset file under `/data`
-requires a signed-in Google account whose **verified** email ends exactly in
-`@ucsd.edu`. Only the login page, `/api/auth/*` and the login page's own assets
-are public.
+The course explorer is open to anyone: home, Courses, the department, course
+and professor pages, Easy GEs, Find courses, About, Announcements, the dataset
+under `/data/plat/` and `/api/seats` they read. Everything that belongs to a
+student — the Planner, Plan with AI, Academic History, Housing and every other
+API route — requires a signed-in Google account whose **verified** email ends
+exactly in `@ucsd.edu`. The full list is `isPublicPath` in
+`src/lib/auth/routes.ts`.
 
 `alice@eng.ucsd.edu` is rejected — `.ucsd.edu` is not `@ucsd.edu`. There is no
 approval list and no student/faculty check; the domain is the whole rule, and

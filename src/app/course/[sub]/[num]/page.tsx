@@ -35,6 +35,7 @@ import { decodeChoice, encodeChoice, summarizeChoice } from "@/lib/sectionChoice
 import { seatSpan, spanLabel, sumSeatsAt } from "@/lib/freshness";
 import { ADD_INTENT_KEY, addIntentHref, storedIntent } from "@/lib/planIntent";
 import { tallySectionRows, talliedRows } from "@/lib/seats/tally";
+import { orderClassLevels } from "@/lib/prereqs";
 import { quarterByKey } from "@/lib/housing/terms";
 import { collegeForSubject, departmentForSubject } from "@/data/ucsdStructure";
 import type { CoursePin } from "@/components/plat/CourseMap";
@@ -661,7 +662,7 @@ function Eligibility({
       </p>
       {detail.res && (
         <p className="rounded-lg bg-rose-50 px-4 py-2.5 text-sm leading-relaxed text-rose-950 dark:bg-rose-500/10 dark:text-rose-100">
-          <span className="font-semibold">Enrollment restrictions: </span>{detail.res}
+          <span className="font-semibold">Enrollment restrictions: </span>{orderClassLevels(detail.res)}
         </p>
       )}
     </div>

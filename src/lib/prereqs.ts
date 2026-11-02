@@ -66,3 +66,23 @@ export function prereqCodes(text: string | null | undefined): string[] {
   for (const s of prereqSegments(text)) if (s.code) seen.add(s.code);
   return [...seen];
 }
+
+const CLASS_LEVELS = ["Freshman", "Sophomore", "Junior", "Senior", "Graduate"];
+
+/**
+ * UCSD's restriction text with its class levels in academic order.
+ *
+ * Class Planner lists them alphabetically after the first, so a course open to
+ * everyone reads "Freshman, Junior, Sophomore, Senior". Levels it does not
+ * know keep their place after the ones it does.
+ */
+export function orderClassLevels(text: string): string {
+  return text.replace(/(class levels?: )([^;]+)/gi, (_, head: string, list: string) => {
+    const levels = list.split(",").map((s) => s.trim()).filter(Boolean);
+    const rank = (l: string) => {
+      const i = CLASS_LEVELS.indexOf(l);
+      return i === -1 ? CLASS_LEVELS.length : i;
+    };
+    return head + levels.map((l, i) => [l, i] as const).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([l]) => l).join(", ");
+  });
+}

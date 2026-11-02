@@ -1,5 +1,6 @@
 import { dayLabel } from "@/lib/plat";
 import { seatDay } from "@/lib/freshness";
+import { orderClassLevels } from "@/lib/prereqs";
 import type { DayOfWeek } from "@/components/triton/types";
 import type { Basis, Check, CheckStatus, PlanFacts, Proposal, ReasonCode, Relaxation } from "./types";
 import { clockLabel, shortClock } from "./vocabulary";
@@ -59,7 +60,7 @@ export function checkText(c: Check): string {
     case "PREREQ_NO_RECORD": return "Prerequisites not checked: no saved Academic History.";
     case "PREREQ_NOT_IN_CATALOG": return "Not in the current catalog, so its prerequisites are unknown.";
     case "PREREQ_CONSENT": return d.missing ? `Needs consent unless you've taken ${s(d.missing)}.` : "Needs instructor or department consent.";
-    case "RESTRICTED": return `Restrictions apply: "${s(d.text)}"`;
+    case "RESTRICTED": return `Restrictions apply: "${orderClassLevels(s(d.text))}"`;
     case "REQ_OFFICIAL_LIST": return `On UCSD's ${s(d.list)} list${d.asOf ? `, checked ${when(d.asOf)}` : ""}.`;
     case "REQ_COMMUNITY_LIST": return `May count for ${s(d.college)} ${s(d.area)}. From a student-compiled list that may be incomplete.`;
     case "REQ_RULE": return d.unit
