@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import {
   ArrowRight, BookOpen, CalendarDays, ChevronRight, GraduationCap, Layers, User, X,
@@ -16,6 +16,8 @@ import DiscoverLink from "@/components/plat/DiscoverLink";
 import { GradeBadge } from "@/components/plat/Grade";
 import { useRecent } from "@/components/plat/useRecent";
 import { useNow } from "@/components/plat/useNow";
+import { useSignedIn } from "@/components/plat/useSignedIn";
+import { PLANNER_KEY } from "@/lib/plan/sync";
 import {
   CAMPUS, dayLabel, loadGE, loadIndex, loadProfessors, sortCourses,
   type CourseRow as Row, type GEFile, type PlatIndex, type ProfessorRecord,
@@ -56,6 +58,26 @@ function varied(rows: Row[], count: number): Row[] {
  * student services they are. Then the latest announcement, whatever this browser looked at last,
  * and shelves of real courses for a student who knows nothing yet.
  */
+/**
+ * Whether this browser holds a plan to continue, for the home page's first
+ * button. Read once from the planner's own copy; nothing is fetched for it.
+ */
+function plannedCount(): number {
+  try {
+    const doc = JSON.parse(localStorage.getItem(PLANNER_KEY) ?? "null") as { schedule?: unknown[] } | null;
+    return Array.isArray(doc?.schedule) ? doc.schedule.length : 0;
+  } catch {
+    return 0;
+  }
+}
+const noSubscribe = () => () => {};
+
+function useReturningPlan(): { continuing: boolean; courses: number; signedIn: boolean | null } {
+  const signedIn = useSignedIn();
+  const courses = useSyncExternalStore(noSubscribe, plannedCount, () => 0);
+  return { continuing: signedIn === true && courses > 0, courses, signedIn };
+}
+
 export default function HomePage() {
   const [data, setData] = useState<PlatIndex | null>(null);
   const [ge, setGE] = useState<GEFile | null>(null);
@@ -105,6 +127,7 @@ export default function HomePage() {
   const term = data?.meta.termName ?? "this term";
   const news = latestAnnouncement();
   const now = useNow();
+  const plan = useReturningPlan();
 
   return (
     <PlatShell hideSearch>
@@ -112,11 +135,11 @@ export default function HomePage() {
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-12 lg:gap-12">
           {/* ── What this is, and the way in ──────────────────────────────── */}
           <div className="min-w-0 lg:col-span-7">
-            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
-              Grades, professors and seats for every UCSD course
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+              Find your courses. Build your quarter.
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-700 dark:text-gray-300">
-              See how a course has graded since 2015, who teaches it in {term}, and which sections fit your week.
+              How every UCSD course has graded since 2015, who teaches it in {term}, and which sections fit your week.
               {data && (
                 <span className="text-gray-600 dark:text-gray-400">
                   {" "}{data.meta.gradeRecords.toLocaleString()} published grade distributions ·{" "}
@@ -167,7 +190,22 @@ export default function HomePage() {
               </Link>
             </nav>
 
-            <DiscoverLink className="mt-4 inline-flex min-h-10 items-center text-sm font-semibold text-[#1B2C4F] underline underline-offset-4 dark:text-[#FFC72C]" />
+            {/* The way from finding a course to a plan, under the search it must not outrank. */}
+            <div className="mt-6 flex max-w-2xl flex-wrap items-center gap-3">
+              <Link
+                href="/planner"
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#182B49] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#1e3a63] dark:bg-[#FFCD00] dark:text-[#182B49] dark:hover:bg-[#FFD740]"
+              >
+                <CalendarDays className="h-4 w-4" aria-hidden />
+                {plan.continuing ? "Continue your plan" : "Open the Planner"}
+              </Link>
+              <DiscoverLink className="inline-flex min-h-11 items-center rounded-lg border border-gray-300 px-4 text-sm font-semibold text-[#1B2C4F] transition hover:bg-gray-50 dark:border-white/15 dark:text-[#FFC72C] dark:hover:bg-white/5" />
+              <span className="text-xs text-gray-600 dark:text-gray-400">
+                {plan.continuing
+                  ? `${plan.courses} ${plan.courses === 1 ? "course" : "courses"} on your ${term} schedule in this browser.`
+                  : plan.signedIn === false ? "Sign in with @ucsd.edu to save a plan." : "Saved to your @ucsd.edu account."}
+              </span>
+            </div>
 
             {/* The quarter as context, under the search it must not outrank. */}
             <QuarterClock className="mt-8 max-w-2xl" />
@@ -185,16 +223,9 @@ export default function HomePage() {
               <EntryRow
                 href="/ge"
                 icon={<GraduationCap className="h-4 w-4" />}
-                title="Find a GE"
+                title="Find courses for a requirement"
                 count={geCounts ? `${geCounts.college.toLocaleString()} on college lists` : undefined}
-                detail={geCounts ? `By college, with past grades, plus ${geCounts.dei} for DEI and the AHI list` : "By college, with past grades"}
-              />
-              <EntryRow
-                href="/planner"
-                icon={<CalendarDays className="h-4 w-4" />}
-                title="Plan your week"
-                detail="Sections on a calendar and a map, and all four years against your major · sign in with @ucsd.edu"
-                filled
+                detail={geCounts ? `Your college's GE lists, plus ${geCounts.dei} for DEI and the AHI list. Not a degree audit.` : "Your college's GE lists, DEI and AHI. Not a degree audit."}
               />
               <div className="border-t border-gray-100 px-5 py-3 dark:border-white/5">
                 <PassTimeline termName={data?.meta.termName} />
@@ -202,11 +233,10 @@ export default function HomePage() {
             </nav>
 
             <p className="text-xs leading-relaxed text-gray-600 dark:text-gray-400">
-              Also for UCSD students:{" "}
-              <Link href="/housing" className="font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]">Housing</Link>
-              {" "}for sublets from @ucsd.edu students, and{" "}
-              <Link href="/import" className="font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]">Academic History</Link>
-              {" "}to import your completed courses.
+              Signed in with @ucsd.edu:{" "}
+              <Link href="/import" className="font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]">import your Academic History</Link>
+              {" "}so degree progress counts what you&rsquo;ve taken, or find a sublet on{" "}
+              <Link href="/housing" className="font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]">Housing</Link>.
             </p>
           </div>
         </div>
@@ -296,7 +326,7 @@ export default function HomePage() {
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <h2 id="highest-title" className={SECTION_TITLE}>Highest historical averages on the {term} schedule</h2>
                 <Link href="/ge" className="text-xs font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]">
-                  Find GEs by college →
+                  Find courses for a requirement →
                 </Link>
               </div>
               <p className="mt-1 text-xs leading-relaxed text-gray-600 dark:text-gray-400">

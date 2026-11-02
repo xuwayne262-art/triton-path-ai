@@ -97,6 +97,33 @@ export default function SearchCombobox({
   }
 
   const shown = open && q.trim().length >= MIN_QUERY;
+
+  /**
+   * The results panel's place, worked out from the field's. In the site bar
+   * the field shares a row with the nav and can be ~250px wide, and a panel
+   * that inherited that cut "Joseph Gibbs Politz" and course titles short. So
+   * on a wide screen the panel is 440–560px whatever the field, and on a phone
+   * it spans the screen less a 16px gutter; either way it is kept inside the
+   * viewport's edges.
+   */
+  const [panel, setPanel] = useState<{ left: number; width: number } | null>(null);
+  useEffect(() => {
+    if (!shown) return;
+    const place = () => {
+      const box = boxRef.current?.getBoundingClientRect();
+      if (!box) return;
+      const vw = document.documentElement.clientWidth;
+      const gutter = 16;
+      const room = vw - gutter * 2;
+      const width = vw < 640 ? room : Math.min(room, Math.max(box.width, Math.min(560, Math.max(440, box.width))));
+      // Start under the field, then slide left just enough to stay on screen.
+      const left = Math.max(gutter, Math.min(box.left, vw - gutter - width)) - box.left;
+      setPanel({ left, width });
+    };
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, [shown]);
   const go = (href: string | undefined) => {
     if (!href) return;
     // Kept in this browser so the home page can offer the search again.
@@ -112,6 +139,8 @@ export default function SearchCombobox({
       setOpen(true);
       setActive((i) => moveActive(e.key as "ArrowDown", i, hrefs.length));
     } else if (e.key === "Enter") {
+      // Enter that confirms an IME composition (Chinese, Japanese, Korean input) is not a choice.
+      if (e.nativeEvent.isComposing || e.keyCode === 229) return;
       if (shown && active >= 0) { e.preventDefault(); go(hrefs[active]); }
     } else if (e.key === "Escape") {
       // First Escape closes the list; a second one clears the field.
@@ -158,7 +187,8 @@ export default function SearchCombobox({
       )}
 
       <div
-        className={`absolute left-0 right-0 top-full z-50 mt-2 max-h-[26rem] overflow-y-auto rounded-xl border border-gray-200 bg-white p-1 shadow-xl dark:border-white/10 dark:bg-[#101a2b] ${shown ? "" : "hidden"}`}
+        style={panel ? { left: panel.left, width: panel.width } : undefined}
+        className={`absolute top-full z-50 mt-2 max-h-[min(26rem,calc(100dvh-6rem))] overflow-y-auto overscroll-contain rounded-xl border border-gray-200 bg-white p-1 shadow-xl dark:border-white/10 dark:bg-[#101a2b] ${panel ? "" : "left-0 right-0"} ${shown ? "" : "hidden"}`}
       >
         {/* Only options live in the listbox; its empty and loading states sit beside it. */}
         <div id={listId} role="listbox" aria-label="Search results">

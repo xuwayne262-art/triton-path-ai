@@ -143,8 +143,8 @@ function GESearch() {
     <PlatShell>
       <div className={`mx-auto max-w-4xl px-4 sm:px-6 ${PAGE_PAD}`}>
         <PageHeader
-          title="Easy GEs"
-          description="Courses on each college's GE lists and UCSD's university-requirement lists, with how they have graded in the past."
+          title="Find courses for a requirement"
+          description="Courses on your college's GE lists and UCSD's university-requirement lists (DEI, American History & Institutions), with how each has graded in the past. A past average says nothing about workload."
         />
 
         {/* ── Where the lists come from, before anything is chosen from them ── */}

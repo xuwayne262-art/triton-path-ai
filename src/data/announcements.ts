@@ -126,7 +126,7 @@ export const ANNOUNCEMENTS: readonly Announcement[] = [
           {
             title: "Easy GEs remembers your college",
             text: "Your choices stay when you reload or share the link.",
-            link: { href: "/ge", label: "Open Easy GEs" },
+            link: { href: "/ge", label: "Find courses for a requirement" },
           },
           {
             title: "Search comes first",

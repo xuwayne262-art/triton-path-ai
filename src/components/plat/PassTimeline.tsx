@@ -38,6 +38,9 @@ export default function PassTimeline({ termName }: { termName?: string }) {
           <>All {termName ?? "enrollment"} passes have opened</>
         )}
       </p>
+      <p className="mt-1 text-center text-[11px] text-gray-500 dark:text-gray-400">
+        Campus-wide pass dates. Your own appointment time is in TSS.
+      </p>
 
       <div className="mt-3 flex items-baseline justify-between gap-2">
         {marks.map(({ pass, done, next }) => (

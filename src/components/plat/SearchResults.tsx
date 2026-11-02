@@ -1,6 +1,7 @@
 "use client";
 
 import { Star, User } from "lucide-react";
+import Link from "next/link";
 import { GradeBadge } from "./Grade";
 import {
   professorHref, ratingTone, type CourseRow, type ProfessorRecord, type SearchHit,
@@ -57,6 +58,9 @@ export default function SearchResults({
         <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
           Try a course code like CSE 11, a subject, or an instructor&apos;s surname.
         </p>
+        <Link href="/courses" className="mt-2 inline-block text-xs font-semibold text-[#182B49] underline dark:text-[#FFCD00]">
+          Browse every department
+        </Link>
       </div>
     );
   }

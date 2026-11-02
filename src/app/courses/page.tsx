@@ -226,7 +226,7 @@ export default function CoursesPage() {
                 href="/ge"
                 className="mt-4 inline-block text-xs font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]"
               >
-                Find GE courses for your college →
+                Find courses for a requirement →
               </Link>
             </section>
           )}

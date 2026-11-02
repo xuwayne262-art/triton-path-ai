@@ -11,30 +11,42 @@ import { useEffect, useState, useSyncExternalStore } from "react";
  * "Sign in to save"), never what data is shown, so nothing depends on it
  * being right before it arrives. Null while unknown.
  */
-let asked: Promise<boolean> | null = null;
+export interface Account {
+  email: string;
+  name: string | null;
+}
 
-function ask(): Promise<boolean> {
+let asked: Promise<Account | null> | null = null;
+
+function ask(): Promise<Account | null> {
   if (!asked) {
     asked = fetch("/api/auth/session", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : null))
-      .then((s: { user?: { email?: string } } | null) => Boolean(s?.user?.email))
+      .then((s: { user?: { email?: string; name?: string | null } } | null) =>
+        s?.user?.email ? { email: s.user.email, name: s.user.name ?? null } : null)
       .catch(() => {
         // Unknown is not "signed out": forget the failure so the next page asks again.
         asked = null;
-        return false;
+        return null;
       });
   }
   return asked;
 }
 
-export function useSignedIn(): boolean | null {
-  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+/** The signed-in account, null when signed out, undefined while unknown. */
+export function useAccount(): Account | null | undefined {
+  const [account, setAccount] = useState<Account | null | undefined>(undefined);
   useEffect(() => {
     let live = true;
-    ask().then((v) => { if (live) setSignedIn(v); });
+    ask().then((v) => { if (live) setAccount(v); });
     return () => { live = false; };
   }, []);
-  return signedIn;
+  return account;
+}
+
+export function useSignedIn(): boolean | null {
+  const account = useAccount();
+  return account === undefined ? null : account !== null;
 }
 
 const noSubscribe = () => () => {};

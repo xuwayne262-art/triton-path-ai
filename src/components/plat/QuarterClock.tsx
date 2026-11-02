@@ -78,7 +78,6 @@ function Strip({ r, className }: { r: ClockReading; className: string }) {
   const finals = r.milestones.find((m) => m.kind === "finals");
   const markers = r.milestones.filter((m) => m.kind === "instruction" || m.kind === "holiday" || m.kind === "last-class");
   const daysToStart = daysBetween(r.today, r.quarter.begins);
-  const percent = (r.fraction * 100).toFixed(1);
   const next = r.next && !(r.stage?.kind === "finals" && r.next.kind === "finals") ? upNext(r.next, r.today) : null;
 
   return (
@@ -92,7 +91,7 @@ function Strip({ r, className }: { r: ClockReading; className: string }) {
         </h2>
         <p className="text-sm tabular-nums text-white/85">
           {r.started ? (
-            <><span className="font-semibold text-[#FFCD00]">{percent}%</span> gone · {toGo(r.remaining)} to go</>
+            <><span className="font-semibold text-[#FFCD00]">{toGo(r.remaining)}</span> left, finals included</>
           ) : (
             <>Begins {dayLabel(r.quarter.begins)}, in {daysToStart} {daysToStart === 1 ? "day" : "days"}</>
           )}
@@ -139,7 +138,7 @@ function Strip({ r, className }: { r: ClockReading; className: string }) {
       </div>
       <p className="sr-only">
         {r.started
-          ? `${percent}% of ${r.quarter.name} has gone by; ${toGo(r.remaining)} to go.`
+          ? `${r.quarter.name}: ${toGo(r.remaining)} left, counting finals week.`
           : `${r.quarter.name} begins ${dayLabel(r.quarter.begins)}, in ${daysToStart} ${daysToStart === 1 ? "day" : "days"}.`}
       </p>
     </section>
