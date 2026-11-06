@@ -119,6 +119,15 @@ export function termPhase(code: string, today: string = todayInSanDiego()): Term
   return "in-progress";
 }
 
+/** "Winter 2027" for a served term or any code that looks like one ("SP27" -> "Spring 2027"); otherwise the text as given. */
+export function termLabelFor(code: string): string {
+  const served = termEntry(code);
+  if (served) return served.name;
+  const seasons: Record<string, string> = { FA: "Fall", WI: "Winter", SP: "Spring", SU: "Summer", S1: "Summer Session I", S2: "Summer Session II", S3: "Summer Session III" };
+  const m = /^([A-Z][A-Z0-9])(\d{2})$/.exec(code);
+  return m && seasons[m[1]] ? `${seasons[m[1]]} 20${m[2]}` : `"${code}"`;
+}
+
 /** "In progress", "Upcoming", "Ended": the word beside a term's name. */
 export function phaseLabel(phase: TermPhase | null): string | null {
   return phase === "in-progress" ? "In progress" : phase === "upcoming" ? "Upcoming" : phase === "ended" ? "Ended" : null;

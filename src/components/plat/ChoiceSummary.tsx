@@ -4,9 +4,11 @@ import { AlertTriangle, CalendarPlus, CheckCircle2, ExternalLink, LogIn, X } fro
 import { geLabel, universityRequirement, type CourseDetail, type SectionTuple } from "@/lib/plat";
 import {
   CODE, INSTRUCTOR, TSS_HINT, TYPE,
-  sameSelection, sectionSeats, sectionSeatsAt, sectionWhen, sectionWhere, typeLabel,
+  isWaitlistOnly, placeText, sameSelection, sectionSeats, sectionSeatsAt, sectionWhen, typeLabel,
   type LectureFamily, type SectionSelection,
 } from "@/lib/sections";
+import { TSS_URL } from "@/lib/termTimeline";
+import { useTermFeatures } from "./termFeatures";
 import { choicePackage, choiceText, finalOverview, packageUrl, summarizeChoice } from "@/lib/sectionChoice";
 import { seatAge, seatAgeSentence, seatSpan, spanLabel, sumSeatsAt } from "@/lib/freshness";
 import { tallySectionRows, talliedRows } from "@/lib/seats/tally";
@@ -36,7 +38,9 @@ function SeatLine({ s, now }: { s: SectionTuple; now: number | null }) {
   const seats = sectionSeats(s);
   return (
     <span className="whitespace-nowrap">
-      {seats.known ? (seats.full ? <span className="font-semibold text-red-700 dark:text-red-400">Full</span> : `${seats.open} of ${seats.limit} open`) : "seats not published"}
+      {isWaitlistOnly(s)
+        ? <span className="font-semibold text-amber-700 dark:text-amber-400">Waitlist only</span>
+        : seats.known ? (seats.full ? <span className="font-semibold text-red-700 dark:text-red-400">Full</span> : `${seats.open} of ${seats.limit} open`) : "seats not published"}
       {" · "}
       <SeatAgeNote at={sectionSeatsAt(s)} now={now} />
     </span>
@@ -58,6 +62,7 @@ export default function ChoiceSummary({
   onClear: () => void;
 }) {
   const now = useNow();
+  const { rooms, booking } = useTermFeatures();
   const [allGe, setAllGe] = useState(false);
   const sec = detail?.sec ?? [];
   const offered = detail?.offered === 1;
@@ -83,12 +88,12 @@ export default function ChoiceSummary({
   const finalText = (() => {
     if (summary) {
       const finals = summary.exams.filter((e) => e[TYPE] === "FI");
-      return finals.length ? finalsText(finals) : `Not listed on the schedule for ${choice.split(" + ")[0]}`;
+      return finals.length ? finalsText(finals, "same", rooms) : `Not listed on the schedule for ${choice.split(" + ")[0]}`;
     }
     if (overview.kind === "same") {
       return overview.rooms === "varies"
-        ? `${finalsText(overview.finals, "varies")}. Choose a lecture to see your room.`
-        : finalsText(overview.finals);
+        ? `${finalsText(overview.finals, "varies", rooms)}. Choose a lecture to see your room.`
+        : finalsText(overview.finals, "same", rooms);
     }
     if (overview.kind === "varies") return "Varies by section. Choose a lecture to see yours.";
     return detail ? "Not listed on the schedule" : CHECKING;
@@ -139,7 +144,7 @@ export default function ChoiceSummary({
           <dd className="mt-0.5 text-sm font-semibold">{finalText}</dd>
           {midterms.length > 0 && (
             <dd className="mt-0.5 text-xs text-gray-600 dark:text-gray-400">
-              {midterms.map((m) => `${typeLabel(m[TYPE])}: ${examLine(m)}`).join("; ")}
+              {midterms.map((m) => `${typeLabel(m[TYPE])}: ${examLine(m, rooms)}`).join("; ")}
             </dd>
           )}
         </div>
@@ -165,7 +170,7 @@ export default function ChoiceSummary({
                   <span className="font-semibold">{typeLabel(summary.family.lecture[TYPE])} {summary.family.key}</span>
                   {summary.family.lecture[INSTRUCTOR] && <span className="text-gray-700 dark:text-gray-300"> · {summary.family.lecture[INSTRUCTOR]}</span>}
                   <span className="block text-xs text-gray-600 dark:text-gray-400">
-                    {[sectionWhen(summary.family.lecture), sectionWhere(summary.family.lecture)].filter(Boolean).join(" · ")}
+                    {[sectionWhen(summary.family.lecture), placeText(summary.family.lecture, rooms)].filter(Boolean).join(" · ")}
                     {" · "}<SeatLine s={summary.family.lecture} now={now} />
                   </span>
                 </li>
@@ -174,7 +179,7 @@ export default function ChoiceSummary({
                 <li key={c.part.type}>
                   <span className="font-semibold">{c.part.label} {c.code}</span>
                   <span className="block text-xs text-gray-600 dark:text-gray-400">
-                    {[sectionWhen(c.rows[0]), sectionWhere(c.rows[0])].filter(Boolean).join(" · ")}
+                    {[sectionWhen(c.rows[0]), placeText(c.rows[0], rooms)].filter(Boolean).join(" · ")}
                     {" · "}<SeatLine s={c.rows[0]} now={now} />
                   </span>
                 </li>
@@ -202,9 +207,9 @@ export default function ChoiceSummary({
               ? `Checking the ${termLabel} schedule…`
               : offered
               ? families.length > 1
-                ? "Choose a lecture under the sections to see its final, what else it needs, and a TSS link for exactly that choice."
-                : "Choose the section to see what it needs and a TSS link for exactly it."
-              : `${code} is not on the ${termLabel} schedule.`}
+                ? `Choose a lecture under the sections to see its final${booking ? ", what else it needs, and a TSS link for exactly that choice" : " and what else it needs"}.`
+                : `Choose the section to see what it needs${booking ? " and a TSS link for exactly it" : ""}.`
+              : `No ${termLabel} listing found in UCSD's public schedule.`}
           </p>
         )}
 
@@ -231,7 +236,7 @@ export default function ChoiceSummary({
             {signedIn === false ? <LogIn className="h-4 w-4" aria-hidden /> : <CalendarPlus className="h-4 w-4" aria-hidden />}
             {addLabel}
           </button>
-          {tssUrl && (
+          {tssUrl ? (
             <a
               href={tssUrl}
               target="_blank"
@@ -243,10 +248,27 @@ export default function ChoiceSummary({
               <ExternalLink className="h-3.5 w-3.5" aria-hidden />
               <span className="sr-only">(opens UCSD&rsquo;s Triton Student System in a new tab)</span>
             </a>
+          ) : (
+            // No exact link for this quarter: UCSD's public schedule gives no
+            // booking id, and a guessed one opens an error page in TSS.
+            <a
+              href={TSS_URL}
+              target="_blank"
+              rel="noreferrer noopener"
+              title={TSS_HINT}
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold hover:bg-gray-50 dark:border-white/15 dark:hover:bg-white/10"
+            >
+              Find {code} in TSS
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+              <span className="sr-only">(opens UCSD&rsquo;s Triton Student System in a new tab)</span>
+            </a>
           )}
           <p className="text-xs leading-relaxed text-gray-600 dark:text-gray-400">
             Adding to UCSDPlans does not enroll you. You enroll in TSS (Triton Student System), UC San Diego&rsquo;s
-            enrollment site{tssUrl && !choiceUrl && summary?.complete ? "; it could not be linked to exactly this choice, so pick it there" : ""}.
+            enrollment site
+            {tssUrl
+              ? tssUrl && !choiceUrl && summary?.complete ? "; it could not be linked to exactly this choice, so pick it there." : "."
+              : `, at your own booking time; search for ${code} there.`}
           </p>
         </div>
       )}

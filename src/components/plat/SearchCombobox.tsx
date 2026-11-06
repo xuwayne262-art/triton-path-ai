@@ -5,10 +5,13 @@ import { useRouter } from "next/navigation";
 import { Search, X } from "lucide-react";
 import SearchResults, { optionId, resultHrefs, type Combined } from "./SearchResults";
 import { noteRecent } from "./useRecent";
+import { useTerm } from "./useTerm";
 import {
-  loadIndex, loadProfessors, searchCourses, searchProfessors,
+  searchCourses, searchProfessors,
   type CourseRow, type ProfessorRecord,
 } from "@/lib/plat";
+import { loadIndexFor, loadProfessorsFor } from "@/lib/termData";
+import { withTerm } from "@/lib/terms";
 import { MIN_QUERY, moveActive, resultSummary } from "@/lib/combobox";
 
 /**
@@ -50,10 +53,15 @@ export default function SearchCombobox({
   const boxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // The chosen quarter's courses and who teaches in it; the query is kept when the quarter changes.
+  const term = useTerm()?.term ?? null;
   useEffect(() => {
-    loadIndex().then((d) => setCourses(d.courses)).catch(() => {});
-    loadProfessors().then((d) => setProfs(d.professors)).catch(() => {});
-  }, []);
+    if (!term) return;
+    let live = true;
+    loadIndexFor(term).then((d) => { if (live) setCourses(d.courses); }).catch(() => {});
+    loadProfessorsFor(term).then((d) => { if (live) setProfs(d.professors); }).catch(() => {});
+    return () => { live = false; };
+  }, [term]);
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -103,7 +111,7 @@ export default function SearchCombobox({
     if (q.trim().length >= MIN_QUERY) noteRecent({ kind: "search", key: q.trim(), label: q.trim(), href: "/" });
     setOpen(false);
     if (variant === "bar") setQ("");
-    router.push(href);
+    router.push(withTerm(href, term));
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {

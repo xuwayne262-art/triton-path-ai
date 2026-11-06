@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { courseHref } from "@/lib/plat";
+import { withTerm } from "@/lib/terms";
+import { useTerm } from "./useTerm";
 import { prereqSegments } from "@/lib/prereqs";
 
 /**
@@ -10,11 +12,12 @@ import { prereqSegments } from "@/lib/prereqs";
  * either, instead of two searches. Codes the dataset does not know stay text.
  */
 export default function PrereqText({ text, known }: { text: string; known: (code: string) => boolean }) {
+  const term = useTerm()?.term ?? null;
   return (
     <>
       {prereqSegments(text).map((s, i) =>
         s.code && known(s.code) ? (
-          <Link key={i} href={courseHref(s.code)} className="font-semibold underline decoration-current/30 underline-offset-2 hover:decoration-current">
+          <Link key={i} href={withTerm(courseHref(s.code), term)} className="font-semibold underline decoration-current/30 underline-offset-2 hover:decoration-current">
             {s.text}
           </Link>
         ) : (

@@ -9,10 +9,14 @@ import TermGradesChart, { type TermPoint } from "@/components/plat/TermGradesCha
 import { DifficultyTag, GradeBadge } from "@/components/plat/Grade";
 import { professorDepartment } from "@/components/plat/ProfessorShelf";
 import { useNoteVisit } from "@/components/plat/useRecent";
+import QuarterPicker from "@/components/plat/QuarterPicker";
+import { useTerm } from "@/components/plat/useTerm";
 import {
-  courseHref, loadIndex, loadProfessors, loadSubject, professorBySlug, professorHref, ratingTone, termName, termOrder,
+  courseHref, loadSubject, professorBySlug, professorHref, ratingTone, termName, termOrder,
   typicalGrade, type PlatIndex, type ProfessorRecord, type SubjectFile,
 } from "@/lib/plat";
+import { loadIndexFor, loadProfessorsFor } from "@/lib/termData";
+import { termLabelFor, withTerm } from "@/lib/terms";
 
 /** How many past terms show before "Show all". */
 const TERMS_SHOWN = 10;
@@ -31,10 +35,16 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
   const [files, setFiles] = useState<Record<string, SubjectFile>>({});
   const [allTerms, setAllTerms] = useState(false);
 
+  // Who teaches what in the chosen quarter; their grade history is the same in any.
+  const term = useTerm()?.term ?? null;
+  const termLabel = term ? termLabelFor(term) : "this term";
   useEffect(() => {
-    loadProfessors().then((f) => setProfs(f.professors)).catch(() => setProfs([]));
-  }, []);
-  useEffect(() => { loadIndex().then(setIndex).catch(() => {}); }, []);
+    if (!term) return;
+    let live = true;
+    loadProfessorsFor(term).then((f) => { if (live) setProfs(f.professors); }).catch(() => { if (live) setProfs([]); });
+    loadIndexFor(term).then((d) => { if (live) setIndex(d); }).catch(() => {});
+    return () => { live = false; };
+  }, [term]);
 
   // A link built from another spelling of their name ("joe-politz") still
   // finds them; their own name wins when both answer.
@@ -114,11 +124,11 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
     <PlatShell>
       <div className={`mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 ${PAGE_PAD}`}>
         <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-          <Link href="/courses" className="hover:underline">Courses</Link>
+          <Link href={withTerm("/courses", term)} className="hover:underline">Courses</Link>
           {dept && (
             <>
               <ChevronRight className="h-3 w-3" aria-hidden />
-              <Link href={`/courses/${dept.id}`} className="hover:underline">{dept.name}</Link>
+              <Link href={withTerm(`/courses/${dept.id}`, term)} className="hover:underline">{dept.name}</Link>
             </>
           )}
           <ChevronRight className="h-3 w-3" aria-hidden />
@@ -146,8 +156,9 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
                         {prof.c.length === 1 ? "course" : "courses"}. Past classes, not a prediction.
                       </>
                     : "No published grade distribution for this instructor yet."}
-                  {prof.cur === 1 && " They are teaching this term."}
+                  {prof.cur === 1 && ` They are teaching in ${termLabel}.`}
                 </p>
+                <QuarterPicker className="mt-3" />
 
                 <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-sm text-gray-600 dark:text-gray-300">
                   {prof.q != null && prof.q > 0 ? (
@@ -179,13 +190,14 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
             <div className={`${PAGE_GAP} grid grid-cols-1 gap-12 lg:grid-cols-12 lg:gap-14`}>
               <div className="min-w-0 space-y-12 lg:col-span-7">
                 {teachingNow.length > 0 && (
-                  <CourseList title="Teaching this term" rows={teachingNow} titleOf={titleOf} />
+                  <CourseList title={`Teaching in ${termLabel}`} rows={teachingNow} titleOf={titleOf} term={term} />
                 )}
                 {previously.length > 0 && (
                   <CourseList
                     title={teachingNow.length ? "Previously taught" : "Courses taught"}
                     rows={previously}
                     titleOf={titleOf}
+                    term={term}
                   />
                 )}
               </div>
@@ -221,7 +233,7 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
                           <tr key={`${t.term}-${t.code}-${i}`} className="border-t border-gray-100 dark:border-white/5">
                             <th scope="row" className="py-2 pr-2 text-left font-normal whitespace-nowrap">{termName(t.term)}</th>
                             <td className="py-2 pr-2">
-                              <Link href={courseHref(t.code)} className="font-mono text-xs font-bold text-[#182B49] hover:underline dark:text-[#FFCD00]">{t.code}</Link>
+                              <Link href={withTerm(courseHref(t.code), term)} className="font-mono text-xs font-bold text-[#182B49] hover:underline dark:text-[#FFCD00]">{t.code}</Link>
                             </td>
                             <td className="py-2 text-right tabular-nums">
                               {t.gpa != null ? (
@@ -253,11 +265,12 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
 }
 
 function CourseList({
-  title, rows, titleOf,
+  title, rows, titleOf, term,
 }: {
   title: string;
   rows: ProfessorRecord["c"];
   titleOf: (code: string) => string;
+  term: string | null;
 }) {
   return (
     <section>
@@ -268,7 +281,7 @@ function CourseList({
         {rows.map(([code, gpa, terms, , aRate]) => (
           <Link
             key={code}
-            href={courseHref(code)}
+            href={withTerm(courseHref(code), term)}
             className="group flex items-center gap-3 border-b border-gray-100 px-3 py-3 last:border-0 transition hover:bg-gray-50 dark:border-white/5 dark:hover:bg-white/5"
           >
             <GradeBadge gpa={gpa} terms={terms} size="sm" />

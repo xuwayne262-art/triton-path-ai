@@ -4,6 +4,8 @@ import Link from "next/link";
 import { Star } from "lucide-react";
 import { GradeBadge } from "./Grade";
 import { professorHref, type ProfessorRecord } from "@/lib/plat";
+import { termLabelFor, withTerm } from "@/lib/terms";
+import { useTerm } from "./useTerm";
 import { departmentForSubject } from "@/data/ucsdStructure";
 
 /** The department a professor mostly teaches in, weighted by terms taught. */
@@ -28,10 +30,11 @@ export function professorDepartment(prof: ProfessorRecord) {
 export default function ProfessorRow({ prof }: { prof: ProfessorRecord }) {
   const dept = professorDepartment(prof);
   const teaching = prof.c.filter((c) => c[3]).length;
+  const term = useTerm()?.term ?? null;
 
   return (
     <Link
-      href={professorHref(prof.n)}
+      href={withTerm(professorHref(prof.n), term)}
       className="group flex items-center gap-3.5 border-b border-gray-100 px-3 py-3 transition hover:bg-gray-50 dark:border-white/5 dark:hover:bg-white/5"
     >
       <span className="flex w-11 shrink-0 flex-col items-center gap-0.5">
@@ -52,7 +55,7 @@ export default function ProfessorRow({ prof }: { prof: ProfessorRecord }) {
             <>
               {dept && <Dot />}
               <span className="text-emerald-700 dark:text-emerald-400">
-                {teaching} {teaching === 1 ? "course" : "courses"} this term
+                {teaching} {teaching === 1 ? "course" : "courses"} in {term ? termLabelFor(term) : "this term"}
               </span>
             </>
           )}

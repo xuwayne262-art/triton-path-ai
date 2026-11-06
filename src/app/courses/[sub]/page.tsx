@@ -11,10 +11,14 @@ import CourseResults, { DEFAULT_FILTERS, type ResultFilters } from "@/components
 import { filtersFromQuery, filtersToQuery } from "@/lib/courseFilters";
 import { GradeBadge } from "@/components/plat/Grade";
 import { useNoteVisit } from "@/components/plat/useRecent";
+import QuarterPicker from "@/components/plat/QuarterPicker";
+import { useTerm } from "@/components/plat/useTerm";
 import {
-  loadIndex, loadProfessors, professorHref, ratingTone,
+  professorHref, ratingTone,
   type CourseRow, type PlatIndex, type ProfessorRecord,
 } from "@/lib/plat";
+import { loadIndexFor, loadProfessorsFor } from "@/lib/termData";
+import { termLabelFor, withTerm } from "@/lib/terms";
 import {
   collegeById, collegeForSubject, departmentById, departmentForSubject, schoolById,
 } from "@/data/ucsdStructure";
@@ -68,14 +72,28 @@ function Department({ params }: { params: Promise<{ sub: string }> }) {
   // entry rather than adding one per letter.
   const filters = useMemo(() => filtersFromQuery(search, BASE), [search]);
   const setFilters = (f: ResultFilters) => {
-    const qs = filtersToQuery(f, BASE, new URLSearchParams()).toString();
+    const params = filtersToQuery(f, BASE, new URLSearchParams());
+    // The quarter rides along, so a filter never switches the list to another one.
+    const quarter = new URLSearchParams(window.location.search).get("term");
+    if (quarter) params.set("term", quarter);
+    const qs = params.toString();
     const url = `${window.location.pathname}${qs ? `?${qs}` : ""}`;
     if (f.q !== filters.q) window.history.replaceState(null, "", url);
     else window.history.pushState(null, "", url);
   };
 
-  useEffect(() => { loadIndex().then(setData).catch(() => {}); }, []);
-  useEffect(() => { loadProfessors().then((f) => setProfs(f.professors)).catch(() => setProfs([])); }, []);
+  // The chosen quarter's courses and who teaches in it; a late answer for a
+  // quarter switched away from is dropped.
+  const term = useTerm()?.term ?? null;
+  useEffect(() => {
+    if (!term) return;
+    let live = true;
+    setData(null);
+    loadIndexFor(term).then((d) => { if (live) setData(d); }).catch(() => {});
+    loadProfessorsFor(term).then((f) => { if (live) setProfs(f.professors); }).catch(() => { if (live) setProfs([]); });
+    return () => { live = false; };
+  }, [term]);
+  const termName = data?.meta.termName ?? (term ? termLabelFor(term) : "this term");
 
   useNoteVisit({ kind: "department", key: pageId, label: title, href: `/courses/${pageId}` });
 
@@ -120,7 +138,7 @@ function Department({ params }: { params: Promise<{ sub: string }> }) {
     <PlatShell>
       <div className={`mx-auto max-w-5xl px-4 sm:px-6 ${PAGE_PAD}`}>
         <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-          <Link href="/courses" className="hover:underline">Courses</Link>
+          <Link href={withTerm("/courses", term)} className="hover:underline">Courses</Link>
           <ChevronRight className="h-3 w-3" aria-hidden />
           <span className="text-gray-700 dark:text-gray-200">{title}</span>
         </nav>
@@ -132,9 +150,10 @@ function Department({ params }: { params: Promise<{ sub: string }> }) {
           description={
             (school ? `${school.name} · ` : "")
             + (data ? `${offered} of ${rows.length} courses on the ${data.meta.termName} schedule` : "Loading courses…")
-            + (faculty ? ` · ${teachingNow} ${teachingNow === 1 ? "professor" : "professors"} teaching this term` : "")
+            + (faculty ? ` · ${teachingNow} ${teachingNow === 1 ? "professor" : "professors"} teaching in ${termName}` : "")
           }
         />
+        <QuarterPicker className="mt-4" />
 
         {subjects.length > 1 && (
           <div className="mt-5 flex flex-wrap items-center gap-1.5">
@@ -190,7 +209,7 @@ function Department({ params }: { params: Promise<{ sub: string }> }) {
               {faculty && <span className="text-xs text-gray-500 dark:text-gray-400">{faculty.length} on record</span>}
             </div>
             <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-              Teaching this term first, then everyone who has taught here; most-rated first.
+              Teaching in {termName} first, then everyone who has taught here; most-rated first.
             </p>
             <ul className="mt-4 overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10">
               {faculty === null ? (
@@ -199,7 +218,7 @@ function Department({ params }: { params: Promise<{ sub: string }> }) {
                 <li className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">No professors on record.</li>
               ) : visible.map(({ p, here, now }) => (
                 <li key={p.n} className="border-b border-gray-100 last:border-0 dark:border-white/5">
-                  <Link href={professorHref(p.n)} className="group flex items-center gap-3 px-3 py-3 transition hover:bg-gray-50 dark:hover:bg-white/5">
+                  <Link href={withTerm(professorHref(p.n), term)} className="group flex items-center gap-3 px-3 py-3 transition hover:bg-gray-50 dark:hover:bg-white/5">
                     <GradeBadge gpa={p.gpa} terms={p.terms} size="sm" />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium group-hover:underline">{p.n}</span>

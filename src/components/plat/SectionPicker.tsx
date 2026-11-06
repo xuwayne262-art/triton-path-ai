@@ -3,14 +3,15 @@
 import { useId } from "react";
 import { dayLabel, prettyRange, type SectionTuple } from "@/lib/plat";
 import {
-  CODE, INSTRUCTOR, TYPE, DAYS, START, END,
-  groupSections, sectionSeats, sectionSeatsAt, sectionWaitlist, sectionWhen, sectionWhere, selectionRule, typeLabel,
+  CODE, INSTRUCTOR, SECTION_ID, TYPE, DAYS, START, END,
+  groupSections, isWaitlistOnly, placeText, sectionSeats, sectionSeatsAt, sectionWaitlist, sectionWhen, selectionRule, typeLabel,
   type LectureFamily, type SectionSelection,
 } from "@/lib/sections";
 import { finalOverview, finalSlots, type FinalOverview } from "@/lib/sectionChoice";
 import { seatAge } from "@/lib/freshness";
 import { SeatAgeNote } from "./SeatAge";
 import { useNow } from "./useNow";
+import { useTermFeatures } from "./termFeatures";
 
 /**
  * Sections, grouped the way enrolment actually works.
@@ -39,6 +40,16 @@ function familyNoun(families: LectureFamily[]): string {
 function Seats({ s, now }: { s: SectionTuple; now: number | null }) {
   const seats = sectionSeats(s);
   const waitlist = sectionWaitlist(s);
+  if (isWaitlistOnly(s)) {
+    // Taking a waitlist only: its open-seat figure is not a way in.
+    return (
+      <span className="flex shrink-0 flex-col items-end text-right leading-tight">
+        <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400">Waitlist only</span>
+        {seats.known && <span className="text-[11px] tabular-nums text-gray-500 dark:text-gray-400">{seats.limit} seats</span>}
+        <SeatAgeNote at={sectionSeatsAt(s)} now={now} />
+      </span>
+    );
+  }
   if (!seats.known) {
     // Unknown is not full: Class Planner published no seat count for it.
     return <span className="shrink-0 text-right text-[11px] leading-tight text-gray-500 dark:text-gray-400">Seats not published</span>;
@@ -108,8 +119,8 @@ function PickRow({
 }
 
 /** "Thu, Dec 10 · 7:00 PM – 9:59 PM · PCYNH 109" */
-export function examLine(s: SectionTuple): string {
-  return [dayLabel(s[DAYS]), prettyRange(s[START], s[END]), sectionWhere(s)].filter(Boolean).join(" · ");
+export function examLine(s: SectionTuple, roomsPublished = true): string {
+  return [dayLabel(s[DAYS]), prettyRange(s[START], s[END]), placeText(s, roomsPublished)].filter(Boolean).join(" · ");
 }
 
 /**
@@ -117,23 +128,35 @@ export function examLine(s: SectionTuple): string {
  * both; one with no room says so rather than reading as a room-less exam.
  * `room: "varies"` is for a course-wide line whose room depends on the lecture.
  */
-export function finalsText(finals: SectionTuple[], room: "same" | "varies" = "same"): string {
+export function finalsText(finals: SectionTuple[], room: "same" | "varies" = "same", roomsPublished = true): string {
   return finalSlots(finals).map(({ row, rooms }) => {
     const known = rooms.filter(Boolean);
-    const where = room === "varies"
-      ? "room varies by lecture"
-      : known.length ? known.join(" or ") : "room not listed";
+    const where = !roomsPublished && !known.length
+      ? "room unavailable · check UCSD"
+      : room === "varies"
+        ? "room varies by lecture"
+        : known.length ? known.join(" or ") : "room not listed";
     return [dayLabel(row[DAYS]), prettyRange(row[START], row[END]), where].join(" · ");
   }).join("; ");
 }
 
-function familyMeta(f: LectureFamily): string {
+function familyMeta(f: LectureFamily, roomsPublished: boolean): string {
   if (!f.lecture) return "Meeting time TBA";
-  return [sectionWhen(f.lecture), sectionWhere(f.lecture)].filter(Boolean).join(" · ");
+  return [sectionWhen(f.lecture), placeText(f.lecture, roomsPublished)].filter(Boolean).join(" · ");
+}
+
+/** UCSD's notes on a section, as plain text: never markup, never turned into links. */
+function Notes({ notes }: { notes: string[] | undefined }) {
+  if (!notes?.length) return null;
+  return (
+    <span className="mt-1 block text-[11px] leading-snug text-gray-700 dark:text-gray-300">
+      <span className="font-semibold">Note from UCSD:</span> {notes.join(" ")}
+    </span>
+  );
 }
 
 /** The final for one lecture, under it — only when finals differ by lecture. */
-function FamilyFinal({ overview, family }: { overview: FinalOverview; family: string }) {
+function FamilyFinal({ overview, family, roomsPublished }: { overview: FinalOverview; family: string; roomsPublished: boolean }) {
   // Shown per lecture whenever the course-wide line cannot say it all: a
   // different time, or the same time in a different room.
   if (overview.kind === "none" || (overview.kind === "same" && overview.rooms === "same")) return null;
@@ -141,7 +164,7 @@ function FamilyFinal({ overview, family }: { overview: FinalOverview; family: st
   return (
     <span className="mt-1 block text-[11px] leading-snug text-gray-700 dark:text-gray-300">
       <span className="font-semibold">Final:</span>{" "}
-      {finals.length ? finalsText(finals) : "not listed on the schedule"}
+      {finals.length ? finalsText(finals, "same", roomsPublished) : "not listed on the schedule"}
     </span>
   );
 }
@@ -151,15 +174,20 @@ export default function SectionPicker({
   value,
   onChange,
   compact = false,
+  notes,
 }: {
   sec: SectionTuple[];
   value: SectionSelection | undefined;
   onChange: (next: SectionSelection) => void;
   /** Denser padding, for a narrow column. */
   compact?: boolean;
+  /** UCSD's notes, by section id, for the quarters that publish them. */
+  notes?: Map<string, string[]>;
 }) {
   const id = useId();
   const now = useNow();
+  const { rooms, seatTimes } = useTermFeatures();
+  const noteFor = (s: SectionTuple | null | undefined) => (s ? notes?.get(String(s[SECTION_ID] ?? "")) : undefined);
   const families = groupSections(sec);
   const overview = finalOverview(sec, families);
   const noun = familyNoun(families);
@@ -193,8 +221,18 @@ export default function SectionPicker({
     <div>
       {rule && <p className={`text-sm text-gray-700 dark:text-gray-200 ${compact ? "mb-1.5" : "mb-1"}`}>{rule}</p>}
       <p className="mb-3 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
-        Times are Pacific (San Diego) time. Seats are UCSD Class Planner&rsquo;s last count for each section, not a live
-        number{doubtful ? "; counts marked “old” are more than a day old, so check TSS before you enroll" : ""}.
+        Times are Pacific (San Diego) time.{" "}
+        {seatTimes ? (
+          <>
+            Seats are UCSD Class Planner&rsquo;s last count for each section, not a live
+            number{doubtful ? "; counts marked “old” are more than a day old, so check TSS before you enroll" : ""}.
+          </>
+        ) : (
+          <>
+            Seats are a snapshot of UCSD&rsquo;s public schedule, which does not say when each was counted, so check TSS
+            before you enroll.{rooms ? "" : " The public schedule lists no rooms for this quarter."}
+          </>
+        )}
       </p>
       {overview.kind === "same" && (
         <p className="mb-3 text-xs text-gray-700 dark:text-gray-300">
@@ -203,7 +241,7 @@ export default function SectionPicker({
               ? overview.rooms === "varies" ? `Final, same time for every ${noun.toLowerCase()}:` : `Final for every ${noun.toLowerCase()}:`
               : "Final:"}
           </span>{" "}
-          {finalsText(overview.finals, overview.rooms)}
+          {finalsText(overview.finals, overview.rooms, rooms)}
         </p>
       )}
       {overview.kind === "none" && (
@@ -236,8 +274,8 @@ export default function SectionPicker({
                     )}
                   </>
                 }
-                meta={familyMeta(f)}
-                extra={<FamilyFinal overview={overview} family={f.key} />}
+                meta={familyMeta(f, rooms)}
+                extra={<><FamilyFinal overview={overview} family={f.key} roomsPublished={rooms} /><Notes notes={noteFor(f.lecture)} /></>}
                 trailing={f.lecture ? <Seats s={f.lecture} now={now} /> : undefined}
               />
 
@@ -257,7 +295,8 @@ export default function SectionPicker({
                             checked={value?.parts[p.type] === s[CODE]}
                             onPick={() => choosePart(p.type, s[CODE])}
                             title={<span className="font-mono text-xs font-bold">{p.label} {s[CODE]}</span>}
-                            meta={[sectionWhen(s), sectionWhere(s)].filter(Boolean).join(" · ")}
+                            meta={[sectionWhen(s), placeText(s, rooms)].filter(Boolean).join(" · ")}
+                            extra={<Notes notes={noteFor(s)} />}
                             trailing={<Seats s={s} now={now} />}
                           />
                         ))}

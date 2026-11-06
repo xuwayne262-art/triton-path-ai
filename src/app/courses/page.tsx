@@ -7,7 +7,11 @@ import PlatShell from "@/components/plat/PlatShell";
 import PageHeader from "@/components/plat/PageHeader";
 import DiscoverLink from "@/components/plat/DiscoverLink";
 import { LABEL, PAGE_GAP, PAGE_PAD } from "@/components/plat/typeScale";
-import { loadIndex, type PlatIndex } from "@/lib/plat";
+import QuarterPicker from "@/components/plat/QuarterPicker";
+import { useTerm } from "@/components/plat/useTerm";
+import { type PlatIndex } from "@/lib/plat";
+import { loadIndexFor } from "@/lib/termData";
+import { withTerm } from "@/lib/terms";
 import {
   COLLEGE_UNITS, DEPARTMENTS, SCHOOLS,
   type Department,
@@ -28,7 +32,24 @@ export default function CoursesPage() {
   const [data, setData] = useState<PlatIndex | null>(null);
   const [q, setQ] = useState("");
 
-  useEffect(() => { loadIndex().then(setData).catch(() => {}); }, []);
+  const term = useTerm()?.term ?? null;
+  useEffect(() => {
+    if (!term) return;
+    let live = true;
+    setData(null);
+    loadIndexFor(term).then((d) => { if (live) setData(d); }).catch(() => {});
+    return () => { live = false; };
+  }, [term]);
+
+  /**
+   * Subjects UCSD's schedule lists that no department or college here groups:
+   * every one stays findable, in a list of its own, rather than disappearing
+   * because the directory does not know where it belongs.
+   */
+  const ungrouped = useMemo(() => {
+    const grouped = new Set([...DEPARTMENTS.flatMap((d) => d.subjects), ...COLLEGE_UNITS.flatMap((c) => c.subjects)]);
+    return (data?.subjects ?? []).filter((s) => !grouped.has(s.code) && s.offered > 0);
+  }, [data]);
 
   /** Course counts rolled up from subject codes to the owning department. */
   const stats = useMemo(() => {
@@ -123,6 +144,7 @@ export default function CoursesPage() {
           }
         />
 
+        <QuarterPicker className="mt-4" />
         <DiscoverLink className="mt-5 inline-flex items-center text-sm font-semibold text-[#182B49] underline underline-offset-4 dark:text-[#FFCD00]" />
 
         {needle && (
@@ -141,7 +163,7 @@ export default function CoursesPage() {
                 {depts.map(({ dept, courses, offered }) => (
                   <Link
                     key={dept.id}
-                    href={`/courses/${dept.id}`}
+                    href={withTerm(`/courses/${dept.id}`, term)}
                     className="group flex items-start gap-3 border-b border-gray-100 px-2 py-4 transition hover:bg-gray-50 dark:border-white/5 dark:hover:bg-white/5"
                   >
                     <span className="min-w-0 flex-1">
@@ -168,7 +190,7 @@ export default function CoursesPage() {
                       {data && <span className="block">{courses} courses</span>}
                       {offered > 0 && (
                         <span className="block text-emerald-700 dark:text-emerald-400">
-                          {offered} this term
+                          {offered} offered
                         </span>
                       )}
                     </span>
@@ -193,7 +215,7 @@ export default function CoursesPage() {
                 {colleges.map(({ college, courses, offered }) => (
                   <Link
                     key={college.id}
-                    href={`/courses/${college.id}`}
+                    href={withTerm(`/courses/${college.id}`, term)}
                     className="group flex items-start gap-3 border-b border-gray-100 px-2 py-4 transition hover:bg-gray-50 dark:border-white/5 dark:hover:bg-white/5"
                   >
                     <span className="min-w-0 flex-1">
@@ -215,7 +237,7 @@ export default function CoursesPage() {
                       {data && <span className="block">{courses} courses</span>}
                       {offered > 0 && (
                         <span className="block text-emerald-700 dark:text-emerald-400">
-                          {offered} this term
+                          {offered} offered
                         </span>
                       )}
                     </span>
@@ -223,11 +245,32 @@ export default function CoursesPage() {
                 ))}
               </div>
               <Link
-                href="/ge"
+                href={withTerm("/ge", term)}
                 className="mt-4 inline-block text-xs font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]"
               >
                 Find GE courses for your college →
               </Link>
+            </section>
+          )}
+          {ungrouped.length > 0 && !needle && (
+            <section>
+              <h2 className={LABEL}>Other subjects on the {data?.meta.termName} schedule</h2>
+              <p className="mt-1.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                UCSD lists these subjects for {data?.meta.termName}; this directory does not group them under a department.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {ungrouped.map((s) => (
+                  <Link
+                    key={s.code}
+                    href={withTerm(`/courses/${s.code}`, term)}
+                    className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs transition hover:border-[#182B49] dark:border-white/10 dark:hover:border-[#FFCD00]"
+                  >
+                    <span className="font-mono font-semibold">{s.code}</span>
+                    {s.name && s.name !== s.code && <span className="ml-1.5 text-gray-600 dark:text-gray-400">{s.name}</span>}
+                    <span className="ml-1.5 text-emerald-700 dark:text-emerald-400">{s.offered}</span>
+                  </Link>
+                ))}
+              </div>
             </section>
           )}
         </div>

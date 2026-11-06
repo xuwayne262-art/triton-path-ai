@@ -21,11 +21,17 @@ import { usePlannerEntry } from "@/components/plat/usePlannerEntry";
 import { useSignedIn, useSignInHref } from "@/components/plat/useSignedIn";
 import { useNoteVisit } from "@/components/plat/useRecent";
 import { useTheme } from "@/components/plat/theme";
+import QuarterPicker from "@/components/plat/QuarterPicker";
+import { useTerm } from "@/components/plat/useTerm";
+import { TermFeaturesProvider } from "@/components/plat/termFeatures";
 import {
-  ENROLLMENT_PASSES, HttpError, courseHref, dayLabel, levelBand, loadBuildings, loadIndex, loadProfessors, loadSubject,
+  HttpError, courseHref, dayLabel, levelBand, loadBuildings, refreshedLabel,
   prereqKnown, professorFor, sortCourses, termName, termOrder, typicalGrade,
   type BuildingsFile, type CourseDetail, type PlatIndex, type ProfRecord, type ProfessorRecord, type SubjectFile,
 } from "@/lib/plat";
+import { loadIndexFor, loadProfessorsFor, loadSubjectFor } from "@/lib/termData";
+import { termEntry, termLabelFor, withTerm } from "@/lib/terms";
+import { TSS_URL, chartMarks } from "@/lib/termTimeline";
 import {
   BUILDING_CODE, CODE, INSTRUCTOR, TSS_HINT, TYPE,
   forcedSelection, groupSections, isChoosable, isOneOff, typeLabel,
@@ -92,30 +98,58 @@ export default function CourseDetailPage({
   const signedIn = useSignedIn();
   const signInHref = useSignInHref();
   const { theme } = useTheme();
+  // The quarter on screen. The same course stays open when it changes; every
+  // file below is that quarter's, and an answer for a quarter switched away
+  // from is dropped when it lands rather than painted over the new one.
+  const term = useTerm()?.term ?? null;
 
-  useEffect(() => { loadIndex().then(setIndex).catch(() => {}); }, [attempt]);
-  useEffect(() => { loadBuildings().then(setBuildings).catch(() => {}); }, []);
-  useEffect(() => { loadProfessors().then((f) => setProfs(f.professors)).catch(() => setProfs([])); }, []);
   useEffect(() => {
-    loadSubject(sub)
-      .then(setSubject)
-      .catch((err: unknown) => setFailed(err instanceof HttpError && err.status === 404 ? "missing" : "error"));
-  }, [sub, attempt]);
+    if (!term) return;
+    let live = true;
+    loadIndexFor(term).then((d) => { if (live) setIndex(d); }).catch(() => {});
+    return () => { live = false; };
+  }, [term, attempt]);
+  useEffect(() => { loadBuildings().then(setBuildings).catch(() => {}); }, []);
+  useEffect(() => {
+    if (!term) return;
+    let live = true;
+    loadProfessorsFor(term).then((f) => { if (live) setProfs(f.professors); }).catch(() => { if (live) setProfs([]); });
+    return () => { live = false; };
+  }, [term]);
+  useEffect(() => {
+    if (!term) return;
+    let live = true;
+    loadSubjectFor(sub, term)
+      .then((f) => { if (live) setSubject(f); })
+      .catch((err: unknown) => { if (live) setFailed(err instanceof HttpError && err.status === 404 ? "missing" : "error"); });
+    return () => { live = false; };
+  }, [sub, term, attempt]);
 
-  // Navigating to another subject must not show the previous one's data while
-  // the new file loads, so drop it during render rather than after a paint.
-  const [loadedFor, setLoadedFor] = useState(sub);
-  if (loadedFor !== sub) {
-    setLoadedFor(sub);
+  // Navigating to another subject or quarter must not show the previous
+  // one's data while the new file loads, so drop it during render rather
+  // than after a paint. A section choice belongs to its quarter's sections
+  // (Winter's B01 is not Fall's), so it goes too.
+  const [loadedFor, setLoadedFor] = useState(`${sub}|${term}`);
+  if (loadedFor !== `${sub}|${term}`) {
+    setLoadedFor(`${sub}|${term}`);
     setSubject(null);
+    setIndex(null);
+    setProfs(null);
     setFailed(null);
   }
+  // A choice in the address is the old quarter's once the quarter changes.
+  const [pickTerm, setPickTerm] = useState<string | null>(null);
+  useEffect(() => {
+    if (!term) return;
+    if (pickTerm && pickTerm !== term) writePick(undefined);
+    setPickTerm(term);
+  }, [term, pickTerm]);
 
-  const detail: CourseDetail | undefined = subject?.courses[code];
+  const detail: CourseDetail | undefined = subject?.term === (term ?? subject?.term) ? subject?.courses[code] : undefined;
   const row = index?.courses.find((c) => c.k === code);
   const title = detail?.t ?? row?.t;
-  const term = index?.meta.term ?? null;
-  const termLabel = index?.meta.termName ?? "This term";
+  const termLabel = term ? termLabelFor(term) : "This term";
+  const features = subject?.features ?? termEntry(term)?.features ?? { rooms: true, seatTimes: true, booking: true };
 
   // ── The section choice ─────────────────────────────────────────────────
   const families = useMemo(() => groupSections(detail?.sec ?? []), [detail]);
@@ -125,8 +159,9 @@ export default function CourseDetailPage({
   const [chosenFor, setChosenFor] = useState<string | null>(null);
   // Opens on the choice in the address, else the sections this course has in
   // the Planner (checked against this term's sections), else its only one.
-  if (detail && term && chosenFor !== code) {
-    setChosenFor(code);
+  // Made again for each quarter: a choice is one quarter's sections.
+  if (detail && term && chosenFor !== `${code}|${term}`) {
+    setChosenFor(`${code}|${term}`);
     const fromPlanner = planner?.sections ? decodeChoice(encodeChoice(planner.sections), families) : null;
     setSelectionState(decodeChoice(urlPick, families) ?? fromPlanner ?? onlyChoice(families));
   }
@@ -149,7 +184,8 @@ export default function CourseDetailPage({
       nonce: crypto.randomUUID(),
     };
     try { sessionStorage.setItem(ADD_INTENT_KEY, storedIntent(intent, Date.now())); } catch { /* the Planner will ask instead */ }
-    const target = addIntentHref(intent);
+    // Into this quarter's schedule in the Planner, whichever the Planner last showed.
+    const target = withTerm(addIntentHref(intent), term);
     if (signedIn === false) {
       const from = window.location.pathname + window.location.search;
       router.push(`/login?next=${encodeURIComponent(target)}&from=${encodeURIComponent(from)}`);
@@ -165,7 +201,7 @@ export default function CourseDetailPage({
     let live = true;
     fetch(`/api/seats?course=${encodeURIComponent(code)}&term=${encodeURIComponent(term)}`)
       .then((r) => (r.ok ? r.json() : { points: [] }))
-      .then((b: { points?: SeatDay[] }) => { if (live) { setHistory(b.points ?? []); setHistoryFor(code); } })
+      .then((b: { points?: SeatDay[] }) => { if (live) { setHistory(b.points ?? []); setHistoryFor(`${code}|${term}`); } })
       .catch(() => {});
     return () => { live = false; };
   }, [code, term, detail?.offered]);
@@ -237,9 +273,26 @@ export default function CourseDetailPage({
     // An undated count gets no point: a chart cannot place it, and dating it
     // by when the site read Class Planner would invent a measurement.
     if (seatsNow && snapshotDay) byDay.set(snapshotDay, { day: snapshotDay, ...seatsNow });
-    if (historyFor === code) for (const p of history) byDay.set(p.day, p);
+    if (historyFor === `${code}|${term}`) for (const p of history) byDay.set(p.day, p);
     return [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day));
-  }, [seatsNow, snapshotDay, history, historyFor, code]);
+  }, [seatsNow, snapshotDay, history, historyFor, code, term]);
+
+  // UCSD's notes on each section, from this quarter's listings (plain text).
+  const notes = useMemo(() => {
+    const out = new Map<string, string[]>();
+    for (const l of detail?.listings ?? []) for (const s of l.sections) if (s.section_text.length) out.set(s.section_id, s.section_text);
+    return out;
+  }, [detail]);
+  /** Where UCSD's course-level open-seat figure disagrees with its own sections (AAPI 198: 0 against 20). */
+  const seatMismatch = useMemo(() => {
+    const out: { listed: number; sections: number }[] = [];
+    for (const l of detail?.listings ?? []) {
+      const sections = l.sections.filter((s) => s.status === "AC" && (s.seats_available ?? 0) > 0)
+        .reduce((n, s) => n + (s.seats_available ?? 0), 0);
+      if (l.open_seat_count === 0 && sections > 0) out.push({ listed: l.open_seat_count, sections });
+    }
+    return out;
+  }, [detail]);
 
   // Where it meets: each building a weekly meeting uses, with what meets there.
   const places = useMemo(() => {
@@ -303,9 +356,11 @@ export default function CourseDetailPage({
         <div className="mx-auto max-w-2xl px-4 py-24 text-center">
           <h1 className={PAGE_TITLE}>{code} isn&apos;t in the dataset</h1>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            It may be graduate-only or recently retired.
+            No {termLabel} listing found in UCSD&rsquo;s public schedule, and no catalog entry or grade history either. It may
+            be graduate-only, newly numbered or retired.
           </p>
-          <Link href={`/courses/${sub}`} className="mt-6 inline-block text-sm font-semibold text-[#182B49] underline dark:text-[#FFCD00]">
+          <QuarterPicker className="mt-6 flex justify-center" />
+          <Link href={withTerm(`/courses/${sub}`, term)} className="mt-6 inline-block text-sm font-semibold text-[#182B49] underline dark:text-[#FFCD00]">
             Browse {sub}
           </Link>
         </div>
@@ -331,14 +386,24 @@ export default function CourseDetailPage({
 
   return (
     <PlatShell>
+      <TermFeaturesProvider value={features}>
       <div className={`mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 ${PAGE_PAD}`}>
         <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1 text-xs text-gray-600 dark:text-gray-400">
-          <Link href="/courses" className="hover:underline">Courses</Link>
+          <Link href={withTerm("/courses", term)} className="hover:underline">Courses</Link>
           <ChevronRight className="h-3 w-3" aria-hidden />
-          <Link href={`/courses/${dept?.id ?? sub}`} className="hover:underline">{dept?.name ?? subject?.name ?? sub}</Link>
+          <Link href={withTerm(`/courses/${dept?.id ?? sub}`, term)} className="hover:underline">{dept?.name ?? subject?.name ?? sub}</Link>
           <ChevronRight className="h-3 w-3" aria-hidden />
           <span className="text-gray-800 dark:text-gray-200" aria-current="page">{code}</span>
         </nav>
+
+        {/* The same course in another quarter is one choice away. */}
+        <QuarterPicker className="mt-3" />
+        {subject?.stale && (
+          <p role="status" className="mt-3 rounded-lg bg-amber-50 px-4 py-2.5 text-sm text-amber-950 dark:bg-amber-500/10 dark:text-amber-100">
+            {termLabel}&rsquo;s schedule was updated since this page opened.{" "}
+            <button type="button" onClick={() => window.location.reload()} className="font-semibold underline underline-offset-2">Reload for the latest</button>
+          </p>
+        )}
 
         {/* ── What it is, how it has graded, and the two actions ──────────── */}
         <header className="mt-5 flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-10">
@@ -348,6 +413,7 @@ export default function CourseDetailPage({
               <p className="font-mono text-sm font-bold text-[#182B49] dark:text-[#FFCD00]">
                 {code}
                 {detail?.u && <span className="ml-2 font-sans text-xs font-medium text-gray-600 dark:text-gray-400">{unitsLabel(detail.u, detail.t ?? title)}</span>}
+                <span className="ml-2 rounded-full bg-[#182B49]/[0.07] px-2 py-0.5 font-sans text-[11px] font-semibold text-[#182B49] dark:bg-[#FFCD00]/15 dark:text-[#FFCD00]">{termLabel}</span>
               </p>
               <h1 className={`mt-0.5 ${PAGE_TITLE}`}>{title ?? "…"}</h1>
               <p className="mt-2 max-w-3xl text-sm leading-relaxed text-gray-700 dark:text-gray-300">
@@ -404,8 +470,17 @@ export default function CourseDetailPage({
           </div>
         </header>
 
+        {/* ── Offered this quarter? Said plainly, with the history still below ── */}
+        {detail && !offered && (
+          <p className="mt-6 max-w-4xl rounded-lg border border-gray-200 px-4 py-2.5 text-sm leading-relaxed dark:border-white/10">
+            <span className="font-semibold">No {termLabel} listing found in UCSD&rsquo;s public schedule</span>
+            {index?.meta.refreshed ? ` (as of ${refreshedLabel(index.meta.refreshed)})` : ""}. Its catalog entry and grade history are below;
+            pick another quarter above to see its sections there.
+          </p>
+        )}
+
         {/* ── Can I take it? Before anything else on the page ───────────── */}
-        {detail && <Eligibility detail={detail} offered={offered} known={known} catalogued={row ? prereqKnown(row) : offered} />}
+        {detail && <Eligibility detail={detail} offered={offered} known={known} catalogued={row ? prereqKnown(row) : offered} termLabel={termLabel} />}
 
         <div className={`${PAGE_GAP} grid grid-cols-1 gap-12 lg:grid-cols-12 lg:gap-14`}>
           {/* ── Main column ─────────────────────────────────────────────────── */}
@@ -450,8 +525,9 @@ export default function CourseDetailPage({
                   </span>
                 </div>
                 <div className="mt-3">
-                  <SectionPicker sec={detail.sec} value={selection} onChange={setSelection} />
+                  <SectionPicker sec={detail.sec} value={selection} onChange={setSelection} notes={notes} />
                 </div>
+                <ListingFacts detail={detail} mismatch={seatMismatch} />
               </section>
             )}
 
@@ -460,7 +536,20 @@ export default function CourseDetailPage({
               <ChoiceSummary {...summaryProps} />
             </div>
 
-            {places.length > 0 && (
+            {offered && !features.rooms && (
+              <section aria-labelledby="where-title">
+                <h2 id="where-title" className={SECTION_TITLE}>Where it meets</h2>
+                <p className="mt-2 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+                  UCSD&rsquo;s public {termLabel} schedule does not list rooms, so there is no map or walking time here. Check the{" "}
+                  <a href="https://classplanner.apps.ucsd.edu/search" target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2">
+                    official schedule<span className="sr-only"> (opens in a new tab)</span>
+                  </a>{" "}
+                  or <a href={TSS_URL} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2">TSS<span className="sr-only"> (opens in a new tab)</span></a> for the room.
+                </p>
+              </section>
+            )}
+
+            {features.rooms && places.length > 0 && (
               <section aria-labelledby="where-title">
                 <h2 id="where-title" className={SECTION_TITLE}>Where it meets</h2>
                 {pins.length > 0 && (
@@ -499,7 +588,7 @@ export default function CourseDetailPage({
             <div>
               {leads.length > 0 && (
                 <Disclosure title="Leads to" hint={`${leads.length} ${leads.length === 1 ? "course" : "courses"}`}>
-                  <LeadsTo code={code} leads={leads} />
+                  <LeadsTo code={code} leads={leads} term={term} />
                 </Disclosure>
               )}
 
@@ -530,6 +619,17 @@ export default function CourseDetailPage({
               )}
             </div>
 
+            {offered && seatsNow && seatPoints.length === 0 && !features.seatTimes && (
+              <section aria-labelledby="seats-title">
+                <h2 id="seats-title" className={SECTION_TITLE}>Seats</h2>
+                <p className="mt-2 rounded-xl bg-slate-50 px-4 py-3 text-sm leading-relaxed text-gray-700 dark:bg-white/5 dark:text-gray-200">
+                  {seatsNow.enrolled.toLocaleString()} of {seatsNow.capacity.toLocaleString()} seats taken across{" "}
+                  {talliedRows(detail?.sec ?? []).some((s) => s[TYPE] === "LE") ? "all lectures" : "all sections"} in UCSD&rsquo;s
+                  public {termLabel} schedule. UCSD does not say when it counted them; a daily count starts a trend here.
+                </p>
+              </section>
+            )}
+
             {offered && seatPoints.length > 0 && (
               <section aria-labelledby="seats-title">
                 <h2 id="seats-title" className={SECTION_TITLE}>Seats over time</h2>
@@ -538,19 +638,22 @@ export default function CourseDetailPage({
                     One count so far: {seatsNow.enrolled.toLocaleString()} of {seatsNow.capacity.toLocaleString()} seats
                     taken{seatsNow.waitlist ? `, ${seatsNow.waitlist} waitlisted` : ""}, across{" "}
                     {talliedRows(detail?.sec ?? []).some((s) => s[TYPE] === "LE") ? "all lectures" : "all sections"},
-                    counted {seatTimeSpan ? spanLabel(seatTimeSpan) : dayLabel(seatPoints[0].day, { weekday: false })}.
+                    {features.seatTimes ? " counted " : " read "}
+                    {seatTimeSpan ? spanLabel(seatTimeSpan) : dayLabel(seatPoints[0].day, { weekday: false })}.
                     A trend needs more than one count, so none is drawn.
                   </p>
                 ) : (
                   <>
                     <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-                      {termLabel}, all lectures together, against the enrollment passes. Each dot is a day UCSD&rsquo;s
-                      Class Planner counted the seats.
+                      {termLabel}, all lectures together, against its enrollment dates.{" "}
+                      {features.seatTimes
+                        ? <>Each dot is a day UCSD&rsquo;s Class Planner counted the seats.</>
+                        : <>Each dot is a day UCSDPlans read UCSD&rsquo;s public seat counts; UCSD does not say when it took them.</>}
                     </p>
                     <div className="mt-3">
                       <SeatHistoryChart
                         points={seatPoints}
-                        passes={ENROLLMENT_PASSES}
+                        passes={chartMarks(term ?? "")}
                         classesStart={quarter?.classes ?? null}
                         title={`${code} seats taken over time`}
                       />
@@ -581,7 +684,7 @@ export default function CourseDetailPage({
             {related.length > 0 && row && (
               <section aria-labelledby="related-title">
                 <h2 id="related-title" className={SECTION_TITLE}>
-                  More {["lower-division", "upper-division", "graduate"][levelBand(row)]} {dept?.name ?? sub} courses this term
+                  More {["lower-division", "upper-division", "graduate"][levelBand(row)]} {dept?.name ?? sub} courses in {termLabel}
                 </h2>
                 <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
                   On the {termLabel} schedule, highest historical average first.
@@ -601,7 +704,29 @@ export default function CourseDetailPage({
           </aside>
         </div>
       </div>
+      </TermFeaturesProvider>
     </PlatShell>
+  );
+}
+
+/**
+ * What this quarter's listings say beyond their sections: fees, and where
+ * UCSD's own course-level seat figure disagrees with its sections. Shown as
+ * UCSD wrote it, as plain text.
+ */
+function ListingFacts({ detail, mismatch }: { detail: CourseDetail; mismatch: { listed: number; sections: number }[] }) {
+  const fees = [...new Set((detail.listings ?? []).flatMap((l) => l.course_fees))];
+  if (!fees.length && !mismatch.length) return null;
+  return (
+    <div className="mt-3 space-y-2 text-xs leading-relaxed text-gray-700 dark:text-gray-300">
+      {mismatch.map((m, i) => (
+        <p key={i}>
+          UCSD&rsquo;s course summary lists {m.listed} open seats, while its sections list {m.sections}. The sections&rsquo;
+          own figures are shown above.
+        </p>
+      ))}
+      {fees.map((f) => <p key={f}><span className="font-semibold">Fees and notes from UCSD:</span> {f}</p>)}
+    </div>
   );
 }
 
@@ -652,8 +777,10 @@ function Description({ text }: { text: string }) {
  * which is not a promise that it has none.
  */
 function Eligibility({
-  detail, offered, known, catalogued,
-}: { detail: CourseDetail; offered: boolean; known: (code: string) => boolean; catalogued: boolean }) {
+  detail, offered, known, catalogued, termLabel,
+}: { detail: CourseDetail; offered: boolean; known: (code: string) => boolean; catalogued: boolean; termLabel: string }) {
+  // The quarter's own wording, when it says something the general rule does not.
+  const termPre = detail.tpre && detail.tpre !== detail.pre ? detail.tpre : null;
   return (
     <div className="mt-6 grid max-w-4xl gap-2">
       <p className="rounded-lg bg-amber-50 px-4 py-2.5 text-sm leading-relaxed text-amber-950 dark:bg-amber-500/10 dark:text-amber-100">
@@ -661,16 +788,55 @@ function Eligibility({
         {detail.pre ? (
           <PrereqText text={detail.pre} known={known} />
         ) : catalogued ? (
-          `none listed in the UCSD General Catalog${offered ? " or on this term's schedule" : ""}.`
+          `none listed in the UCSD General Catalog${offered ? ` or on the ${termLabel} schedule` : ""}.`
         ) : (
           "not on record. This course is not in the current catalog, so check with the department."
+        )}
+        {termPre && (
+          <span className="mt-1 block">
+            <span className="font-semibold">{termLabel} listing: </span>
+            <PrereqText text={termPre} known={known} />
+          </span>
         )}
       </p>
       {detail.res && (
         <p className="rounded-lg bg-rose-50 px-4 py-2.5 text-sm leading-relaxed text-rose-950 dark:bg-rose-500/10 dark:text-rose-100">
-          <span className="font-semibold">Enrollment restrictions: </span>{detail.res}
+          <span className="font-semibold">{offered ? `${termLabel} restrictions` : "Enrollment restrictions"}: </span>{detail.res}
         </p>
       )}
+      {detail.dept && <DepartmentGuidance guidance={detail.dept} termLabel={termLabel} />}
+    </div>
+  );
+}
+
+/**
+ * A department's own notes for the quarter: its expected class size and its
+ * enrollment instructions. Kept apart from UCSD's schedule, and never read as
+ * eligibility — the department page decides that, not this site.
+ */
+function DepartmentGuidance({ guidance, termLabel }: { guidance: NonNullable<CourseDetail["dept"]>; termLabel: string }) {
+  return (
+    <div className="rounded-lg border border-gray-200 px-4 py-2.5 text-sm leading-relaxed dark:border-white/10">
+      <p>
+        <span className="font-semibold">{guidance.name} department guidance for {termLabel}</span>
+        <span className="text-xs text-gray-600 dark:text-gray-400"> · separate from UCSD&rsquo;s schedule</span>
+      </p>
+      {guidance.rows?.map((r, i) => (
+        <p key={i} className="mt-1 text-xs text-gray-700 dark:text-gray-300">
+          {Object.entries(r).filter(([k]) => !/^course( id)?$/i.test(k)).map(([k, v]) => `${k}: ${v}`).join(" · ")}
+        </p>
+      ))}
+      {guidance.notes && (
+        <ul className="mt-1.5 list-disc space-y-1 pl-5 text-xs text-gray-700 dark:text-gray-300">
+          {guidance.notes.map((n) => <li key={n}>{n}</li>)}
+        </ul>
+      )}
+      <p className="mt-1.5 text-xs text-gray-600 dark:text-gray-400">
+        The department&rsquo;s estimate of class size is not UCSD&rsquo;s section capacity.{" "}
+        <a href={guidance.url} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2">
+          Read the department&rsquo;s page<span className="sr-only"> (opens in a new tab)</span>
+        </a>
+      </p>
     </div>
   );
 }
@@ -714,7 +880,7 @@ function TeachingNote({
 }
 
 /** The courses whose prerequisites name this one: where it leads. */
-function LeadsTo({ code, leads }: { code: string; leads: string[] }) {
+function LeadsTo({ code, leads, term }: { code: string; leads: string[]; term: string | null }) {
   return (
     <div>
       <p className="text-xs text-gray-600 dark:text-gray-400">
@@ -724,7 +890,7 @@ function LeadsTo({ code, leads }: { code: string; leads: string[] }) {
         {leads.map((c) => (
           <li key={c}>
             <Link
-              href={courseHref(c)}
+              href={withTerm(courseHref(c), term)}
               className="inline-block rounded-full border border-gray-200 px-2.5 py-1 font-mono text-xs font-semibold text-[#182B49] transition hover:border-[#182B49] dark:border-white/10 dark:text-[#FFCD00] dark:hover:border-[#FFCD00]"
             >
               {c}

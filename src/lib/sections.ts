@@ -143,6 +143,26 @@ export function sectionBuildingCode(s: SectionTuple): string {
  */
 export const sectionWhere = (s: SectionTuple) => sectionRoom(s) || s[BUILDING] || "";
 
+/**
+ * What a page says for a timed meeting with no room. UCSD's public schedule
+ * publishes no rooms at all (Winter 2027 onward), which is not the same as a
+ * room still to be assigned.
+ */
+export const ROOM_UNAVAILABLE = "Room unavailable · Check UCSD";
+
+/**
+ * Where a meeting is, in words: its room; else, for a meeting with a time,
+ * why there is none ("Room TBA" when the schedule publishes rooms, the line
+ * above when it does not); nothing for a meeting with no time, whose "Time
+ * TBA" already says it.
+ */
+export function placeText(s: SectionTuple, roomsPublished = true): string {
+  const where = sectionWhere(s);
+  if (where) return where;
+  if (!s[START]) return "";
+  return roomsPublished ? "Room TBA" : ROOM_UNAVAILABLE;
+}
+
 /** "TuTh · 9:30 AM – 10:50 AM" */
 export function sectionWhen(s: SectionTuple): string {
   if (!s[START]) return "Time TBA";
