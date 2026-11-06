@@ -1,0 +1,988 @@
+{
+ "term": "WI27",
+ "source_url": "https://cse.ucsd.edu/graduate/winter-2027-graduate-course-updates",
+ "authority": "Department guidance; expected size differs from official section capacity",
+ "tables": [
+  [
+   [
+    "Course ID",
+    "Title",
+    "Primary Instructor",
+    "Expected # of Seats",
+    "Notes"
+   ],
+   [
+    "CSE 202",
+    "Algorithm Design and Analysis",
+    "Barna Saha",
+    "225",
+    "Major Restricted course. Only CSE graduate students can automatically enroll. Non-CSE majors must submit a TEA request. Will be placed on hold, until Week 1 for review."
+   ],
+   [
+    "CSE 209B *",
+    "Top/Seminar in Cryptography",
+    "Daniele Micciancio",
+    "15",
+    "All seats released for enrollment. Must be taken for 1 unit."
+   ],
+   [
+    "CSE 210",
+    "Principle/Software Engineering",
+    "Michael J Coblenz",
+    "146",
+    "Major Restricted course. Only CSE graduate students can automatically enroll. Non-CSE majors must submit a TEA request. Will be placed on hold, until Week 1 for review."
+   ],
+   [
+    "CSE 216",
+    "Interaction Design Research",
+    "Scott R Klemmer",
+    "15",
+    "Major Restricted course. Only CSE graduate students can automatically enroll. Non-CSE majors must submit a TEA request. Will be placed on hold, until Week 1 for review."
+   ],
+   [
+    "CSE 219",
+    "Design at Large",
+    "Pinar Yoldas",
+    "25",
+    "All seats released for enrollment."
+   ],
+   [
+    "CSE 220",
+    "Operating Systems Principles",
+    "Alex C Snoeren",
+    "196",
+    "All seats released for enrollment."
+   ],
+   [
+    "CSE 221",
+    "Operating Systems",
+    "Geoff Voelker",
+    "75",
+    "Major Restricted course. Only CSE graduate students can automatically enroll. Non-CSE majors must submit a TEA request. Will be placed on hold, until Week 1 for review."
+   ],
+   [
+    "CSE 222C",
+    "Wireless Networks",
+    "Patrick Pannuto",
+    "25",
+    "All seats released for enrollment."
+   ],
+   [
+    "CSE 227*",
+    "Computer Security",
+    "Imani N Munyaka",
+    "75",
+    "All seats released for enrollment."
+   ],
+   [
+    "CSE 229A",
+    "Tops/Seminar/Computer Systems",
+    "Yiying Zhang",
+    "30",
+    "All seats released for enrollment."
+   ],
+   [
+    "CSE 229C",
+    "Tops/Seminar/Computer Security",
+    "Deian Stefan",
+    "25",
+    "All seats released for enrollment."
+   ],
+   [
+    "CSE 237A",
+    "Intro to Embedded Computing",
+    "Tajana S Rosing",
+    "50",
+    "All seats released for enrollment."
+   ],
+   [
+    "CSE 240B",
+    "Parallel Computer Architecture",
+    "Jishen Zhao",
+    "50",
+    "All seats released for enrollment."
+   ],
+   [
+    "CSE 244A",
+    "VLSI Test",
+    "Alex Orailoglu",
+    "25",
+    "Major Restricted course. Only CSE graduate students can automatically enroll. Non-CSE majors must submit a TEA request. Will be placed on hold, until Week 1 for review."
+   ],
+   [
+    "CSE 251A",
+    "ML: Learning Algorithms",
+    "Sanjoy Dasgupta",
+    "362",
+    "Major Restricted course. Only CSE graduate students can automatically enroll. Non-CSE majors must submit a TEA request. Will be placed on hold, until Week 1 for review."
+   ],
+   [
+    "CSE 252A",
+    "Computer Vision I",
+    "Benjamin L Ochoa",
+    "120",
+    "Major Restricted course. Only CSE graduate students can automatically enroll. Non-CSE majors must submit a TEA request. Will be placed on hold, until Week 1 for review."
+   ],
+   [
+    "CSE 259",
+    "Seminr/Artificial Intelligence",
+    "Sadhika Malladi",
+    "50",
+    "All seats released for enrollment."
+   ],
+   [
+    "CSE 272",
+    "Advanced Image Synthesis",
+    "Tzu Mao Li",
+    "50",
+    "All seats released for enrollment."
+   ],
+   [
+    "CSE 274",
+    "Selected Topics in Graphics",
+    "Ravi Ramamoorthi",
+    "50",
+    "All seats released for enrollment."
+   ],
+   [
+    "CSE 276D",
+    "Introduction to Robotics",
+    "Laurel D Riek",
+    "20",
+    "All seats released for enrollment."
+   ],
+   [
+    "CSE 280A",
+    "Algorithms/Computational Biol",
+    "Vineet Bafna",
+    "25",
+    "All seats released for enrollment."
+   ],
+   [
+    "CSE 282",
+    "Bioinf II:Intro to Bioinf Algr",
+    "Pavel A Pevzner",
+    "25",
+    "All seats released for enrollment."
+   ],
+   [
+    "CSE 290",
+    "Sem/Computer Sci & Engineering",
+    "Henrik I Christensen",
+    "25",
+    "All seats released for enrollment."
+   ],
+   [
+    "CSE 290",
+    "Sem/Computer Sci & Engineering",
+    "Manmohan K Chandraker",
+    "25",
+    "All seats released for enrollment."
+   ],
+   [
+    "CSE 290",
+    "Sem/Computer Sci & Engineering",
+    "Barna Saha",
+    "25",
+    "All seats released for enrollment."
+   ],
+   [
+    "CSE 290",
+    "Sem/Computer Sci & Engineering",
+    "Yoav S Freund",
+    "25",
+    "All seats released for enrollment."
+   ],
+   [
+    "CSE 290",
+    "Sem/Computer Sci & Engineering",
+    "Pavel A Pevzner",
+    "25",
+    "All seats released for enrollment."
+   ],
+   [
+    "CSE 290",
+    "Sem/Computer Sci & Engineering",
+    "Kristen Vaccaro",
+    "50",
+    "All seats released for enrollment."
+   ],
+   [
+    "CSE 290",
+    "Sem/Computer Sci & Engineering",
+    "Laurel D Riek",
+    "25",
+    "All seats released for enrollment."
+   ],
+   [
+    "CSE 290",
+    "Sem/Computer Sci & Engineering",
+    "Shachar Lovett",
+    "10",
+    "All seats released for enrollment."
+   ],
+   [
+    "CSE 291A",
+    "Topics in AI",
+    "Julian J McAuley",
+    "262",
+    "Department approval required. All students must submit a TEA request."
+   ],
+   [
+    "CSE 291G",
+    "Topics in Graphics and Vision",
+    "Marc Niethammer",
+    "50",
+    "Department approval required. All students must submit a TEA request."
+   ],
+   [
+    "CSE 291I",
+    "Topics in Human-comp Interact",
+    "Deny. Should take 120.",
+    "50",
+    "Department approval required. All students must submit a TEA request."
+   ],
+   [
+    "CSE 291P",
+    "Topics in PL, Compilers & SE",
+    "Michael J Coblenz",
+    "100",
+    "Department approval required. All students must submit a TEA request."
+   ],
+   [
+    "CSE 291P",
+    "Topics in PL, Compilers & SE",
+    "Nadia Polikarpova",
+    "73",
+    "Department approval required. All students must submit a TEA request."
+   ],
+   [
+    "CSE 291T",
+    "Topics in Theoretical CS",
+    "Russell Impagliazzo",
+    "50",
+    "Department approval required. All students must submit a TEA request."
+   ],
+   [
+    "CSE 291T",
+    "Topics in Theoretical CS",
+    "Qipeng Liu",
+    "50",
+    "Department approval required. All students must submit a TEA request."
+   ],
+   [
+    "CSE 294",
+    "Research Meeting in CSE",
+    "Leo Porter",
+    "20",
+    "Department approval required. All students must submit a TEA request."
+   ],
+   [
+    "CSE 500",
+    "Teaching Assistantship",
+    "TBA",
+    "",
+    "Department approval required. All students must submit a TEA request."
+   ],
+   [
+    "CSE 599",
+    "Teaching Methods in Computer Science",
+    "Joe G Politz",
+    "",
+    "Department approval required. All students must submit a TEA request."
+   ]
+  ]
+ ],
+ "notes": [
+  {
+   "type": "p",
+   "text": "Updated October 30th, 2026"
+  },
+  {
+   "type": "p",
+   "text": "Important Enrollment Update: As of Fall 2026, SERF and Web-reg no longer exists. Students are recommended to use new the Triton Student System (TSS)."
+  },
+  {
+   "type": "p",
+   "text": "Important Notes:"
+  },
+  {
+   "type": "p",
+   "text": "1. Please monitor your @ucsd.edu email address daily for course updates DAILY"
+  },
+  {
+   "type": "p",
+   "text": "2. For Winter 2027 the CSE graduate student course booking window begins on November 9th for all continuing graduate students. There are no staggered individual appointment times; all graduate students have access to begin enrolling on the same day via the Triton Student System (TSS)."
+  },
+  {
+   "type": "p",
+   "text": "3. Check the Booking and Registration page for your enrollment appointment. Unlike previous years, graduate students will receive an assigned enrollment booking window through the new system. Please note that enrollment dates and times are subject to change."
+  },
+  {
+   "type": "p",
+   "text": "4. Triton Enrollment Authorization (TEA) request can be submitted here: Triton Student System."
+  },
+  {
+   "type": "li",
+   "text": "Please note: some TEA requests, including those for special topics courses, require instructor approval before they can be processed. As a result, these requests may take longer than 5 business days to be reviewed and approved."
+  },
+  {
+   "type": "p",
+   "text": "5. Research-oriented courses: Some UCSD CSE courses are \"research-oriented,\" meaning they target students planning to do research in the course's topic area or who prefer a more research-centric approach to learning. These courses often involve significant student participation, including reading and discussing research papers, and completing larger-scale research-oriented projects. They usually do not provide a MS Comprehensive exam option. Research-oriented courses are tagged in the list below. Please consider this before enrolling in a research-oriented class."
+  },
+  {
+   "type": "p",
+   "text": "Note: The \"research-oriented\" tags can help guide your course selection, but the course's syllabus and the instructor are the ultimate determinants of the course's content, how your work will be evaluated, and your grade assigned. Research-oriented courses can be found in the table below with an asterisk next to them (scroll to the bottom of the page)."
+  },
+  {
+   "type": "p",
+   "text": "Have general questions about enrollment or want to better understand our processes? Join us for Virtual Drop-In Advising, no appointment needed!"
+  },
+  {
+   "type": "p",
+   "text": "Week 1:"
+  },
+  {
+   "type": "p",
+   "text": "Tuesday, January 5, 2027 from 9:00am – 12:00pm"
+  },
+  {
+   "type": "p",
+   "text": "Thursday, January 7, 2027 from 9:00am – 12:00pm"
+  },
+  {
+   "type": "p",
+   "text": "Week 2:"
+  },
+  {
+   "type": "p",
+   "text": "Tuesday, January 12, 2027 from 9:00am – 12:00pm"
+  },
+  {
+   "type": "p",
+   "text": "Thursday, January 14, 2027 from 9:00am – 12:00pm"
+  },
+  {
+   "type": "p",
+   "text": "Zoom Link: https://ucsd.zoom.us/j/4435737634"
+  },
+  {
+   "type": "p",
+   "text": "Meeting ID: 443 573 7634"
+  },
+  {
+   "type": "p",
+   "text": "These sessions are designed to help with general enrollment questions and guide you through our procedures. Please note: we won’t be covering individual TEA requests during these drop-ins."
+  },
+  {
+   "type": "li",
+   "text": "CSE graduate students receive priority enrollment in our CSE courses."
+  },
+  {
+   "type": "li",
+   "text": "If space is available and you meet all prerequisites, you may enroll directly in the course."
+  },
+  {
+   "type": "li",
+   "text": "You may join the waitlist for eligible courses, as soon the waitlist open."
+  },
+  {
+   "type": "li",
+   "text": "Monitor your @ucsd.edu email regularly. Important updates regarding the Triton Student System (TSS)"
+  },
+  {
+   "type": "p",
+   "text": "Co-scheduled Courses"
+  },
+  {
+   "type": "h3",
+   "text": "For CSE courses that are officially or unofficially co-scheduled:"
+  },
+  {
+   "type": "p",
+   "text": "Undergraduate students must enroll in the undergraduate version."
+  },
+  {
+   "type": "p",
+   "text": "Graduate students must enroll in the graduate version."
+  },
+  {
+   "type": "p",
+   "text": "Admitted CSE BS/MS students may request to enroll in the graduate version of the course after being admitted into the MS program."
+  },
+  {
+   "type": "p",
+   "text": "CSE instructors are not directly involved with student enrollment. Do not contact the course instructor regarding enrollment concerns."
+  },
+  {
+   "type": "p",
+   "text": "Note: This policy applies even if the corresponding undergraduate or graduate course is at capacity or is not offered in the same quarter. Students may not enroll in both versions of a co-scheduled course or in the graduate version if they have already completed the undergraduate one. No add, credit, or late-drop exceptions will be granted."
+  },
+  {
+   "type": "p",
+   "text": "It is the student’s responsibility to ensure they are enrolled in the correct version."
+  },
+  {
+   "type": "p",
+   "text": "Additional Graduate/Undergraduate Course Restrictions"
+  },
+  {
+   "type": "li",
+   "text": "In addition to the co-scheduled course policies above, individual faculty may have policies restricting students from enrolling in the graduate version of a course if the undergraduate version was completed at UCSD."
+  },
+  {
+   "type": "li",
+   "text": "Students that complete the graduate version of any CSE course, may not enroll in the undergraduate version"
+  },
+  {
+   "type": "li",
+   "text": "CSE-118/CSE-218"
+  },
+  {
+   "type": "li",
+   "text": "CSE 120/CSE 220 (all instructors)"
+  },
+  {
+   "type": "li",
+   "text": "CSE 124/224. (MS students are permitted to enroll in CSE 224 only)"
+  },
+  {
+   "type": "li",
+   "text": "CSE 153/CSE 253 (including R sections)."
+  },
+  {
+   "type": "li",
+   "text": "CSE 176A/276D."
+  },
+  {
+   "type": "li",
+   "text": "CSE 158/258, this also includes DSC 190 Intro to Data Mining (all sections) and DSC 148 (all sections)"
+  },
+  {
+   "type": "li",
+   "text": "CSE 150A, CSE 150B, CSE150/ 250A"
+  },
+  {
+   "type": "li",
+   "text": "No late adds - no exceptions. The CSE department does not allow students to add courses past Week 2. If a student is not enrolled in enough units by the beginning of Week 1, the student should contact cse-grad-enrollment@ucsd.edu if an TEA request is needed for enrollment authorization. Otherwise, it is expected that CSE Graduate students finalize their schedule during Week 1."
+  },
+  {
+   "type": "li",
+   "text": "All students are expected to attend class for the first two weeks and complete assignments if they are on the waitlist for a course. Attending class and completing course assignments does not guarantee enrollment. If students choose to miss class or not turn in assignments while on the waitlist, the student will receive a \"0\" on all missed assignments, if they secure a seat in the course off the waitlist."
+  },
+  {
+   "type": "li",
+   "text": "This course may be added after Week 2, please contact cse-ms-advisors@ucsd.edu for assistance or questions related to CSE 293/298 enrollment."
+  },
+  {
+   "type": "li",
+   "text": "This course may be added after Week 2, please contact cse-phd-advisors@ucsd.edu for assistance or questions about CSE 299 enrollment."
+  },
+  {
+   "type": "p",
+   "text": "We kindly ask for your patience for review drop, grade, and unit change requests, which typically take 5-7 business days."
+  },
+  {
+   "type": "p",
+   "text": "Change requests can be made by Triton Enrollment Authorization (TEA) request"
+  },
+  {
+   "type": "li",
+   "text": "If you're an MS student, please reach out to cse-ms-advisors@ucsd.edu"
+  },
+  {
+   "type": "li",
+   "text": "For PhD students, you can contact us at cse-phd-advisors@ucsd.edu."
+  },
+  {
+   "type": "p",
+   "text": "If you are classified as a graduate CSE MS student, you do not need to follow the process below."
+  },
+  {
+   "type": "p",
+   "text": "Review Process and Deadlines"
+  },
+  {
+   "type": "p",
+   "text": "Undergraduate students admitted to the Winter 2027 and Spring 2027 quarters to the CSE BS/MS Program will be contacted via their UCSD email after CSE graduate students have had the opportunity to enroll in their courses."
+  },
+  {
+   "type": "p",
+   "text": "You will need to monitor your UCSD email regularly, as there is no set timeline for when this communication will be sent."
+  },
+  {
+   "type": "p",
+   "text": "You must respond within the stated deadline, failure to do so will delay your approval, limiting your chances of enrolling in your preferred courses."
+  },
+  {
+   "type": "p",
+   "text": "Instructions on how to submit a Triton Enrollment Authorization (TEA) request in the Triton Student System as well as the appropriate deadlines will be in the email referenced above."
+  },
+  {
+   "type": "p",
+   "text": "Enrollment is not guaranteed. Requests may remain pending until Friday of Week 2. If your request is not approved by that time, it has been denied (including cases where a TEA request remains pending instructor approval and/or college and/or registrar approval)."
+  },
+  {
+   "type": "p",
+   "text": "CSE instructors are not directly involved with student enrollment. Do not contact the course instructor regarding enrollment concerns."
+  },
+  {
+   "type": "p",
+   "text": "Course Eligibility and Status"
+  },
+  {
+   "type": "p",
+   "text": "Please review the Graduate Courses for a full list of courses pertaining to CSE BS/MS enrollment. Check the “BS/MS Requests” column for details:"
+  },
+  {
+   "type": "p",
+   "text": "Blank Courses:"
+  },
+  {
+   "type": "li",
+   "text": "Status is TBD. Do not submit a TEA request. Check back for updates."
+  },
+  {
+   "type": "p",
+   "text": "\"Eligible to submit a TEA request for\":"
+  },
+  {
+   "type": "li",
+   "text": "You may submit a TEA request after receiving the enrollment email with the appropriate deadline."
+  },
+  {
+   "type": "li",
+   "text": "Failure to do so will delay your approval, limiting your chances of enrolling in your preferred courses."
+  },
+  {
+   "type": "li",
+   "text": "If your request is not approved by Friday of Week 2, it has been denied (including cases where a TEA request remains pending instructor approval and/or college and/or registrar approval)."
+  },
+  {
+   "type": "p",
+   "text": "\"Will be routed for instructor review\":"
+  },
+  {
+   "type": "li",
+   "text": "You may submit a TEA request after receiving the enrollment email with the appropriate deadline."
+  },
+  {
+   "type": "li",
+   "text": "Failure to do so will delay your approval, limiting your chances of enrolling in your preferred courses."
+  },
+  {
+   "type": "li",
+   "text": "Requests will be routed to the instructor for review."
+  },
+  {
+   "type": "li",
+   "text": "If your request is not approved by Friday of Week 2, it has been denied (including cases where a TEA request remains pending instructor approval and/or college and/or registrar approval)."
+  },
+  {
+   "type": "p",
+   "text": "\"Instructor is not accepting TEA requests\":"
+  },
+  {
+   "type": "li",
+   "text": "CSE BS/MS students are not permitted to enroll in this class."
+  },
+  {
+   "type": "li",
+   "text": "All submitted TEA requests will not be reviewed."
+  },
+  {
+   "type": "p",
+   "text": "____________________________________________________"
+  },
+  {
+   "type": "p",
+   "text": "Co-scheduled Courses"
+  },
+  {
+   "type": "p",
+   "text": "For CSE courses that are officially or unofficially co-scheduled:"
+  },
+  {
+   "type": "p",
+   "text": "Undergraduate students must enroll in the undergraduate version."
+  },
+  {
+   "type": "p",
+   "text": "Graduate students must enroll in the graduate version."
+  },
+  {
+   "type": "p",
+   "text": "Admitted CSE BS/MS students may request to enroll in the graduate version of the course after being admitted into the MS program, unless otherwise stated."
+  },
+  {
+   "type": "p",
+   "text": "Note: This policy applies even if the corresponding undergraduate or graduate course is at capacity or is not offered in the same quarter. Students may not enroll in both versions of a co-scheduled course or in the graduate version if they have already completed the undergraduate one. No add, credit, or late-drop exceptions will be granted."
+  },
+  {
+   "type": "p",
+   "text": "It is the student’s responsibility to ensure they are enrolled in the correct version."
+  },
+  {
+   "type": "li",
+   "text": "TEA request will be on hold until Week 1 or 2, as we reserve seats for our CSE students."
+  },
+  {
+   "type": "li",
+   "text": "ECE-MS-005, ECE-PHD-005: CSE 202, 221, 224, 222B, 237A, 240A, 243A, 245"
+  },
+  {
+   "type": "li",
+   "text": "BINF-MS-002, BINF-PHD-002, BINF-PHD-003: CSE 200, 250A, 251A, 251B, 258, 280A, 282, 283, 284"
+  },
+  {
+   "type": "li",
+   "text": "Requests will be reviewed and approved if space is available after all interested CSE graduate students have had the opportunity to enroll."
+  },
+  {
+   "type": "p",
+   "text": "Students are independently responsible for checking CSE course enrollment policies."
+  },
+  {
+   "type": "p",
+   "text": "Our courses are restricted to CSE majors, non-CSE graduate students may still submit an enrollment request through a Triton Enrollment Authorization (TEA) request."
+  },
+  {
+   "type": "p",
+   "text": "Review Process and Timeline"
+  },
+  {
+   "type": "p",
+   "text": "Submit a Triton Enrollment Authorization (TEA) request."
+  },
+  {
+   "type": "p",
+   "text": "Requests from non-CSE major Graduate students to be cleared to enroll in CSE major restricted courses will be placed on a hold until after CSE Majors have had the opportunity to enroll."
+  },
+  {
+   "type": "p",
+   "text": "Your TEA request may be reviewed between Week 1 and 2, depending on seat availability."
+  },
+  {
+   "type": "p",
+   "text": "If your TEA request is approved, it is your responsibility to enroll or waitlist the course. The CSE department will not approve any late add requests."
+  },
+  {
+   "type": "p",
+   "text": "Note: Clearance to enroll/waitlist a CSE Graduate course with a large waitlist does not indicate we intend to offer additional seats. The courses and sections we intend to offer are listed in the Schedule of Classes."
+  },
+  {
+   "type": "p",
+   "text": "Non-CSE Majors"
+  },
+  {
+   "type": "p",
+   "text": "If you are not able to enroll in your CSE courses this quarter you may need to enroll in a subsequent quarter."
+  },
+  {
+   "type": "p",
+   "text": "CSE instructors are not directly involved with student enrollment. Do not contact the course instructor regarding enrollment or major restriction concerns."
+  },
+  {
+   "type": "p",
+   "text": "CSE Undergraduate Advising does not manage enrollment in graduate-level courses."
+  },
+  {
+   "type": "p",
+   "text": "Undergraduate students who wish to add graduate courses must submit a Triton Enrollment Authorization (TEA)."
+  },
+  {
+   "type": "p",
+   "text": "Review Process and Deadlines"
+  },
+  {
+   "type": "p",
+   "text": "The deadline to submit a Triton Enrollment Authorization (TEA) request is Tuesday of Week 1."
+  },
+  {
+   "type": "p",
+   "text": "Requests will be reviewed after graduate students and other prioritized groups have had the opportunity to enroll, typically by the beginning of Week 2."
+  },
+  {
+   "type": "p",
+   "text": "The CSE Department does not allow students to add courses after Week 2, no late adds or exceptions."
+  },
+  {
+   "type": "p",
+   "text": "Depending on graduate student demand, some courses may not open to undergraduate students."
+  },
+  {
+   "type": "p",
+   "text": "Enrollment is not guaranteed. Requests may remain pending until Friday of Week 2, depending on seat availability. If your request is not approved by that time, it has been denied (including cases where an TEA request remains pending instructor approval and/or college and/or registrar approval)."
+  },
+  {
+   "type": "p",
+   "text": "CSE instructors are not directly involved with student enrollment. Do not contact the course instructor regarding enrollment concerns."
+  },
+  {
+   "type": "p",
+   "text": "Make sure to carefully review the Graduate Course Updates page and direct any inquiries about graduate course enrollment to cse-grad-enrollment@ucsd.edu."
+  },
+  {
+   "type": "p",
+   "text": "Note: This policy applies even if the corresponding undergraduate or graduate course is at capacity or is not offered in the same quarter. Students may not enroll in both versions of a co-scheduled course or in the graduate version if they have already completed the undergraduate one. No add, credit, or late-drop exceptions will be granted."
+  },
+  {
+   "type": "p",
+   "text": "It is the student’s responsibility to ensure they are enrolled in the correct version."
+  },
+  {
+   "type": "p",
+   "text": "Co-scheduled Courses"
+  },
+  {
+   "type": "p",
+   "text": "For CSE courses that are officially or unofficially co-scheduled:"
+  },
+  {
+   "type": "p",
+   "text": "Undergraduate students must enroll in the undergraduate version."
+  },
+  {
+   "type": "p",
+   "text": "Graduate students must enroll in the graduate version."
+  },
+  {
+   "type": "p",
+   "text": "Course Eligibility and Status"
+  },
+  {
+   "type": "p",
+   "text": "Please check back in for the the Graduate Courses for a full list of courses pertaining to undergraduate enrollment. Check the “UG Requests” (all the way to the right) column for details:"
+  },
+  {
+   "type": "p",
+   "text": "Blank Courses:"
+  },
+  {
+   "type": "li",
+   "text": "Status is TBD. Do not submit a TEA request. Check back for updates in September."
+  },
+  {
+   "type": "p",
+   "text": "\"Eligible to submit a TEA request for\":"
+  },
+  {
+   "type": "li",
+   "text": "You may submit an TEA request before Tuesday of Week 1."
+  },
+  {
+   "type": "li",
+   "text": "The TEA request will not be reviewed until typically the beginning of Week 2."
+  },
+  {
+   "type": "li",
+   "text": "If your request is not reviewed or approved by Friday of Week 2, it has been denied (including cases where a TEA request remains pending instructor approval and/or college and/or registrar approval)."
+  },
+  {
+   "type": "p",
+   "text": "\"Will be routed for instructor review\":"
+  },
+  {
+   "type": "li",
+   "text": "You may submit a TEA request before Tuesday of Week 1."
+  },
+  {
+   "type": "li",
+   "text": "The TEA request will not be reviewed until typically the beginning of Week 2 by being routed to the instructor."
+  },
+  {
+   "type": "li",
+   "text": "If your request is not reviewed or approved by Friday of Week 2, it has been denied (including cases where a TEA request remains pending instructor approval and/or college and/or registrar approval)."
+  },
+  {
+   "type": "p",
+   "text": "\"Instructor is not accepting TEA requests\":"
+  },
+  {
+   "type": "li",
+   "text": "Undergraduate students are not permitted to enroll in this class."
+  },
+  {
+   "type": "li",
+   "text": "All submitted TEA requests will not be reviewed."
+  },
+  {
+   "type": "p",
+   "text": "\" <!--/*--><![CDATA[/* ><!--*/ <!--{C}%3C!%2D%2Dtd%20%7Bborder%3A%201px%20solid%20%23cccccc%3B%7Dbr%20%7Bmso-data-placement%3Asame-cell%3B%7D%2D%2D%3E--> /*--><!]]>*/ Co-scheduled course, UG students not permitted\":"
+  },
+  {
+   "type": "li",
+   "text": "This class is officially or unofficially co-scheduled. Undergraduate students are not permitted to enroll in this class."
+  },
+  {
+   "type": "li",
+   "text": "View the Co-Scheduled Courses tab for details."
+  },
+  {
+   "type": "p",
+   "text": "Graduate students who wish to add undergraduate CSE courses must submit a request through the TEA"
+  },
+  {
+   "type": "p",
+   "text": "Review Process and Deadlines"
+  },
+  {
+   "type": "p",
+   "text": "Requests will be reviewed after undergraduate students have had a chance to enroll, typically by the beginning of Week 2."
+  },
+  {
+   "type": "p",
+   "text": "Prerequisite clearances and approvals will be reviewed by the end of Week 2, only if seats remain available after undergraduates have enrolled."
+  },
+  {
+   "type": "p",
+   "text": "Some courses may not open to graduate students at all."
+  },
+  {
+   "type": "p",
+   "text": "The CSE Department does not allow adds after Week 2; no late adds or exceptions (including cases where an TEA request remains pending instructor approval)."
+  },
+  {
+   "type": "p",
+   "text": "Enrollment in undergraduate courses is not guaranteed. Please check your TEA request status history for the most up-to-date information."
+  },
+  {
+   "type": "p",
+   "text": "Note: This policy applies even if the corresponding graduate or undergraduate course is not offered in the same quarter. Students may not enroll in both versions of a co-scheduled course or in the graduate version if they have already completed the undergraduate one. No add, credit, or late-drop exceptions will be granted."
+  },
+  {
+   "type": "p",
+   "text": "It is the student’s responsibility to ensure they are enrolled in the correct version."
+  },
+  {
+   "type": "p",
+   "text": "CSE instructors are not directly involved with student enrollment, do not contact the course instructor regarding enrollment concerns."
+  },
+  {
+   "type": "p",
+   "text": "Coscheduled Courses"
+  },
+  {
+   "type": "p",
+   "text": "For CSE courses that are officially or unofficially coscheduled:"
+  },
+  {
+   "type": "li",
+   "text": "Undergraduate students must enroll in the undergraduate version."
+  },
+  {
+   "type": "li",
+   "text": "Graduate students must enroll in the graduate version."
+  },
+  {
+   "type": "p",
+   "text": "Each department handles course clearances for their own courses. Please contact the respective department for course clearance."
+  },
+  {
+   "type": "p",
+   "text": "Reminder CSE MS Students in the following major codes:"
+  },
+  {
+   "type": "li",
+   "text": "CSE-MS-001"
+  },
+  {
+   "type": "li",
+   "text": "CSE-MS-002"
+  },
+  {
+   "type": "p",
+   "text": "Are restricted to enrollment in CSE MS courses. Please refer to the CSE MS enrollment policies."
+  },
+  {
+   "type": "p",
+   "text": "<!--/*--><![CDATA[/* ><!--*/ <!--td {border: 1px solid #cccccc;}br {mso-data-placement:same-cell;}--> /*--><!]]>*/"
+  },
+  {
+   "type": "p",
+   "text": "<!--/*--><![CDATA[/* ><!--*/ <!--td {border: 1px solid #cccccc;}br {mso-data-placement:same-cell;}--> /*--><!]]>*/"
+  },
+  {
+   "type": "p",
+   "text": "<!--/*--><![CDATA[/* ><!--*/ <!--td {border: 1px solid #cccccc;}br {mso-data-placement:same-cell;}--> /*--><!]]>*/"
+  },
+  {
+   "type": "p",
+   "text": "<!--/*--><![CDATA[/* ><!--*/ <!--td {border: 1px solid #cccccc;}br {mso-data-placement:same-cell;}--> /*--><!]]>*/"
+  },
+  {
+   "type": "p",
+   "text": "<!--/*--><![CDATA[/* ><!--*/ <!--td {border: 1px solid #cccccc;}br {mso-data-placement:same-cell;}--> /*--><!]]>*/"
+  },
+  {
+   "type": "p",
+   "text": "<!--/*--><![CDATA[/* ><!--*/ <!--td {border: 1px solid #cccccc;}br {mso-data-placement:same-cell;}--> /*--><!]]>*/"
+  },
+  {
+   "type": "p",
+   "text": "<!--/*--><![CDATA[/* ><!--*/ <!--{C}%3C!%2D%2Dtd%20%7Bborder%3A%201px%20solid%20%23cccccc%3B%7Dbr%20%7Bmso-data-placement%3Asame-cell%3B%7D%2D%2D%3E--> /*--><!]]>*/"
+  },
+  {
+   "type": "p",
+   "text": "<!--/*--><![CDATA[/* ><!--*/ <!--{C}%3C!%2D%2Dtd%20%7Bborder%3A%201px%20solid%20%23cccccc%3B%7Dbr%20%7Bmso-data-placement%3Asame-cell%3B%7D%2D%2D%3E--> /*--><!]]>*/"
+  },
+  {
+   "type": "p",
+   "text": "<!--/*--><![CDATA[/* ><!--*/ <!--{C}%3C!%2D%2Dtd%20%7Bborder%3A%201px%20solid%20%23cccccc%3B%7Dbr%20%7Bmso-data-placement%3Asame-cell%3B%7D%2D%2D%3E--> /*--><!]]>*/"
+  },
+  {
+   "type": "p",
+   "text": "<!--/*--><![CDATA[/* ><!--*/ <!--{C}%3C!%2D%2Dtd%20%7Bborder%3A%201px%20solid%20%23cccccc%3B%7Dbr%20%7Bmso-data-placement%3Asame-cell%3B%7D%2D%2D%3E--> /*--><!]]>*/"
+  },
+  {
+   "type": "p",
+   "text": "<!--/*--><![CDATA[/* ><!--*/ <!--{C}%3C!%2D%2Dtd%20%7Bborder%3A%201px%20solid%20%23cccccc%3B%7Dbr%20%7Bmso-data-placement%3Asame-cell%3B%7D%2D%2D%3E--> /*--><!]]>*/"
+  },
+  {
+   "type": "p",
+   "text": "Research-oriented courses with an asterisk (*) next to it, below."
+  },
+  {
+   "type": "p",
+   "text": "Major Restricted courses are bolded and italicized, below."
+  },
+  {
+   "type": "p",
+   "text": "<!--/*--><![CDATA[/* ><!--*/ <!--td {border: 1px solid #cccccc;}br {mso-data-placement:same-cell;}--> /*--><!]]>*/"
+  },
+  {
+   "type": "p",
+   "text": "<!--/*--><![CDATA[/* ><!--*/ <!--td {border: 1px solid #cccccc;}br {mso-data-placement:same-cell;}--> /*--><!]]>*/"
+  },
+  {
+   "type": "p",
+   "text": "<!--/*--><![CDATA[/* ><!--*/ <!--td {border: 1px solid #cccccc;overflow: hidden;padding: 2px 3px 2px 3px;vertical-align: bottom;}br {mso-data-placement:same-cell;}--> /*--><!]]>*/"
+  },
+  {
+   "type": "p",
+   "text": "<!--/*--><![CDATA[/* ><!--*/ <!--td {border: 1px solid #cccccc;}br {mso-data-placement:same-cell;}--> /*--><!]]>*/ <!--/*--><![CDATA[/* ><!--*/ <!--td {border: 1px solid #cccccc;}br {mso-data-placement:same-cell;}--> /*--><!]]>*/ <!--/*--><![CDATA[/* ><!--*/ <!--td {border: 1px solid #cccccc;}br {mso-data-placement:same-cell;}--> /*--><!]]>*/"
+  }
+ ],
+ "links": [
+  {
+   "text": "Check the Booking and Registration page",
+   "url": "https://blink.ucsd.edu/instructors/courses/enrollment/calendars/2026.html"
+  },
+  {
+   "text": "Triton Student System",
+   "url": "https://students.ucsd.edu/my-tritonlink/tools/tool-help/tea.html"
+  },
+  {
+   "text": "https://ucsd.zoom.us/j/4435737634",
+   "url": " https://ucsd.zoom.us/j/4435737634"
+  },
+  {
+   "text": "Triton Student System",
+   "url": "https://sis.ucsd.edu/"
+  },
+  {
+   "text": "cse-grad-enrollment@ucsd.edu",
+   "url": "https://cse.ucsd.edu/undergraduate/cse-grad-enrollment@ucsd.edu"
+  }
+ ]
+}

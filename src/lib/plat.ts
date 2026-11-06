@@ -4,7 +4,13 @@
  * Everything here reads the static JSON emitted by scripts/build-plat-data.mjs
  * into /public/data/plat. Files are fetched once per page load and memoized on
  * the module, so navigating between routes never refetches.
+ *
+ * These loaders read the shared files, which carry Fall 2026's schedule. A
+ * page that shows a chosen quarter reads through lib/termData.ts instead.
  */
+
+import type { TermFeatures } from "@/lib/terms";
+import type { DeptGuidance, TermListing } from "@/lib/termData";
 
 // ── Wire types (short keys keep the 8k-course index small) ───────────────────
 
@@ -36,6 +42,10 @@ export interface CourseRow {
   pa: number | null;  // ...historical A rate
   pd: number | null;  // ...RateMyProfessors difficulty, drives the workload tag
   pg: number | null;  // ...their own average GPA for this course
+  /** Every section counted in sa/sl takes a waitlist only (terms after Fall 2026). */
+  wo?: 1;
+  /** Everyone teaching it this term (terms after Fall 2026). */
+  in?: string[];
 }
 
 export interface Subject {
@@ -65,6 +75,12 @@ export interface IndexMeta {
   catalogCourses: number;
   offered: number;
   sources: string[];
+  /** What this term's schedule publishes; absent on the shared file, which has everything. */
+  features?: TermFeatures;
+  /** The snapshot this term's files were built from. */
+  v?: string;
+  /** The term's files are from another build than this page expects: a reload brings them into step. */
+  stale?: boolean;
 }
 
 /** "2026-09-25 15:53:24+00" -> "Sep 25, 2026" in San Diego; null when unreadable. */
@@ -210,6 +226,20 @@ export interface CourseDetail {
   seatsAt?: string;
   profs: ProfRecord[];
   sec: SectionTuple[];
+  /** The quarter `sec`, `fa`, `res` and `offered` describe; absent on the shared file (Fall 2026). */
+  term?: string;
+  /** UCSD's listings for the course this term, exactly as published (terms after Fall 2026). */
+  listings?: TermListing[];
+  /** Topic names when its listings teach different things ("CSE 190"). */
+  topics?: string[];
+  /** "LD", "UD", "GR", as this term's schedule gives it. */
+  lvl?: string | null;
+  /** Prerequisites as this term's schedule words them, apart from the catalog's general rule in `pre`. */
+  tpre?: string | null;
+  /** A department's own notes for the term, separate from UCSD's schedule. */
+  dept?: DeptGuidance;
+  /** The official catalog entry, when the shared dataset has no description of its own. */
+  cat?: { url: string; heading?: string; text?: string };
 }
 
 export interface SubjectFile {
@@ -218,6 +248,11 @@ export interface SubjectFile {
   term: string;
   termName: string;
   courses: Record<string, CourseDetail>;
+  /** What this term's schedule publishes; absent on the shared files, which have everything. */
+  features?: TermFeatures;
+  v?: string;
+  /** Built from another snapshot than the page expects: a reload brings them into step. */
+  stale?: boolean;
 }
 
 export interface GEArea {

@@ -1,0 +1,51 @@
+{
+  "terms": [
+    {
+      "code": "FA26",
+      "name": "Fall 2026",
+      "path": null,
+      "v": "2026-10-24T18:17:26.823Z",
+      "refreshed": "2026-10-24 15:49:38+00",
+      "retrieved": "2026-10-24T18:17:26.823Z",
+      "counts": {
+        "courses": 2309
+      },
+      "summary": {
+        "courses": 2347,
+        "sections": 9013,
+        "meetings": 13011
+      },
+      "features": {
+        "rooms": true,
+        "seatTimes": true,
+        "booking": true
+      },
+      "frozen": true
+    },
+    {
+      "code": "WI27",
+      "name": "Winter 2027",
+      "path": "terms/WI27",
+      "v": "WI27@2026-11-06T01:38:11Z",
+      "refreshed": "2026-11-06 01:38:11+00",
+      "counts": {
+        "listings": 2383,
+        "courses": 2260,
+        "sections": 7542,
+        "meetings": 11677,
+        "subjects": 181,
+        "pages": 50
+      },
+      "summary": {
+        "courses": 2262,
+        "sections": 7552,
+        "meetings": 11693
+      },
+      "features": {
+        "rooms": false,
+        "seatTimes": false,
+        "booking": false
+      }
+    }
+  ]
+}

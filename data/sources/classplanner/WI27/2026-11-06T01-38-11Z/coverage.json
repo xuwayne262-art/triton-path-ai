@@ -1,0 +1,25 @@
+{
+  "term": "WI27",
+  "public_search_listings": 2383,
+  "subject_count": 181,
+  "observed": {
+    "course_count": 2260,
+    "section_count": 7542,
+    "meeting_count": 11677
+  },
+  "term_summary": {
+    "term_code": "WI27",
+    "term_name": "Winter",
+    "calendar_year": "2027",
+    "course_count": 2262,
+    "section_count": 7552,
+    "meeting_count": 11693,
+    "last_full_refresh_at": "2026-11-06 01:38:11+00",
+    "configured": true
+  },
+  "summary_minus_observed": {
+    "course_count": 2,
+    "section_count": 10,
+    "meeting_count": 16
+  }
+}
