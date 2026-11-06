@@ -17,6 +17,7 @@ import {
   type SectionTuple, type SubjectFile,
 } from "@/lib/plat";
 import { BASE_TERM, termEntry, type TermEntry, type TermFeatures } from "@/lib/terms";
+import { parseUnits, unitsText } from "@/lib/units";
 
 // ── What a term's files hold ─────────────────────────────────────────────────
 
@@ -317,7 +318,9 @@ export function courseForTerm(base: CourseDetail | null, t: TermCourse | null, t
     ...shared,
     term,
     t: shared.t || tidyTitle(t.t),
+    // Units as this quarter's listing prints them, with the catalog's beside them when they differ.
     u: t.u || shared.u,
+    ...(t.u && shared.u && unitsText(parseUnits(t.u)) !== unitsText(parseUnits(shared.u)) ? { ucat: shared.u } : {}),
     desc: shared.desc ?? t.cat?.text ?? null,
     pre: shared.pre ?? t.tpre ?? null,
     offered: 1,

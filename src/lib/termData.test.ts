@@ -208,3 +208,16 @@ describe("which quarter a page shows", () => {
     assert.equal(termPhase("WI27", "2027-03-21"), "ended");
   });
 });
+
+describe("units a listing prints", () => {
+  const listed = (u: string) => ({ t: "Special Topics", u, lvl: "UD", fa: [], res: null, tpre: null, listings: [listing([section({})])] });
+
+  test("a variable-unit course keeps the catalog's range beside the listing's units", () => {
+    const winter = courseForTerm({ ...fallDetail, u: "1-4" }, listed("1"), "WI27");
+    assert.equal(winter.u, "1");
+    assert.equal(winter.ucat, "1-4");
+  });
+  test("the same units written two ways are not a difference", () => {
+    assert.equal(courseForTerm({ ...fallDetail, u: "4.00" }, listed("4"), "WI27").ucat, undefined);
+  });
+});

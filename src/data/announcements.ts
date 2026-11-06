@@ -41,6 +41,50 @@ export interface Announcement {
 
 export const ANNOUNCEMENTS: readonly Announcement[] = [
   {
+    id: "2026-11-06-winter-2027",
+    date: "2026-11-06",
+    title: "Winter 2027 is here",
+    summary: "Switch between Fall 2026 and Winter 2027 anywhere on the site, and plan each quarter on its own.",
+    groups: [
+      {
+        label: "Winter 2027",
+        items: [
+          {
+            title: "Pick a quarter",
+            text: "Choose Fall 2026 or Winter 2027 on search, course pages, Easy GEs and the Planner.",
+            link: { href: "/courses?term=WI27", label: "Browse Winter courses" },
+          },
+          {
+            title: "Winter sections and seats",
+            text: "Every Winter course shows its sections, instructors, seats and waitlists from UCSD’s public schedule.",
+            link: { href: "/course/ECON/110B?term=WI27", label: "See ECON 110B in Winter" },
+          },
+          {
+            title: "Winter dates",
+            text: "The home page shows when Winter enrollment opens, with the next date first.",
+          },
+          {
+            title: "No Winter rooms yet",
+            text: "UCSD hasn’t posted Winter rooms, so Winter has no map or walking times for now.",
+          },
+        ],
+      },
+      {
+        label: "Planner",
+        items: [
+          {
+            title: "One schedule per quarter",
+            text: "Your Fall and Winter courses are kept apart, and switching quarters never moves them.",
+          },
+          {
+            title: "Plan with AI does Winter",
+            text: "Choose Winter 2027 in Plan with AI to build a Winter schedule from real sections.",
+          },
+        ],
+      },
+    ],
+  },
+  {
     id: "2026-10-21-plan-with-ai",
     date: "2026-10-21",
     title: "Plan with AI, in the Planner",

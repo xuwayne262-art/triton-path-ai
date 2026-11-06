@@ -18,7 +18,7 @@ import { SeatAgeNote } from "./SeatAge";
 import { useNow } from "./useNow";
 import type { PlannerEntry } from "./usePlannerEntry";
 import { useState } from "react";
-import { parseUnits, unitsText } from "@/lib/units";
+import { parseUnits, unitsLabel, unitsText } from "@/lib/units";
 
 /** Shown while the course's schedule is still on its way: never a negative fact. */
 const CHECKING = "Checking…";
@@ -62,7 +62,7 @@ export default function ChoiceSummary({
   onClear: () => void;
 }) {
   const now = useNow();
-  const { rooms, booking } = useTermFeatures();
+  const { rooms, booking, seatTimes } = useTermFeatures();
   const [allGe, setAllGe] = useState(false);
   const sec = detail?.sec ?? [];
   const offered = detail?.offered === 1;
@@ -124,7 +124,11 @@ export default function ChoiceSummary({
       <h2 id="glance-title" className={SECTION_TITLE}>{termLabel} at a glance</h2>
 
       <dl className="mt-4 grid grid-cols-2 gap-3">
-        <Fact label="Units" value={!detail ? CHECKING : unitsText(parseUnits(detail.u, detail.t)) || "Not listed"} />
+        <Fact
+          label="Units"
+          value={!detail ? CHECKING : unitsText(parseUnits(detail.u, detail.t)) || "Not listed"}
+          note={detail?.ucat ? `Catalog lists ${unitsLabel(detail.ucat, detail.t)}` : undefined}
+        />
         <Fact
           label="Seats taken"
           value={!detail ? CHECKING : seats ? `${seats.enrolled.toLocaleString()} / ${seats.capacity.toLocaleString()}` : offered ? "Not published" : "Not offered"}
@@ -133,7 +137,7 @@ export default function ChoiceSummary({
               {seats.waitlist ? `${seats.waitlist} waitlisted · ` : ""}
               {counted.some((s) => s[TYPE] === "LE") ? "all lectures · " : ""}
               <span title={sumAge && now != null ? seatAgeSentence(sumAge, now) : undefined}>
-                {span && allDated ? `counted ${spanLabel(span)}` : span ? `counted ${spanLabel(span)} (some undated)` : "count time unknown"}
+                {span && allDated ? `counted ${spanLabel(span)}` : span ? `counted ${spanLabel(span)} (some undated)` : seatTimes ? "count time unknown" : "public schedule snapshot"}
                 {sumAge?.kind === "old" && <span className="font-semibold text-amber-700 dark:text-amber-400"> · old</span>}
               </span>
             </>

@@ -146,12 +146,13 @@ export default function CourseResults({
               </label>
             ))}
           </div>
-          <label className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
+          {/* Its longest option is wider than a phone; the menu shrinks rather than widen the page. */}
+          <label className="flex min-w-0 max-w-full items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
             <span>Sort</span>
             <select
               value={filters.sort}
               onChange={(e) => set("sort", e.target.value as SortKey)}
-              className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:border-[#182B49] focus-visible:ring-2 focus-visible:ring-[#182B49]/30 dark:border-white/10 dark:bg-white/5 dark:text-gray-100"
+              className="min-w-0 max-w-[13rem] rounded-lg border sm:max-w-none border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-900 outline-none focus:border-[#182B49] focus-visible:ring-2 focus-visible:ring-[#182B49]/30 dark:border-white/10 dark:bg-white/5 dark:text-gray-100"
             >
               {SORTS.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
             </select>

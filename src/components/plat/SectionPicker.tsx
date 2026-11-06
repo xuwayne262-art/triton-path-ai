@@ -1,7 +1,7 @@
 "use client";
 
 import { useId } from "react";
-import { dayLabel, prettyRange, type SectionTuple } from "@/lib/plat";
+import { dayLabel, prettyRange, SECTION_TYPES, type SectionTuple } from "@/lib/plat";
 import {
   CODE, INSTRUCTOR, SECTION_ID, TYPE, DAYS, START, END,
   groupSections, isWaitlistOnly, placeText, sectionSeats, sectionSeatsAt, sectionWaitlist, sectionWhen, selectionRule, typeLabel,
@@ -33,7 +33,8 @@ import { useTermFeatures } from "./termFeatures";
 
 /** "Lecture", "Independent study", or "Section" when a course mixes kinds. */
 function familyNoun(families: LectureFamily[]): string {
-  const kinds = new Set(families.map((f) => (f.lecture ? typeLabel(f.lecture[TYPE]) : "Section")));
+  // A type with no name of its own reads as a section, never as its bare code ("One it is offered").
+  const kinds = new Set(families.map((f) => (f.lecture && SECTION_TYPES[f.lecture[TYPE]] ? typeLabel(f.lecture[TYPE]) : "Section")));
   return kinds.size === 1 ? [...kinds][0] : "Section";
 }
 

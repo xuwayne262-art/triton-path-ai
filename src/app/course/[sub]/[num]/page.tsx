@@ -719,12 +719,12 @@ function ListingFacts({ detail, mismatch }: { detail: CourseDetail; mismatch: { 
   if (!fees.length && !mismatch.length) return null;
   return (
     <div className="mt-3 space-y-2 text-xs leading-relaxed text-gray-700 dark:text-gray-300">
-      {mismatch.map((m, i) => (
-        <p key={i}>
-          UCSD&rsquo;s course summary lists {m.listed} open seats, while its sections list {m.sections}. The sections&rsquo;
-          own figures are shown above.
+      {mismatch.length > 0 && (
+        <p>
+          UCSD&rsquo;s course summary lists 0 open seats, while its sections list{" "}
+          {mismatch.reduce((n, m) => n + m.sections, 0).toLocaleString()}. The sections&rsquo; own figures are shown above.
         </p>
-      ))}
+      )}
       {fees.map((f) => <p key={f}><span className="font-semibold">Fees and notes from UCSD:</span> {f}</p>)}
     </div>
   );
@@ -959,6 +959,8 @@ function CourseSkeleton({ code }: { code: string }) {
     <div className={`mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 ${PAGE_PAD}`} aria-busy="true">
       <p role="status" className="sr-only">Loading {code}…</p>
       <div className={`h-3 w-48 ${bar}`} />
+      {/* Where the loaded page has it, so switching quarters keeps the control in place. */}
+      <QuarterPicker className="mt-3" />
       <div className="mt-5 flex min-h-[11rem] items-start gap-4">
         <div className={`h-16 w-16 shrink-0 rounded-xl ${bar}`} />
         <div className="min-w-0 flex-1">

@@ -228,6 +228,8 @@ export interface CourseDetail {
   sec: SectionTuple[];
   /** The quarter `sec`, `fa`, `res` and `offered` describe; absent on the shared file (Fall 2026). */
   term?: string;
+  /** The catalog's units when this quarter's listing prints other ones: BENG 190 is "1-4", Winter's listing "1". */
+  ucat?: string;
   /** UCSD's listings for the course this term, exactly as published (terms after Fall 2026). */
   listings?: TermListing[];
   /** Topic names when its listings teach different things ("CSE 190"). */
@@ -512,6 +514,8 @@ export const SECTION_TYPES: Record<string, string> = {
   LE: "Lecture", DI: "Discussion", LA: "Lab", SE: "Seminar", ST: "Studio",
   FI: "Final Exam", MI: "Midterm", TU: "Tutorial", PR: "Practicum",
   FW: "Fieldwork", CL: "Clinical", IN: "Independent study", OT: "Other",
+  // UCSD's Schedule of Classes legend; Winter 2027's public schedule uses both.
+  IT: "Internship", CO: "Conference",
 };
 
 /**

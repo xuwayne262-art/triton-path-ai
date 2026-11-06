@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type KeyboardEvent } from "react";
+import { useEffect, useRef, type KeyboardEvent } from "react";
 import { AlertTriangle } from "lucide-react";
 import { chooseTerm, useTerm } from "@/components/plat/useTerm";
 import { useNow } from "@/components/plat/useNow";
@@ -17,12 +17,26 @@ import { phaseLabel, termLabelFor, termPhase, termsServed } from "@/lib/terms";
  * line and the quarters it does have, never another quarter's sections
  * under the asked-for name.
  */
+
+/**
+ * Until when a quarter just chosen here keeps keyboard focus: a page that
+ * redraws while the new quarter loads (a course page's skeleton) drops the
+ * focused button, and the picker drawn next takes focus back.
+ */
+let refocusUntil = 0;
+
 export default function QuarterPicker({ className = "", label = "Quarter" }: { className?: string; label?: string }) {
   const resolved = useTerm();
   const now = useNow();
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   const terms = termsServed();
   const today = now ? todayInSanDiego(new Date(now)) : null;
+
+  useEffect(() => {
+    if (!resolved || Date.now() > refocusUntil) return;
+    const lost = !document.activeElement || document.activeElement === document.body;
+    if (lost) refs.current[terms.findIndex((t) => t.code === resolved.term)]?.focus();
+  });
 
   if (!resolved) {
     // Its size before the browser decides, so nothing below moves when it does.
@@ -32,6 +46,7 @@ export default function QuarterPicker({ className = "", label = "Quarter" }: { c
   const index = Math.max(0, terms.findIndex((t) => t.code === resolved.term));
   const move = (to: number) => {
     const next = (to + terms.length) % terms.length;
+    refocusUntil = Date.now() + 10_000;
     chooseTerm(terms[next].code);
     refs.current[next]?.focus();
   };
@@ -63,7 +78,7 @@ export default function QuarterPicker({ className = "", label = "Quarter" }: { c
                 role="radio"
                 aria-checked={on}
                 tabIndex={on ? 0 : -1}
-                onClick={() => chooseTerm(t.code)}
+                onClick={() => { refocusUntil = Date.now() + 10_000; chooseTerm(t.code); }}
                 className={`min-h-10 rounded-lg px-3 py-1 text-left text-sm transition focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#1B2C4F] motion-reduce:transition-none dark:focus-visible:outline-[#FFC72C] ${
                   on
                     ? "bg-white font-semibold text-[#182B49] shadow-sm dark:bg-[#FFCD00] dark:text-[#182B49]"
