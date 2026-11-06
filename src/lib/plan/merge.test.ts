@@ -2,6 +2,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { adoptLegacy, mergeDocs, sameJson } from "./merge";
 import { DEFAULT_MAJOR, DEFAULT_MINOR, type PlanDocs, type PlannerDoc, type TermRating } from "./record";
+import { canonical, inTerm, picksFor } from "./term";
 
 const course = (code: string) => ({
   id: code.toLowerCase().replace(/\s+/g, ""), code, title: code, units: 4, departments: [code.split(" ")[0]],
@@ -187,5 +188,48 @@ describe("mergeDocs across a change of term", () => {
     assert.equal(merged.term, "WI27");
     assert.deepEqual(Object.keys(merged.past ?? {}), ["FA26"]);
     assert.deepEqual(merged.schedule.map((e) => e.course.code), ["CSE 12"]);
+  });
+});
+
+describe("Fall and Winter on two devices", () => {
+  // Devices store canonical documents (lib/plan/term.ts); each shows a view of one.
+  const both = (fall: string[], winter: string[]) => canonical(planner(winter, {
+    term: "WI27",
+    past: { FA26: { schedule: fall.map((c) => on(c)), sections: {} } },
+  }));
+  const view = (d: PlannerDoc, t: string) => inTerm(d, t);
+  const winterOf = (d: PlanDocs) => picksFor(d.planner!, "WI27").schedule.map((e) => e.course.code);
+  const fallOf = (d: PlanDocs) => picksFor(d.planner!, "FA26").schedule.map((e) => e.course.code);
+
+  test("the laptop adds to Winter while the phone adds to Fall: both stay, each in its quarter", () => {
+    const base = both(["CSE 11"], ["ECON 110B"]);
+    const laptop = view(base, "WI27");
+    const phone = view(base, "FA26");
+    const local = canonical({ ...laptop, schedule: [...laptop.schedule, on("BILD 4")] });
+    const remote = canonical({ ...phone, schedule: [...phone.schedule, on("MATH 20A")] });
+    const out = mergeDocs(docs(base), docs(local), docs(remote));
+    assert.deepEqual(winterOf(out), ["ECON 110B", "BILD 4"]);
+    assert.deepEqual(fallOf(out), ["CSE 11", "MATH 20A"]);
+  });
+
+  test("both devices edit Fall at once: merged course by course, not one copy over the other", () => {
+    const base = both(["CSE 11", "MATH 20A"], ["ECON 110B"]);
+    const a = view(base, "FA26");
+    const b = view(base, "FA26");
+    const local = canonical({ ...a, schedule: [...a.schedule.filter((e) => e.course.code !== "MATH 20A"), on("CHEM 6A")] });
+    const remote = canonical({ ...b, schedule: [...b.schedule, on("PHYS 2A")] });
+    const out = mergeDocs(docs(base), docs(local), docs(remote));
+    assert.deepEqual(fallOf(out).sort(), ["CHEM 6A", "CSE 11", "PHYS 2A"]);
+    assert.deepEqual(winterOf(out), ["ECON 110B"]);
+  });
+
+  test("a save made before switching quarters, arriving after, lands in the quarter it was made in", () => {
+    const base = both(["CSE 11"], ["ECON 110B"]);
+    // Written while Fall was on screen, sent late, after this device moved to Winter and added there.
+    const late = canonical({ ...view(base, "FA26"), schedule: [on("CSE 11"), on("COGS 1")] });
+    const now = canonical({ ...view(late, "WI27"), schedule: [on("ECON 110B"), on("BILD 4")] });
+    const out = mergeDocs(docs(base), docs(now), docs(late));
+    assert.deepEqual(fallOf(out), ["CSE 11", "COGS 1"]);
+    assert.deepEqual(winterOf(out), ["ECON 110B", "BILD 4"]);
   });
 });

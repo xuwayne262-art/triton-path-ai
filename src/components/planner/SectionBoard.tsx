@@ -7,13 +7,14 @@ import {
   Loader2, MapPin, Plus, Search, Star, Trash2, Wand2,
 } from "lucide-react";
 import { GradeBadge } from "@/components/plat/Grade";
+import { useTermFeatures } from "@/components/plat/termFeatures";
 import { courseHref, searchCourses, type Building, type CourseRow, type SectionTuple } from "@/lib/plat";
 import { ROLE_STYLES, type CourseRole } from "@/lib/plannerBridge";
 import { formatDistance, previewWalks, type LegStatus } from "@/lib/campus";
 import {
   CODE, INSTRUCTOR, TSS_HINT, TYPE,
   clashingCourses, eventsForRow, findFamily, groupSections, isWaitlistOnly, rowsFor, sectionMeetings, selectedSections,
-  sectionSeats, sectionTopic, sectionWaitlist, sectionWhere, shortWhen, typeLabel,
+  placeText, sectionSeats, sectionTopic, sectionWaitlist, sectionWhere, shortWhen, typeLabel,
   type CalEvent, type LectureFamily, type SectionPart, type SectionSelection,
 } from "@/lib/sections";
 import { choicePackage, packageUrl, summarizeChoice } from "@/lib/sectionChoice";
@@ -655,6 +656,7 @@ function CourseSections({
 
 /** A lecture there is no choosing between, stated once. */
 function FixedLecture({ rows }: { rows: SectionTuple[] }) {
+  const { rooms } = useTermFeatures();
   const first = rows[0];
   const full = fullNote(first);
   const topic = sectionTopic(first);
@@ -676,7 +678,7 @@ function FixedLecture({ rows }: { rows: SectionTuple[] }) {
           {shortWhen(r)}
           <span className="flex min-w-0 items-center gap-0.5 text-gray-600 dark:text-gray-400">
             <MapPin className="h-3 w-3 shrink-0" />
-            <span className="truncate">{sectionWhere(r) || "Room TBA"}</span>
+            <span className="truncate">{placeText(r, rooms) || "Room TBA"}</span>
           </span>
         </p>
       ))}

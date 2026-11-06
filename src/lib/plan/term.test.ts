@@ -1,7 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_MAJOR, DEFAULT_MINOR, MAX_PAST_TERMS, type PlannerDoc } from "./record";
-import { inTerm, LEGACY_TERM, laterTerm, termLabel, termOf, termRank } from "./term";
+import { canonical, canonicalTerm, inTerm, LEGACY_TERM, laterTerm, picksFor, termLabel, termOf, termRank } from "./term";
 
 const course = (code: string) => ({
   id: code.toLowerCase().replace(/\s+/g, ""), code, title: code, units: 4, departments: [code.split(" ")[0]],
@@ -100,5 +100,41 @@ describe("inTerm", () => {
       major: DEFAULT_MAJOR, minor: DEFAULT_MINOR, college: null, schedule: [], planned: [], synced: [], sections: {},
     };
     assert.deepEqual(inTerm(blank, "WI27"), { ...blank, term: "WI27" });
+  });
+});
+
+describe("two quarters at once", () => {
+  // What a device shows is a view of one stored document; see canonical().
+  const fall = (codes: string[]) => plan(codes, { term: "FA26" });
+
+  test("switching to Winter and back to Fall returns Fall's exact picks", () => {
+    const start = fall(["CSE 11", "MATH 20A"]);
+    const winter = { ...inTerm(start, "WI27"), schedule: [on("ECON 110B")], sections: { "ECON 110B": { family: "B", parts: { DI: "B02" } } } };
+    const back = inTerm(winter, "FA26");
+    assert.deepEqual(back.schedule, start.schedule);
+    assert.deepEqual(back.sections, start.sections);
+    assert.deepEqual(picksFor(back, "WI27").schedule.map((e) => e.course.code), ["ECON 110B"]);
+    assert.deepEqual(back.planned, start.planned, "the four-year plan is not a quarter's");
+  });
+
+  test("every device stores the same document, whichever quarter it shows", () => {
+    const stored = canonical({ ...inTerm(fall(["CSE 11"]), "WI27"), schedule: [on("ECON 110B")], sections: {} });
+    const onFall = inTerm(stored, "FA26");
+    const onWinter = inTerm(stored, "WI27");
+    assert.equal(canonicalTerm(stored), "WI27");
+    assert.deepEqual(canonical(onFall), canonical(onWinter));
+    assert.deepEqual(canonical(onFall), stored);
+  });
+
+  test("looking at a quarter with no picks changes nothing that is stored", () => {
+    const stored = canonical(fall(["CSE 11"]));
+    assert.deepEqual(canonical(inTerm(stored, "WI27")), stored);
+    assert.equal(canonicalTerm(inTerm(stored, "WI27")), "FA26");
+  });
+
+  test("a plan saved before plans recorded a term is Fall 2026's", () => {
+    const legacy = plan(["CSE 11"]);
+    assert.equal(canonicalTerm(legacy), LEGACY_TERM);
+    assert.deepEqual(picksFor(inTerm(legacy, "WI27"), "FA26").schedule.map((e) => e.course.code), ["CSE 11"]);
   });
 });

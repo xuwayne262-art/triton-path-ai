@@ -4,7 +4,8 @@ import { AlertTriangle, GraduationCap } from "lucide-react";
 import { dayLabel, timeToMinutes, type SectionTuple } from "@/lib/plat";
 import { ROLE_STYLES, type CourseRole } from "@/lib/plannerBridge";
 // A one-off row keeps its date in the column weekly rows use for days.
-import { DAYS as DATE, END, START, compactRange, oneOffLabel, sectionWhere } from "@/lib/sections";
+import { DAYS as DATE, END, START, compactRange, oneOffLabel, placeText } from "@/lib/sections";
+import { useTermFeatures } from "@/components/plat/termFeatures";
 
 /**
  * The dates that cannot move: every final, midterm and one-off session that
@@ -30,6 +31,7 @@ function overlaps(a: ExamItem, b: ExamItem): boolean {
 }
 
 export default function ExamList({ items }: { items: ExamItem[] }) {
+  const { rooms } = useTermFeatures();
   if (!items.length) return null;
   const sorted = [...items].sort((a, b) =>
     (a.row[DATE] + (timeToMinutes(a.row[START]) ?? 0).toString().padStart(4, "0"))
@@ -63,7 +65,7 @@ export default function ExamList({ items }: { items: ExamItem[] }) {
             {/* On a phone the course and room take a line of their own. */}
             <span className="min-w-0 basis-full truncate pl-4 sm:basis-auto sm:pl-0">
               <span className="font-semibold">{it.code}</span> {oneOffLabel(it.row)}
-              <span className="text-gray-500 dark:text-gray-400"> · {sectionWhere(it.row) || "Room TBA"}</span>
+              <span className="text-gray-500 dark:text-gray-400"> · {placeText(it.row, rooms) || "Room TBA"}</span>
             </span>
           </li>
         ))}

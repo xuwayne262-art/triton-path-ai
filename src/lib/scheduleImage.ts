@@ -16,7 +16,7 @@
 import {
   CODE, END, INSTRUCTOR, START, DAYS as DATE, TYPE,
   compactRange, dayWindow, findFamily, groupSections, layoutDay, minutesToClock,
-  minutesToLabel, missingParts, oneOffLabel, sectionWhere, typeLabel,
+  minutesToLabel, missingParts, oneOffLabel, placeText, typeLabel,
   type CalEvent, type SectionSelection,
 } from "./sections";
 import { dayLabel, timeToMinutes, type SectionTuple } from "./plat";
@@ -89,6 +89,8 @@ export function scheduleImageInput(args: {
   exams: { code: string; role: CourseRole; row: SectionTuple }[];
   /** "2026-09-29": one-off dates before it are over, and left out of a picture kept for later. */
   today?: string;
+  /** Whether the quarter's schedule publishes rooms; without them a meeting says so rather than "Room TBA". */
+  roomsPublished?: boolean;
 }): ScheduleImageInput {
   const onGrid = new Set(args.events.filter((e) => !e.ghost).map((e) => e.code));
 
@@ -141,7 +143,7 @@ export function scheduleImageInput(args: {
         date: dayLabel(x.row[DATE]),
         time: compactRange(x.row[START], x.row[END]),
         label: `${x.code} ${oneOffLabel(x.row)}`,
-        where: sectionWhere(x.row) || "Room TBA",
+        where: placeText(x.row, args.roomsPublished ?? true) || "Room TBA",
         role: x.role,
         clash,
       };
