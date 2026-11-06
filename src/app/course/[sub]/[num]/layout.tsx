@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { courseForMeta } from "@/lib/seo";
+import { courseForMeta, laterTermCourses } from "@/lib/seo";
 import { tidyTitle, typicalGrade } from "@/lib/plat";
 
 /**
@@ -15,7 +15,11 @@ export async function generateMetadata({
   const sub = decodeURIComponent(raw.sub).toUpperCase();
   const code = `${sub} ${decodeURIComponent(raw.num)}`;
   const { detail, termName } = await courseForMeta(sub, code);
-  if (!detail) return { title: `${code} · UCSDPlans` };
+  if (!detail) {
+    // A course new in a later quarter is named from that quarter's schedule.
+    const title = (await laterTermCourses()).get(code);
+    return { title: title ? `${code} ${tidyTitle(title)} · UCSDPlans` : `${code} · UCSDPlans` };
+  }
 
   const letter = typicalGrade(detail.gpa, detail.terms)?.letter;
   const teaching = detail.profs.filter((p) => p.cur === 1).map((p) => p.i);

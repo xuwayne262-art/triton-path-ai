@@ -29,6 +29,13 @@ const MAX_ENTRIES = 500;
 
 const memo = new Map<string, { at: number; legs: RoutedLeg[] }>();
 
+/**
+ * When UCSD last refused the route outright (401/403: it has needed a sign-in
+ * since late October 2026). Until TTL_MS later every request is answered with
+ * the straight-line estimate at once, instead of asking again for each schedule.
+ */
+let refusedAt = 0;
+
 function remember(ref: string, legs: RoutedLeg[]) {
   memo.delete(ref);
   memo.set(ref, { at: Date.now(), legs });
@@ -55,6 +62,7 @@ export async function GET(req: Request): Promise<Response> {
   if (hit && Date.now() - hit.at < TTL_MS) {
     return Response.json({ legs: hit.legs }, { headers: CACHEABLE });
   }
+  if (Date.now() - refusedAt < TTL_MS) return unavailable();
 
   try {
     const res = await fetch(`${CLASS_PLANNER_API}/schedules/${ref}?context=planner`, {
@@ -65,6 +73,7 @@ export async function GET(req: Request): Promise<Response> {
       signal: AbortSignal.timeout(TIMEOUT_MS),
       cache: "no-store",
     });
+    if (res.status === 401 || res.status === 403) refusedAt = Date.now();
     if (!res.ok) return unavailable();
     const legs = shapeRoutes(await res.json());
     remember(ref, legs);

@@ -6,11 +6,6 @@ import { COURSE_COLORS_STRING } from "./types";
 import type { Course } from "./types";
 import { programLabel } from "@/data/ucsdMajorsMinors";
 
-interface ScheduleCourse {
-  course: Course;
-  id: string;
-}
-
 // Quarter options that exactly match the planner grid's year (1–4) and quarter strings
 const QUARTER_OPTIONS = ([1, 2, 3, 4] as const).flatMap((year) =>
   (["Fall", "Winter", "Spring"] as const).map((q) => ({
@@ -24,9 +19,6 @@ interface AIAuditUploaderProps {
   selectedMajor: string;
   selectedMinor: string;
   selectedCollege: string | null;
-  selectedCourses: ScheduleCourse[];
-  addToSchedule: (course: Course) => void;
-  removeFromSchedule: (id: string) => void;
   plannedCourses: Array<{ courseId: string; course: Course }>;
   addAICourseToPlan: (course: Course, year: 1 | 2 | 3 | 4, quarter: "Fall" | "Winter" | "Spring") => void;
   removePlannedCourse: (courseId: string) => void;
@@ -180,9 +172,6 @@ export default function AIAuditUploader({
   selectedMajor,
   selectedMinor,
   selectedCollege,
-  selectedCourses,
-  addToSchedule,
-  removeFromSchedule,
   plannedCourses,
   addAICourseToPlan,
   removePlannedCourse,

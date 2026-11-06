@@ -35,8 +35,10 @@ export function termCodeFor(season: PlanQuarter, year: number): string {
 }
 
 export interface PlanContext {
-  /** The dataset's term, "FA26". */
+  /** The quarter on screen, whose sections are loaded: "FA26". */
   datasetTerm: string;
+  /** Every quarter the site has sections for, "FA26" and "WI27"; another one is planned by switching to it. */
+  served?: string[];
   planned: { course: { code: string }; year: PlanYear; quarter: PlanQuarter }[];
   scheduleCodes: string[];
   now?: Date;
@@ -124,6 +126,11 @@ export function resolveQuarter(ref: QuarterRef, ctx: PlanContext): QuarterResolu
     term = (ref.year ? exact?.key : upcoming[0]?.key) ?? (ref.year ? termCodeFor(ref.season, ref.year) : null);
   }
   if (!term) return { kind: "ask", text: "Which quarter do you mean?" };
+  if (term !== ctx.datasetTerm && ctx.served?.includes(term)) {
+    // Its sections are another quarter's; planned on screen from that quarter, never mixed into this one.
+    const said = ref.relative === "next" ? `Next quarter is ${termName(term)}. ` : "";
+    return { kind: "ask", text: `${said}Choose ${termName(term)} in the quarter picker to plan it with its own sections, then ask again.` };
+  }
   if (term === ctx.datasetTerm) {
     const said = ref.relative === "next" ? `Next quarter is ${termName(term)}.` : null;
     return { kind: "target", target: termTarget(term), note: said };

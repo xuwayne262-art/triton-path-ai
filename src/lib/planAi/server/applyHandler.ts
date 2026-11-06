@@ -4,6 +4,7 @@ import { readJsonBody } from "@/lib/ai/httpBody";
 import { cleanDocs, EMPTY_DOCS, TERM_CODE, type PlannerDoc } from "@/lib/plan/record";
 import { CHANGE_ID, MAX_LOG, cleanOps, type PlanChange, type PlanOp } from "@/lib/plan/change";
 import { applyPlanPatch, blankPlanner, describeOps, validatePlanPatch, type PatchData, type PatchProblem } from "@/lib/plan/patch";
+import { canonical, inTerm, termLabel } from "@/lib/plan/term";
 import type { PlanStore, StoredPlan } from "@/lib/plan/store";
 import type { CourseRow, SectionTuple } from "@/lib/plat";
 import type { PlanAiEvent } from "./quota";
@@ -21,10 +22,13 @@ import type { PlanAiEvent } from "./quota";
  *  5. the plan is still at the revision the browser last saw — otherwise
  *     409 with the current plan, so a stale suggestion never lands on
  *     newer edits;
- *  6. every operation is checked against that plan and against this term's
- *     published sections, read here from the dataset, not from the request;
+ *  6. every operation is checked against that plan, shown in the change's
+ *     quarter, and against that quarter's published sections, read here from
+ *     the dataset, not from the request;
  *  7. all of them are applied and saved in one compare-and-set write, so
- *     the change is all or nothing even against a save racing it.
+ *     the change is all or nothing even against a save racing it. The plan
+ *     is stored as every device stores it (canonical in lib/plan/term.ts),
+ *     so a Winter change never moves Fall's picks.
  *
  * An undo names the change it reverses; its operations are the inverse the
  * server worked out when it applied that change, checked against the plan as
@@ -43,7 +47,8 @@ export interface ServerPlanData {
 export interface ApplyDependencies {
   email: () => Promise<string | null | undefined>;
   store: () => PlanStore | null;
-  data: () => Promise<ServerPlanData>;
+  /** One quarter's courses and sections; null when the site has no schedule for it. */
+  data: (term: string) => Promise<ServerPlanData | null>;
   ownerTag: (email: string) => string;
   planKey: (email: string) => string;
   metric: (event: PlanAiEvent) => Promise<void>;
@@ -109,12 +114,6 @@ export async function handleApply(request: Request, deps: ApplyDependencies): Pr
       return json({ ...planReply(tag, current), code: "PLAN_CHANGED", error: "Your plan changed in another tab or device." }, 409);
     }
 
-    const data = await deps.data();
-    if (change.term !== data.term) {
-      void deps.metric("apply_conflict");
-      return json({ ...planReply(tag, current), code: "TERM_CHANGED", error: `The schedule has moved on to ${data.termName}.` }, 409);
-    }
-
     let target: PlanChange | undefined;
     let toApply: PlanOp[] = ops;
     if (change.kind === "undo") {
@@ -122,6 +121,14 @@ export async function handleApply(request: Request, deps: ApplyDependencies): Pr
       if (!target) return json({ ...planReply(tag, current), code: "UNDO_NOT_FOUND", error: "That change is too old to undo from here." }, 404);
       if (target.undoneBy) return json({ ...planReply(tag, current), status: "already-undone", change: { id: target.undoneBy, label: log.find((c) => c.id === target!.undoneBy)?.label ?? "Already undone" } });
       toApply = target.inverse;
+    }
+
+    // An undo goes back to the quarter its change was made in, whichever one is on screen now.
+    const term = target?.term ?? change.term;
+    const data = await deps.data(term);
+    if (!data) {
+      void deps.metric("apply_conflict");
+      return json({ ...planReply(tag, current), code: "TERM_CHANGED", error: `UCSDPlans no longer has ${termLabel(term)}'s schedule.` }, 409);
     }
 
     // Sections are read from the dataset for every course an operation picks sections for.
@@ -137,7 +144,8 @@ export async function handleApply(request: Request, deps: ApplyDependencies): Pr
       rowFor: (code) => data.row(code),
       sectionsFor: (code) => sections.get(code),
     };
-    const base: PlannerDoc = planner ?? blankPlanner(data.term);
+    // The plan as that quarter shows it: its picks on "This term", the rest put away.
+    const base: PlannerDoc = planner ? inTerm(planner, data.term) : blankPlanner(data.term);
     const problems: PatchProblem[] = validatePlanPatch(base, toApply, patchData);
     if (problems.length) {
       void deps.metric(change.kind === "undo" ? "undo_conflict" : "apply_conflict");
@@ -155,11 +163,11 @@ export async function handleApply(request: Request, deps: ApplyDependencies): Pr
     const { doc, inverse } = applyPlanPatch(base, toApply, patchData, now.getTime().toString(36));
     const label = change.kind === "undo" ? `${describeOps(toApply, data.termName)} (undo)`.slice(0, 160) : describeOps(toApply, data.termName);
     const entry: PlanChange = {
-      id: change.id, at: now.toISOString(), label, ops: toApply, inverse,
+      id: change.id, at: now.toISOString(), label, ops: toApply, inverse, term: data.term,
       ...(change.kind === "undo" ? { undoOf: target!.id } : {}),
     };
     const nextLog = [...log.map((c) => (target && c.id === target.id ? { ...c, undoneBy: change.id } : c)), entry].slice(-MAX_LOG);
-    const docs = cleanDocs({ ...(current?.docs ?? EMPTY_DOCS), planner: { ...doc, log: nextLog } });
+    const docs = cleanDocs({ ...(current?.docs ?? EMPTY_DOCS), planner: canonical({ ...doc, log: nextLog }) });
     const result = await store.put(key, baseRev, docs);
     if (!result.ok) {
       void deps.metric("apply_conflict");

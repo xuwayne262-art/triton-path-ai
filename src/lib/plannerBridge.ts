@@ -8,6 +8,7 @@
  * the single shared identity.
  */
 
+import { parseUnits } from "./units";
 import type { Course, CourseCategory, CourseTime, DayOfWeek } from "@/components/triton/types";
 import { splitDays, type CourseRow } from "@/lib/plat";
 import { earnsUnits, type ParsedHistory } from "@/lib/history/parse";
@@ -49,6 +50,13 @@ export function rowToTimes(row: CourseRow): CourseTime[] | undefined {
  * when it belongs to a subject the major is actually taught in. Stamping the
  * division on every course would credit a dance class toward a CS degree.
  */
+/** Units for a planner course: the least it can be taken for, and the most when that differs. */
+function courseUnits(u: string | null | undefined, title: string | null | undefined): { units: number; unitsMax?: number } {
+  const parsed = parseUnits(u, title);
+  if (!parsed) return { units: 4 };
+  return parsed.max > parsed.min ? { units: parsed.min, unitsMax: parsed.max } : { units: parsed.min };
+}
+
 export function platRowToCourse(row: CourseRow, majorSubs?: Set<string>): Course {
   const categories = categoriesForGE(row.ge);
   if (majorSubs?.has(row.s)) {
@@ -60,7 +68,7 @@ export function platRowToCourse(row: CourseRow, majorSubs?: Set<string>): Course
     id: codeToId(row.k),
     code: row.k,
     title: row.t || row.k,
-    units: row.u ? parseFloat(row.u) : 4,
+    ...courseUnits(row.u, row.t),
     departments: [row.s],
     genEd: row.ge,
     categories,

@@ -8,6 +8,7 @@ import RightSidebar from "@/components/triton/RightSidebar";
 import { collegeGEs } from "@/lib/plat";
 import { scheduleYear } from "@/lib/planSlot";
 import { usePlanner, type Quarter, type Year } from "../PlannerProvider";
+import { courseUnitsText, coursesUnitsText } from "@/lib/units";
 
 const YEARS: Year[] = [1, 2, 3, 4];
 const QUARTERS: Quarter[] = ["Fall", "Winter", "Spring"];
@@ -211,7 +212,7 @@ export default function FourYearPlanPage() {
                       const courses = plannedCourses.filter(
                         (p) => p.year === year && p.quarter === quarter,
                       );
-                      const units = courses.reduce((sum, p) => sum + p.course.units, 0);
+                      const units = coursesUnitsText(courses.map((p) => p.course));
                       const droppableId = `${year}-${quarter}`;
                       return (
                         <Droppable droppableId={droppableId} key={droppableId}>
@@ -231,7 +232,7 @@ export default function FourYearPlanPage() {
                             >
                               <div className="flex items-baseline justify-between mb-1">
                                 <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400">{quarter}</p>
-                                {units > 0 && (
+                                {courses.length > 0 && (
                                   <p className="text-[10px] tabular-nums text-gray-500 dark:text-gray-400">{units}u</p>
                                 )}
                               </div>
@@ -265,7 +266,7 @@ export default function FourYearPlanPage() {
                                           }`}
                                         >
                                           <span className="font-semibold">{pc.course.code}</span>
-                                          <span className="opacity-70 ml-1">· {pc.course.units}u</span>
+                                          <span className="opacity-70 ml-1">· {courseUnitsText(pc.course)}u</span>
                                           {/* Dragging a course out of the grid was
                                               previously the only way to drop it. */}
                                           <button

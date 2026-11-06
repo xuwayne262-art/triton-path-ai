@@ -66,27 +66,56 @@ else on the site is reachable.
 
 ## Where the course data comes from
 
-Every source is first-party UCSD and needs no key. Rebuild with
-`npm run build:data`, which reads `.data-cache/` and writes `public/data/plat/`.
+Every source is first-party UCSD and needs no key. The site serves more than one
+quarter at a time (Fall 2026 and Winter 2027), listed in
+`public/data/plat/terms.json`:
+
+- **The shared dataset** (`public/data/plat/index.json`, `subject/*.json`, …)
+  holds what does not change by quarter (catalog, grade history, GE lists,
+  ratings) and Fall 2026's sections. Rebuild it with `npm run build:data`, which
+  reads `.data-cache/` and writes `public/data/plat/`. Fall 2026 is frozen as
+  built on Oct 24, 2026: its rooms and booking links came from Class Planner
+  routes that have needed a sign-in since late October, and the build refuses
+  an older `classplanner.json` than the one published (`--allow-older` overrides).
+- **Each later quarter** (`public/data/plat/terms/WI27/`) holds only that
+  quarter's listings, read from Class Planner's public API
+  (`/api/v1/public/catalog/terms`, `/filters`, `POST /courses/search`). The
+  browser lays it over the shared dataset (`src/lib/termData.ts`), so Winter
+  pages show Winter's sections and nothing of Fall's.
+
+To rebuild a quarter by hand:
+
+```bash
+node scripts/fetch-public-term.mjs WI27 .data-cache/terms/WI27/capture
+node scripts/build-term-data.mjs WI27 --raw .data-cache/terms/WI27/capture/raw
+node scripts/check-term-data.mjs
+```
+
+The capture is staged and verified before it is used: every page for the right
+term, no duplicate or missing listings, the counts UCSD reports, and no schema
+change or zeroed import. The build then writes the quarter to a staging folder,
+reads it back and swaps it in whole, so a half-written quarter is never served.
+The captures behind the published Winter files are kept in
+`data/sources/classplanner/WI27/`. Section notes are shown as plain text, and
+nothing is inferred about who may enroll.
+
+The public schedule has no rooms, no per-section count times and no TSS
+booking ids, so a quarter built from it says so (`features` in `terms.json`):
+no map, walks or final-exam rooms, seat counts labelled as one snapshot, and a
+link to TSS instead of an exact booking link.
 
 | Cache file | Script | Source |
 | --- | --- | --- |
-| `classplanner.json` | `fetch-classplanner.mjs` | [Class Planner](https://classplanner.apps.ucsd.edu) — this term's sections, per-section instructors, live seats and waitlists, prerequisites, restrictions, TSS module ids, building coordinates (→ `buildings.json`) |
+| `classplanner.json` | (no longer fetched) | [Class Planner](https://classplanner.apps.ucsd.edu) — Fall 2026's sections, per-section instructors, seats and waitlists, prerequisites, restrictions, TSS module ids, building coordinates (→ `buildings.json`), as last read on Oct 24, 2026 |
 | `as-grades.json` | `fetch-as-grades.mjs` | [AS Instructor Grade Archive](https://asmain.ucsd.edu/Home/InstructorGradeArchive) — 2015–2026 grade distributions |
 | `catalog.json` | `fetch-catalog.mjs` | [General Catalog](https://catalog.ucsd.edu/front/courses.html) — every catalogued course |
 | `requirements.json` | `fetch-requirements.mjs` | The AHI and DEI course lists (needs `pdftotext`) |
 | `data.json`, `ge-courses.json` | — | `ucsd-easy-a-radar`, for RateMyProfessors scores and the colleges' GE lists only. It has no licence, so the build never downloads them: it uses copies already in `.data-cache/`, or without them carries that part of the published dataset over unchanged |
 
-**The legacy Schedule of Classes cannot supply this term.** `act.ucsd.edu`'s
+**The legacy Schedule of Classes cannot supply these quarters.** `act.ucsd.edu`'s
 term list stops at SU26 — enrolment moved to TSS for Fall 2026, and Class
-Planner is UCSD's own front end for it. Its API is unauthenticated and
-continuously refreshed, so it is both the first-party source and the freshest
-one. It is also the true upstream other UCSD planners publish snapshots of.
-
-`fetch-classplanner.mjs` also harvests the TSS **module id** and per-section
-**event package id** behind every *Book on TSS* link. Those only appear on
-`/api/v1/schedules/{ref}`, and that endpoint refuses a ref whose section ids are
-not sorted, and caps a schedule at 15 distinct courses — hence the batch size.
+Planner is UCSD's own front end for it. It is also the true upstream other UCSD
+planners publish snapshots of.
 
 Four things about Class Planner's data that the build has to get right:
 
@@ -129,35 +158,30 @@ colour (A dark green, A− green, B+ amber, B and B− orange, C+ and below red)
 
 ### Automatic updates
 
-`.github/workflows/update-data.yml` keeps `public/data/plat/` in step with Class
-Planner without anyone running the scripts:
+`.github/workflows/update-data.yml` keeps each quarter's files in step with
+Class Planner's public schedule without anyone running the scripts:
 
-- **Every half hour** `scripts/watch-classplanner.mjs` asks Class Planner, in two
-  or three small requests, whether a rebuild is due: the next quarter's listings
-  are out (and hold at least 60% of the current term's courses — quarters are
-  often published department by department), the term's course, section or
-  meeting count changed, or seats were recounted on the busiest courses at least
-  three hours after the dataset's. **Once a day** (17:20 UTC, after UCSD's own
-  refresh) it rebuilds on any refresh, to catch an instructor or room changing.
-- A rebuild fetches the term, builds, then must pass `scripts/check-data.mjs`
-  and `npm test`. The checker fails an update on files that do not parse,
-  impossible times or seat counts, courses the index and subject files disagree
-  about, broken GE lists, and drops against the published dataset (a tenth of the
-  term's courses, any grade records, the professors' ratings, or a new quarter
-  too thinly listed to switch to).
-- `scripts/data-changed.mjs` sets aside the times sources were read; if nothing
-  else changed, nothing is published. Otherwise the workflow commits to `main`
-  — authored as the site's owner, which Vercel requires to deploy a private
+- **Every half hour** `scripts/watch-public-terms.mjs` asks UCSD's public terms
+  list what changed: a quarter's course, section or meeting counts, a refresh
+  since the one last seen, or a next quarter appearing with at least half as many
+  courses as the newest one served. It rebuilds only those quarters. Changes UCSD
+  makes to Fall 2026 are reported, not rebuilt.
+- A rebuild captures the quarter, builds it, then must pass
+  `scripts/check-term-data.mjs` and `npm test`. Nothing is published when only
+  UCSD's refresh time changed. Otherwise the workflow commits to `main` —
+  authored as the site's owner, which Vercel requires to deploy a private
   repository — and Vercel deploys it.
-- **A failure publishes nothing.** The site keeps its data, and an issue labelled
-  `data-update` explains what failed, with a link to the run. Later failures edit
-  that issue rather than opening more, rebuilds pause for six hours after one, and
-  the next good update closes it. *Actions → Update course data → Run workflow*
-  (with "force") rebuilds at once.
+- **A failure publishes nothing**, UCSD not answering included. The site keeps
+  its data, and an issue labelled `data-update` explains what failed, with a
+  link to the run. Later failures edit that issue, and the next good update
+  closes it. *Actions → Update course data → Run workflow* (naming quarters, such
+  as `WI27`) rebuilds at once.
 
-When the dataset moves to a new quarter, the planner puts each student's picks
-for the old one away under that term (`src/lib/plan/term.ts`): a section code
-like "A01" names a different section every term.
+Each quarter keeps its own schedule and section picks in a student's plan
+(`src/lib/plan/term.ts`): a section code like "A01" names a different section
+every term. The plan is stored with its latest quarter in front and the others
+under `past`, so a laptop showing Fall and a phone showing Winter save the same
+document, and edits to both merge quarter by quarter.
 
 Seat counts are only as fresh as Class Planner's last recount from TSS, which can
 lag its schedule by days — on Oct 10, 2026 every Fall course still showed Sep 21's
@@ -166,10 +190,8 @@ HTTP 404"). The dataset records each course's count time (`seatsAt`) and the
 term's oldest (`meta.seatsAsOf`), and the site says "seats as of" that date. TSS
 itself needs a UCSD sign-in, so nothing here reads it directly.
 
-The checks cost about a minute of GitHub Actions each (≈1,600 minutes a month with the daily rebuilds,
-inside the free plan's 2,000 for a private repository); a rebuild takes about
-five, and fetches the grade archive, catalog and requirement lists only once a
-week.
+The checks cost about a minute of GitHub Actions each, inside the free plan's
+2,000 minutes a month for a private repository; a rebuild takes a few more.
 
 ## Campus map
 

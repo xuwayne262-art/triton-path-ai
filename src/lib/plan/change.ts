@@ -52,6 +52,8 @@ export interface PlanChange {
   undoOf?: string;
   /** Set once undone: the change that reversed it. */
   undoneBy?: string;
+  /** The quarter its "This term" operations were made in, "WI27"; an undo goes back to it. */
+  term?: string;
 }
 
 /** Recent changes kept with a plan. Older ones can no longer be undone from the chat. */
@@ -147,6 +149,9 @@ function cleanChange(v: unknown): PlanChange | null {
   const undoneBy = str(v.undoneBy, 48);
   if (CHANGE_ID.test(undoOf)) out.undoOf = undoOf;
   if (CHANGE_ID.test(undoneBy)) out.undoneBy = undoneBy;
+  // The same pattern as record.ts's TERM_CODE, which imports this file.
+  const term = str(v.term, 8);
+  if (/^[A-Z][A-Z0-9]\d{2}$/.test(term)) out.term = term;
   return out;
 }
 

@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { DifficultyTag, GradeBadge, RmpRating, SeatWarning } from "./Grade";
+import { useTerm } from "./useTerm";
 import {
   courseHref, prereqKnown, prettyTime, splitDays, type CourseRow as Row,
 } from "@/lib/plat";
+import { unitsLabel } from "@/lib/units";
+import { termLabelFor, withTerm } from "@/lib/terms";
 
 /** "TuTh 9:30 AM" — compact enough to sit on the meta line. */
 function meetingText(row: Row): string | null {
@@ -35,10 +38,13 @@ export default function CourseRow({
 }) {
   const meeting = meetingText(row);
   const hasHistory = row.g != null && row.g > 0;
+  // The row describes the quarter on screen; its link opens that same quarter.
+  const term = useTerm()?.term ?? null;
+  const termName = term ? termLabelFor(term) : "this term";
 
   return (
     <Link
-      href={courseHref(row.k)}
+      href={withTerm(courseHref(row.k), term)}
       className="group flex items-center gap-3.5 border-b border-gray-100 px-3 py-3 transition hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#182B49] dark:border-white/5 dark:hover:bg-white/5 dark:focus-visible:ring-[#FFCD00]"
     >
       <span className="flex w-11 shrink-0 flex-col items-center gap-0.5">
@@ -54,10 +60,14 @@ export default function CourseRow({
           <span className="min-w-0 text-sm font-medium group-hover:underline">
             {row.t || "Untitled course"}
           </span>
-          <SeatWarning avail={row.sa} limit={row.sl} at={row.sat ?? null} />
+          {row.wo ? (
+            <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">Waitlist only</span>
+          ) : (
+            <SeatWarning avail={row.sa} limit={row.sl} at={row.sat ?? null} />
+          )}
         </span>
         <span className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-gray-600 dark:text-gray-400">
-          {row.u && <span>{parseFloat(row.u)} units</span>}
+          {row.u && <span>{unitsLabel(row.u, row.t)}</span>}
           {meeting && <><Dot /><span>{meeting}</span></>}
           {!row.pr && prereqKnown(row) && (
             <><Dot /><span className="text-emerald-700 dark:text-emerald-400">no prereq listed</span></>
@@ -67,7 +77,7 @@ export default function CourseRow({
           )}
           {!hasHistory && <><Dot /><span>no grade history</span></>}
           {!row.o && (
-            <><Dot /><span>{row.ct === 0 ? "not in the current catalog" : "not offered this term"}</span></>
+            <><Dot /><span>{row.ct === 0 ? "not in the current catalog" : `not on the ${termName} schedule`}</span></>
           )}
           {note && <><Dot /><span className="text-indigo-700 dark:text-indigo-400">{note}</span></>}
         </span>
@@ -75,7 +85,7 @@ export default function CourseRow({
 
       <span
         className="hidden w-44 shrink-0 text-right sm:block"
-        title={row.p ? `${row.p}: the instructor of the first lecture on this term's schedule. RateMyProfessors scores are for them across all their courses.` : undefined}
+        title={row.p ? `${row.p}: the instructor of the first lecture on the ${termName} schedule. RateMyProfessors scores are for them across all their courses.` : undefined}
       >
         {row.p ? (
           <>

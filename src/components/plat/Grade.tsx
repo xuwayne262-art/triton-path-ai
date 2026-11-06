@@ -13,14 +13,37 @@ import { SeatAgeNote } from "./SeatAge";
  * screen reader as well as in the tooltip.
  */
 export function GradeBadge({
-  gpa, terms = 0, size = "md",
-}: { gpa: number | null | undefined; terms?: number; size?: "xs" | "sm" | "md" | "lg" }) {
+  gpa, terms = 0, size = "md", loading = false, record,
+}: {
+  gpa: number | null | undefined;
+  /** Graded terms behind an aggregate average. Leave out for a single record. */
+  terms?: number;
+  /**
+   * The one class this average is from — "Spring 2026 ECON 100B" — for a row
+   * of a history table. It is one record, not a sample of terms, so the label
+   * names it instead of counting terms it does not have.
+   */
+  record?: string;
+  size?: "xs" | "sm" | "md" | "lg";
+  /** The grade data has not arrived: not the same as "no history". */
+  loading?: boolean;
+}) {
   const v = typicalGrade(gpa, terms);
   const box =
     size === "lg" ? "h-16 w-16 text-3xl"
       : size === "sm" ? "h-8 w-8 text-sm"
         : size === "xs" ? "h-6 w-7 text-xs !rounded-md"
           : "h-11 w-11 text-lg";
+
+  if (loading) {
+    return (
+      <span
+        role="img"
+        aria-label="Loading grade history"
+        className={`${box} shrink-0 animate-pulse rounded-xl bg-gray-100 motion-reduce:animate-none dark:bg-white/5`}
+      />
+    );
+  }
 
   if (!v || gpa == null) {
     return (
@@ -31,6 +54,20 @@ export function GradeBadge({
         title="No published grade history, which is not the same as low grades"
       >
         –
+      </span>
+    );
+  }
+
+  if (record) {
+    const label = `${record} class average: ${gpa.toFixed(2)} (${v.letter})`;
+    return (
+      <span
+        role="img"
+        aria-label={label}
+        className={`${box} relative flex shrink-0 items-center justify-center rounded-xl font-black tabular-nums ${v.tier.pill}`}
+        title={label}
+      >
+        {v.letter}
       </span>
     );
   }

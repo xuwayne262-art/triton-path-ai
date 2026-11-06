@@ -7,7 +7,11 @@ import PlatShell from "./PlatShell";
 import PageHeader from "./PageHeader";
 import CourseResults from "./CourseResults";
 import { PAGE_GAP, PAGE_PAD } from "./typeScale";
-import { collegeName, loadGE, loadIndex, type GEFile, type PlatIndex } from "@/lib/plat";
+import QuarterPicker from "./QuarterPicker";
+import { useTerm } from "./useTerm";
+import { collegeName, loadGE, type GEFile, type PlatIndex } from "@/lib/plat";
+import { loadIndexFor } from "@/lib/termData";
+import { withTerm } from "@/lib/terms";
 import { discoveryRows, EMPTY_DISCOVERY, type DiscoveryIntent } from "@/lib/discovery";
 import { storeHandoff } from "@/lib/planAi/handoff";
 
@@ -23,18 +27,22 @@ const FIELD = "mt-1.5 h-10 w-full rounded-lg border border-gray-200 bg-white px-
  */
 export default function CourseDiscovery() {
   const router = useRouter();
-  const [data, setData] = useState<{ index: PlatIndex; ge: GEFile } | null>(null);
+  const [loaded, setLoaded] = useState<{ term: string; index: PlatIndex; ge: GEFile } | null>(null);
   const [dataFailed, setDataFailed] = useState(false);
   const [request, setRequest] = useState("");
   const [intent, setIntent] = useState<DiscoveryIntent>(EMPTY_DISCOVERY);
 
+  // The chosen quarter's schedule; a late answer for a quarter switched away from is dropped.
+  const term = useTerm()?.term ?? null;
+  const data = loaded && loaded.term === term ? loaded : null;
   useEffect(() => {
+    if (!term) return;
     let live = true;
-    Promise.all([loadIndex(), loadGE()])
-      .then(([index, ge]) => { if (live) setData({ index, ge }); })
+    Promise.all([loadIndexFor(term), loadGE()])
+      .then(([index, ge]) => { if (live) setLoaded({ term, index, ge }); })
       .catch(() => { if (live) setDataFailed(true); });
     return () => { live = false; };
-  }, []);
+  }, [term]);
 
   const colleges = useMemo(() => data ? [...new Set(data.ge.areas.filter((a) => a.college !== "campus").map((a) => a.college))] : [], [data]);
   const rows = useMemo(() => data ? discoveryRows(intent, data.index, data.ge) : [], [data, intent]);
@@ -42,7 +50,7 @@ export default function CourseDiscovery() {
   function openPlanWithAI(event: React.FormEvent) {
     event.preventDefault();
     if (request.trim()) storeHandoff(request.trim());
-    router.push("/planner/ai");
+    router.push(withTerm("/planner/ai", term));
   }
 
   const reset = () => setIntent(EMPTY_DISCOVERY);
@@ -57,6 +65,7 @@ export default function CourseDiscovery() {
     <PlatShell>
       <div className={`mx-auto max-w-4xl px-4 sm:px-6 ${PAGE_PAD}`}>
         <PageHeader title="Find courses" description="Choose a college's GE list, a university requirement or a subject, then filter real courses." />
+        <QuarterPicker className="mt-4" />
 
         <section aria-labelledby="plan-ai-title" className={`${PAGE_GAP} rounded-2xl border border-gray-200 bg-gray-50 p-5 sm:p-6 dark:border-white/10 dark:bg-white/[0.03]`}>
           <div className="flex items-center gap-2">

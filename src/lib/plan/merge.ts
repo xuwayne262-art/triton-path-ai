@@ -112,6 +112,41 @@ function mergeList<T>(
 }
 
 /**
+ * Each term's picks kept away from the one in `schedule`. A term only one side
+ * changed takes that side's; a term both changed is merged course by course,
+ * as the term in `schedule` is, so editing Fall on a laptop while the phone
+ * edits Fall too (or Winter) loses neither.
+ */
+function mergePast(
+  base: Record<string, PastTerm>, local: Record<string, PastTerm>, remote: Record<string, PastTerm>,
+): Record<string, PastTerm> {
+  const out: Record<string, PastTerm> = {};
+  const none: PastTerm = { schedule: [], sections: {} };
+  for (const t of new Set([...Object.keys(remote), ...Object.keys(local), ...Object.keys(base)])) {
+    const b = base[t];
+    const l = local[t];
+    const r = remote[t];
+    if (sameJson(l, b)) {
+      if (r) out[t] = r;
+      continue;
+    }
+    if (sameJson(r, b)) {
+      if (l) out[t] = l;
+      continue;
+    }
+    const bb = b ?? none;
+    const ll = l ?? none;
+    const rr = r ?? none;
+    const merged: PastTerm = {
+      schedule: mergeList(bb.schedule, ll.schedule, rr.schedule, (e) => e.id, (e) => e.course.code),
+      sections: mergeRecord(bb.sections, ll.sections, rr.sections),
+    };
+    if (merged.schedule.length || Object.keys(merged.sections).length) out[t] = merged;
+  }
+  return out;
+}
+
+/**
  * Whichever value was actually chosen: the account's, unless the account's is
  * still the default and this device's is not. A default says nothing about the
  * student, so it should not overrule a choice they made on another device.
@@ -205,7 +240,7 @@ function mergePlanner(base: PlannerDoc | null, local: PlannerDoc | null, remote:
     // Only ever grows: it records which starred courses have been placed once.
     synced: union(remote.synced, local.synced),
     sections: mergeRecord(base.sections, local.sections, remote.sections),
-  }, pick(base.term, local.term, remote.term), mergeRecord(base.past ?? {}, local.past ?? {}, remote.past ?? {}), [remote, local]);
+  }, pick(base.term, local.term, remote.term), mergePast(base.past ?? {}, local.past ?? {}, remote.past ?? {}), [remote, local]);
 }
 
 /**

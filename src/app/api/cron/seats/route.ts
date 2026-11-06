@@ -1,11 +1,12 @@
-import { takeSnapshot } from "@/lib/seats/snapshot";
+import { takeSnapshots } from "@/lib/seats/snapshot";
 import { seatStore } from "@/lib/seats/store";
 import { todayInSanDiego } from "@/lib/housing/terms";
 
 /**
- * `/api/cron/seats` — takes Class Planner's seat counts for every course and
- * keeps them under the day it counted them, so course pages can draw how
- * each one filled.
+ * `/api/cron/seats` — takes UCSD's public seat counts for every course in
+ * each quarter it serves (Fall and Winter together during Winter booking)
+ * and keeps them under the term and the day they were read, so course pages
+ * can draw how each one filled.
  *
  * Called once a day by Vercel Cron (vercel.json), which sends
  * `Authorization: Bearer $CRON_SECRET`. The route sits outside the sign-in
@@ -15,7 +16,7 @@ import { todayInSanDiego } from "@/lib/housing/terms";
  */
 
 export const dynamic = "force-dynamic";
-// Roughly 250 requests to Class Planner; well under a minute.
+// About fifty requests a quarter to UCSD's public search; well under a minute.
 export const maxDuration = 60;
 
 const json = (body: unknown, status = 200) =>
@@ -38,12 +39,15 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   try {
-    const snap = await takeSnapshot();
-    // Filed under the San Diego day Class Planner counted the seats, so
-    // counts it has not retaken overwrite that day instead of posing as new.
-    const day = todayInSanDiego(snap.counted ? new Date(snap.counted) : new Date());
-    const written = await store.record(snap.term, day, snap.rows);
-    return json({ term: snap.term, day, counted: snap.counted, refreshed: snap.refreshed, courses: written, store: store.name });
+    // Each quarter under its own key, filed under the San Diego day the
+    // counts were read: UCSD's public schedule does not say when it took them.
+    const day = todayInSanDiego();
+    const terms = [];
+    for (const snap of await takeSnapshots()) {
+      const written = await store.record(snap.term, day, snap.rows);
+      terms.push({ term: snap.term, refreshed: snap.refreshed, courses: written });
+    }
+    return json({ day, terms, store: store.name });
   } catch (err) {
     console.error(`[seats] snapshot failed (store=${store.name}): ${err instanceof Error ? err.message : String(err)}`);
     return json({ error: "Could not take today's seat counts." }, 502);

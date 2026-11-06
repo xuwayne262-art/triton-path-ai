@@ -6,7 +6,7 @@ import {
 import { buildEvents, groupSections, selectedSections } from "./sections";
 import type { SectionTuple } from "./plat";
 
-/** A row in the shape fetch-classplanner.mjs emits. */
+/** A section row in the shape the shared dataset publishes (see SectionTuple). */
 function row(
   code: string, type: string, days: string, start: string, end: string,
   over: { room?: string; id?: string; instructor?: string } = {},

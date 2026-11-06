@@ -9,7 +9,9 @@ import PlatShell from "@/components/plat/PlatShell";
 import QuarterClock from "@/components/plat/QuarterClock";
 import { PAGE_PAD, SECTION_TITLE } from "@/components/plat/typeScale";
 import CourseRow from "@/components/plat/CourseRow";
-import PassTimeline from "@/components/plat/PassTimeline";
+import QuarterPicker from "@/components/plat/QuarterPicker";
+import TermTimeline from "@/components/plat/TermTimeline";
+import { useTerm } from "@/components/plat/useTerm";
 import ProfessorRow from "@/components/plat/ProfessorShelf";
 import SearchCombobox from "@/components/plat/SearchCombobox";
 import DiscoverLink from "@/components/plat/DiscoverLink";
@@ -17,9 +19,12 @@ import { GradeBadge } from "@/components/plat/Grade";
 import { useRecent } from "@/components/plat/useRecent";
 import { useNow } from "@/components/plat/useNow";
 import {
-  CAMPUS, dayLabel, loadGE, loadIndex, loadProfessors, sortCourses,
+  CAMPUS, dayLabel, loadGE, sortCourses,
   type CourseRow as Row, type GEFile, type PlatIndex, type ProfessorRecord,
 } from "@/lib/plat";
+import { loadIndexFor, loadProfessorsFor } from "@/lib/termData";
+import { termLabelFor, termsServed, withTerm } from "@/lib/terms";
+import { timelineFor } from "@/lib/termTimeline";
 import { announcementHref, isNewAnnouncement, latestAnnouncement } from "@/lib/announcements";
 import { SHELF_RULE, shelfEligible } from "@/lib/recommend";
 import { agoLabel, type RecentItem } from "@/lib/recent";
@@ -57,13 +62,23 @@ function varied(rows: Row[], count: number): Row[] {
  * and shelves of real courses for a student who knows nothing yet.
  */
 export default function HomePage() {
-  const [data, setData] = useState<PlatIndex | null>(null);
+  const [loaded, setLoaded] = useState<{ term: string; index: PlatIndex } | null>(null);
   const [ge, setGE] = useState<GEFile | null>(null);
   const [profs, setProfs] = useState<ProfessorRecord[]>([]);
   const [q, setQ] = useState("");
+  const resolved = useTerm();
+  const term = resolved?.term ?? null;
 
-  useEffect(() => { loadIndex().then(setData).catch(() => {}); }, []);
-  useEffect(() => { loadProfessors().then((d) => setProfs(d.professors)).catch(() => {}); }, []);
+  // The chosen quarter's courses and professors. A quarter switched away from
+  // mid-request is ignored when it lands, so it can never paint over the new one.
+  const data = loaded && loaded.term === term ? loaded.index : null;
+  useEffect(() => {
+    if (!term) return;
+    let live = true;
+    loadIndexFor(term).then((d) => { if (live) setLoaded({ term, index: d }); }).catch(() => {});
+    loadProfessorsFor(term).then((d) => { if (live) setProfs(d.professors); }).catch(() => {});
+    return () => { live = false; };
+  }, [term]);
   useEffect(() => { loadGE().then(setGE).catch(() => {}); }, []);
   const { items: recent, clear: clearRecent } = useRecent();
 
@@ -102,7 +117,10 @@ export default function HomePage() {
 
   const searches = recent.filter((r) => r.kind === "search");
   const visits = recent.filter((r) => r.kind !== "search");
-  const term = data?.meta.termName ?? "this term";
+  const termName = data?.meta.termName ?? (term ? termLabelFor(term) : "this term");
+  // The quarter being booked has its own dates; Fall's clock stays beside them.
+  const booking = termsServed().map((t) => t.code).filter((c) => timelineFor(c)).pop() ?? null;
+  const link = (href: string) => withTerm(href, term);
   const news = latestAnnouncement();
   const now = useNow();
 
@@ -116,7 +134,7 @@ export default function HomePage() {
               Grades, professors and seats for every UCSD course
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-700 dark:text-gray-300">
-              See how a course has graded since 2015, who teaches it in {term}, and which sections fit your week.
+              See how a course has graded since 2015, who teaches it in {termName}, and which sections fit your week.
               {data && (
                 <span className="text-gray-600 dark:text-gray-400">
                   {" "}{data.meta.gradeRecords.toLocaleString()} published grade distributions ·{" "}
@@ -132,6 +150,9 @@ export default function HomePage() {
               onValueChange={setQ}
               placeholder="CSE 11, organic chemistry, Joe Politz…"
             />
+
+            {/* Which quarter the search, the lists and the planner show. */}
+            <QuarterPicker className="mt-3 max-w-2xl" />
 
             {/* Recent searches first, then department shortcuts. */}
             {searches.length > 0 && (
@@ -156,49 +177,47 @@ export default function HomePage() {
               {QUICK_DEPTS.map((d) => (
                 <Link
                   key={d}
-                  href={`/courses/${d}`}
+                  href={link(`/courses/${d}`)}
                   className="rounded-full border border-gray-200 bg-white px-3 py-1 font-mono text-xs font-semibold text-gray-700 transition hover:border-[#1B2C4F] hover:text-[#1B2C4F] dark:border-white/10 dark:bg-white/5 dark:text-gray-300 dark:hover:border-[#FFC72C] dark:hover:text-[#FFC72C]"
                 >
                   {d}
                 </Link>
               ))}
-              <Link href="/courses" className="px-2 text-xs font-semibold text-gray-700 hover:underline dark:text-gray-300">
+              <Link href={link("/courses")} className="px-2 text-xs font-semibold text-gray-700 hover:underline dark:text-gray-300">
                 all {DEPARTMENTS.length} departments →
               </Link>
             </nav>
 
             <DiscoverLink className="mt-4 inline-flex min-h-10 items-center text-sm font-semibold text-[#1B2C4F] underline underline-offset-4 dark:text-[#FFC72C]" />
 
-            {/* The quarter as context, under the search it must not outrank. */}
-            <QuarterClock className="mt-8 max-w-2xl" />
+            {/* The quarter being booked, then the one under way: context, under the search it must not outrank. */}
+            {booking && <TermTimeline term={booking} className="mt-6 max-w-2xl" />}
+            <QuarterClock className="mt-6 max-w-2xl" />
           </div>
 
           {/* ── What to do ────────────────────────────────────────────────── */}
           <div className="flex min-w-0 flex-col gap-5 lg:col-span-5">
             <nav aria-label="Start here" className="overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10">
               <EntryRow
-                href="/courses"
+                href={link("/courses")}
                 icon={<BookOpen className="h-4 w-4" />}
                 title="Browse courses"
                 detail="Every course's grades, professors and seats, by department"
               />
               <EntryRow
-                href="/ge"
+                href={link("/ge")}
                 icon={<GraduationCap className="h-4 w-4" />}
                 title="Find a GE"
                 count={geCounts ? `${geCounts.college.toLocaleString()} on college lists` : undefined}
                 detail={geCounts ? `By college, with past grades, plus ${geCounts.dei} for DEI and the AHI list` : "By college, with past grades"}
               />
               <EntryRow
-                href="/planner"
+                href={link("/planner")}
                 icon={<CalendarDays className="h-4 w-4" />}
                 title="Plan your week"
                 detail="Sections on a calendar and a map, and all four years against your major · sign in with @ucsd.edu"
                 filled
               />
-              <div className="border-t border-gray-100 px-5 py-3 dark:border-white/5">
-                <PassTimeline termName={data?.meta.termName} />
-              </div>
             </nav>
 
             <p className="text-xs leading-relaxed text-gray-600 dark:text-gray-400">
@@ -258,7 +277,7 @@ export default function HomePage() {
           <aside className="order-last lg:order-none lg:col-span-3" aria-labelledby="busiest-title">
             <h2 id="busiest-title" className={SECTION_TITLE}>Busiest subjects</h2>
             <p className="mt-1 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
-              Ranked by how many courses each one is running this term.
+              Ranked by how many courses each one is running in {termName}.
             </p>
 
             <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10">
@@ -266,7 +285,7 @@ export default function HomePage() {
                 ? busiest.map((s) => (
                     <Link
                       key={s.code}
-                      href={`/courses/${s.code}`}
+                      href={link(`/courses/${s.code}`)}
                       className="group flex items-center gap-3 border-b border-gray-100 px-3 py-2.5 text-sm transition last:border-b-0 hover:bg-gray-50 dark:border-white/5 dark:hover:bg-white/5"
                     >
                       <span className="w-12 shrink-0 font-mono text-xs font-bold text-[#1B2C4F] dark:text-[#FFC72C]">
@@ -275,7 +294,7 @@ export default function HomePage() {
                       <span className="min-w-0 flex-1 text-sm text-gray-800 group-hover:underline dark:text-gray-200">
                         {s.name}
                       </span>
-                      <span className="shrink-0 font-mono text-xs tabular-nums text-gray-600 dark:text-gray-400" aria-label={`${s.offered} courses this term`}>
+                      <span className="shrink-0 font-mono text-xs tabular-nums text-gray-600 dark:text-gray-400" aria-label={`${s.offered} courses in ${termName}`}>
                         {s.offered}
                       </span>
                     </Link>
@@ -284,7 +303,7 @@ export default function HomePage() {
             </div>
 
             <Link
-              href="/courses"
+              href={link("/courses")}
               className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]"
             >
               All {DEPARTMENTS.length} departments <ArrowRight aria-hidden className="h-3 w-3" />
@@ -294,8 +313,8 @@ export default function HomePage() {
           <div className="space-y-14 lg:col-span-9">
             <section aria-labelledby="highest-title">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 id="highest-title" className={SECTION_TITLE}>Highest historical averages on the {term} schedule</h2>
-                <Link href="/ge" className="text-xs font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]">
+                <h2 id="highest-title" className={SECTION_TITLE}>Highest historical averages on the {termName} schedule</h2>
+                <Link href={link("/ge")} className="text-xs font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]">
                   Find GEs by college →
                 </Link>
               </div>
@@ -314,8 +333,8 @@ export default function HomePage() {
             {/* People, not courses. Open a department to rank its whole faculty. */}
             <section aria-labelledby="profs-title">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 id="profs-title" className={SECTION_TITLE}>Highest-rated professors teaching now</h2>
-                <Link href="/courses" className="text-xs font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]">
+                <h2 id="profs-title" className={SECTION_TITLE}>Highest-rated professors teaching in {termName}</h2>
+                <Link href={link("/courses")} className="text-xs font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]">
                   Rank a department&rsquo;s professors →
                 </Link>
               </div>

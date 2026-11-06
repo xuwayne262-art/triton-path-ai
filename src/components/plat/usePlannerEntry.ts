@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { cleanPlanner, type PlannerDoc } from "@/lib/plan/record";
+import { picksFor } from "@/lib/plan/term";
 import { PLANNER_EVENT, PLANNER_KEY } from "@/lib/plan/sync";
 import type { SectionSelection } from "@/lib/sections";
 
@@ -39,10 +40,11 @@ export interface PlannerEntry {
   sections: SectionSelection | null;
 }
 
-/** Null until known, and when the stored plan belongs to another term than `term`. */
+/** Null until known. Each quarter's schedule is read from its own picks in the plan. */
 export function usePlannerEntry(code: string, term: string | null): PlannerEntry | null {
   const doc = useSyncExternalStore(subscribe, read, () => null);
-  if (!doc || !term || (doc.term && doc.term !== term)) return null;
-  const scheduled = doc.schedule.some((e) => e.course.code === code);
-  return { scheduled, sections: scheduled ? doc.sections?.[code] ?? null : null };
+  if (!doc || !term) return null;
+  const picks = picksFor(doc, term);
+  const scheduled = picks.schedule.some((e) => e.course.code === code);
+  return { scheduled, sections: scheduled ? picks.sections?.[code] ?? null : null };
 }

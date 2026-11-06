@@ -6,7 +6,9 @@ import { usePlanner } from "@/app/planner/PlannerProvider";
 import { useMediaQuery } from "@/components/planner/useMediaQuery";
 import { loadGE, type GEFile } from "@/lib/plat";
 import { goalRefLabel, timeLabel, unitsLabel } from "@/lib/planAi/conversation";
-import { targetOptions } from "@/lib/planAi/terms";
+import { targetOptions, termTarget } from "@/lib/planAi/terms";
+import { chooseTerm } from "@/components/plat/useTerm";
+import { termLabelFor, termsServed } from "@/lib/terms";
 import { collegeKey } from "@/lib/planAi/vocabulary";
 import MessageView from "./MessageView";
 import PlanPanel from "./PlanPanel";
@@ -69,7 +71,10 @@ export default function PlanWithAI() {
   const draftLabel = preview && preview.base === ai.fingerprint
     ? `Draft: ${[draftAdds ? `+${draftAdds}` : "", preview.removes.length ? `−${preview.removes.length}` : "", preview.resections.length ? `${preview.resections.length} re-sectioned` : ""].filter(Boolean).join(" ") || "no change"}, not saved`
     : ai.busy === "Saving to your plan" ? "Saving…" : "";
-  const options = ai.targets.datasetTerm ? targetOptions(ai.targets) : [];
+  // Every quarter with sections first (choosing another switches the Planner to it), then the 4-year plan's slots.
+  const options = ai.targets.datasetTerm
+    ? [...termsServed().map((t) => termTarget(t.code)), ...targetOptions(ai.targets).filter((o) => o.kind !== "term")]
+    : [];
   const chips: { field: SettingsField; label: string; value: string }[] = settings ? [
     { field: "target", label: "Quarter", value: settings.target.label },
     { field: "units", label: "Units", value: unitsLabel(settings.units) },
@@ -98,10 +103,14 @@ export default function PlanWithAI() {
               <span className="max-sm:sr-only">Quarter</span>
               <select
                 value={options.findIndex((o) => o.label === settings.target.label)}
-                onChange={(e) => ai.setSettings({ ...settings, target: options[Number(e.target.value)] })}
+                onChange={(e) => {
+                  const next = options[Number(e.target.value)];
+                  if (next.kind === "term" && next.term !== ai.targets.datasetTerm) chooseTerm(next.term);
+                  else ai.setSettings({ ...settings, target: next });
+                }}
                 className="h-9 max-w-[16rem] rounded-lg border border-gray-300 bg-white px-2 text-xs font-semibold text-gray-900 focus-visible:outline-2 focus-visible:outline-[#0f6e7a] dark:border-white/15 dark:bg-gray-900 dark:text-gray-100"
               >
-                {options.map((o, i) => <option key={o.label} value={i}>{o.kind === "term" ? `${o.label} (sections)` : o.label}</option>)}
+                {options.map((o, i) => <option key={o.label} value={i}>{o.kind === "term" ? `${termLabelFor(o.term)} (sections)` : o.label}</option>)}
               </select>
             </label>
           )}

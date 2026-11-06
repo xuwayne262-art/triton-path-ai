@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
-  AlertTriangle, CalendarClock, CalendarDays, CalendarPlus, Footprints, ImageDown, ListChecks, Map as MapIcon,
+  AlertTriangle, CalendarDays, CalendarPlus, Footprints, ImageDown, ListChecks, Map as MapIcon,
   PanelLeftClose, PanelLeftOpen, Search, Wand2, X,
 } from "lucide-react";
 import CourseCatalog from "@/components/triton/CourseCatalog";
@@ -21,9 +21,9 @@ import { CAN_HOVER, PHONE, useMediaQuery } from "@/components/planner/useMediaQu
 import { useWalkRoutes } from "@/components/planner/useWalkRoutes";
 import { usePref } from "@/components/planner/usePref";
 import type { Course, DayOfWeek } from "@/components/triton/types";
-import {
-  noopSubscribe, passDate, timelineServerSnapshot, timelineSnapshot,
-} from "@/lib/plat";
+import QuarterPicker from "@/components/plat/QuarterPicker";
+import { TermFeaturesProvider } from "@/components/plat/termFeatures";
+import { termEntry } from "@/lib/terms";
 import { WEEKDAYS, planDay, walkTroubles } from "@/lib/campus";
 import {
   CODE, eventsForRow, findFamily, groupSections, oneOffsFor, rowsFor, selectedSections, typeLabel,
@@ -32,6 +32,7 @@ import {
 import { choiceText, decodeChoice, encodeChoice } from "@/lib/sectionChoice";
 import { ADD_INTENT_KEY, madeHere, parseAddIntent, type AddIntent } from "@/lib/planIntent";
 import { usePlanner } from "./PlannerProvider";
+import { coursesUnitsText } from "@/lib/units";
 
 /**
  * The term workspace: sections on the left, the week in the middle, the campus
@@ -98,54 +99,6 @@ const isTyping = (t: EventTarget | null) =>
   t instanceof HTMLElement &&
   (t.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName));
 
-/** Enrolment passes: the deadline every one of these decisions is really about. */
-function PassStrip() {
-  const state = useSyncExternalStore(noopSubscribe, timelineSnapshot, timelineServerSnapshot);
-  if (!state) return null;
-  const { marks, countdown } = state;
-
-  return (
-    <div className="hidden items-center gap-2.5 2xl:flex">
-      {/* A first-year student has never heard of a pass, so the strip says what one is. */}
-      <span
-        className="flex items-center gap-1 text-[11px] text-gray-600 dark:text-gray-400"
-        title={countdown
-          ? `Enrollment opens in passes: the dates each group of students may start enrolling. ${countdown.pass.label} opens in ${countdown.days} ${countdown.days === 1 ? "day" : "days"}.`
-          : "Enrollment opens in passes: the dates each group of students may start enrolling. Every pass has opened, so you can enroll in any section with a seat now."}
-      >
-        <CalendarClock className="h-3.5 w-3.5" />
-        {countdown ? (
-          <>
-            <span className="font-bold text-[#182B49] dark:text-[#FFCD00]">
-              {countdown.days}d
-            </span>
-            <span>to {countdown.pass.label}</span>
-          </>
-        ) : (
-          <span>All enrollment passes open</span>
-        )}
-      </span>
-      <span aria-hidden className="h-3 w-px bg-gray-200 dark:bg-white/10" />
-      <span className="flex items-center gap-2">
-        {marks.map(({ pass, done, next }) => (
-          <span
-            key={pass.label}
-            className={`text-[10px] tabular-nums ${
-              next
-                ? "font-bold text-[#182B49] dark:text-[#FFCD00]"
-                : done
-                  ? "text-gray-600 line-through dark:text-gray-400"
-                  : "text-gray-700 dark:text-gray-300"
-            }`}
-          >
-            {pass.label} {passDate(pass)}
-          </span>
-        ))}
-      </span>
-    </div>
-  );
-}
-
 export default function TermWorkspacePage() {
   const {
     darkMode,
@@ -153,13 +106,17 @@ export default function TermWorkspacePage() {
     selectedCourses, addToSchedule, removeFromSchedule, clearSchedule, restoreSchedule,
     sectionsByCode, tssByCode, selections, setSelection, chooseOption, autoPickFor, autoPickAll,
     restoreSelections, retrySections,
-    sectionStatus, events, optionEvents, conflictCodes, totalUnits,
+    sectionStatus, events, optionEvents, conflictCodes,
     plannedCourses, addAICourseToPlan, removePlannedCourse,
     platRows, platByCode, savedCourses, toggleSaved, addCourseByCode, termSettled,
     selectedMajor, selectedMinor, selectedCollege,
     roleOf, getColorForCourse, activeRequirements,
-    term, termName, pastTerms, newerPlanTerm, buildings,
+    term, termName, pastTerms, buildings,
   } = usePlanner();
+  // What this quarter's schedule publishes. UCSD's public Winter schedule
+  // has no rooms, so there is nothing to pin or walk between.
+  const features = termEntry(term)?.features ?? { rooms: true, seatTimes: true, booking: true };
+  const rooms = features.rooms;
 
   // ── View state ──────────────────────────────────────────────────────────────
   const [chosenTab, pickTab] = usePref<RailTab | "">(TAB_KEY, "", isTab);
@@ -373,7 +330,7 @@ export default function TermWorkspacePage() {
   const worried = rough.some((p) => walkTroubles(p).length > 0);
   // UCSD is asked only when something will show the answer: the open map, or a
   // warning an estimate raised that a real route might settle.
-  const { routes, source: routeSource } = useWalkRoutes(events, term, mapShown || worried);
+  const { routes, source: routeSource } = useWalkRoutes(events, term, (mapShown || worried) && rooms);
   const plans = useMemo(
     () => WEEKDAYS.map((d) => planDay(events, d, buildings, routes)),
     [events, buildings, routes],
@@ -503,6 +460,7 @@ export default function TermWorkspacePage() {
   const openPicture = useCallback(() => {
     setPicture(scheduleImageInput({
       termName,
+      roomsPublished: rooms,
       events,
       exams,
       today: todayInSanDiego(),
@@ -510,13 +468,14 @@ export default function TermWorkspacePage() {
         code: course.code,
         title: course.title,
         units: course.units,
+        unitsMax: course.unitsMax,
         role: roleOf(course),
         instructor: platByCode.get(course.code)?.p ?? null,
         sec: sectionsByCode[course.code],
         selection: selections[course.code],
       })),
     }));
-  }, [termName, events, exams, selectedCourses, roleOf, platByCode, sectionsByCode, selections]);
+  }, [termName, rooms, events, exams, selectedCourses, roleOf, platByCode, sectionsByCode, selections]);
 
   // The week as a calendar file, for Google, Apple or Outlook Calendar. Only
   // offered for a term whose instruction dates and holidays are on file.
@@ -593,6 +552,7 @@ export default function TermWorkspacePage() {
   const scheduledCodes = useMemo(() => new Set(selectedCourses.map((sc) => sc.course.code)), [selectedCourses]);
 
   return (
+    <TermFeaturesProvider value={features}>
     <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
       <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
         {/* ── Left rail ─────────────────────────────────────────────────────── */}
@@ -731,8 +691,10 @@ export default function TermWorkspacePage() {
             <h1 className="text-sm font-bold">{termName || "This term"}</h1>
             <span className="text-xs tabular-nums text-gray-600 dark:text-gray-400">
               {selectedCourses.length} {selectedCourses.length === 1 ? "course" : "courses"} ·{" "}
-              {totalUnits} units
+              {coursesUnitsText(selectedCourses.map((sc) => sc.course))} units
             </span>
+            {/* Each quarter keeps its own courses and sections; switching never moves them. */}
+            <QuarterPicker label="Quarter" />
 
             {conflictCodes.size > 0 && (
               <span className="flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-600 dark:bg-red-500/15 dark:text-red-400">
@@ -758,7 +720,6 @@ export default function TermWorkspacePage() {
             )}
 
             <div className="ml-auto flex items-center gap-2">
-              <PassStrip />
               <button
                 type="button"
                 onClick={fitWithReport}
@@ -794,7 +755,7 @@ export default function TermWorkspacePage() {
               {/* The one map control on a desktop (a phone has its Map tab). A
                   pull tab on the calendar's edge used to open it too, under a
                   second name. */}
-              <button
+              {rooms && <button
                 type="button"
                 onClick={() => toggleMap()}
                 aria-pressed={mapOpen}
@@ -816,14 +777,13 @@ export default function TermWorkspacePage() {
                     {troubles.length}
                   </span>
                 )}
-              </button>
+              </button>}
             </div>
           </div>
 
           <TermNotice
             term={term}
             termName={termName}
-            newerPlanTerm={newerPlanTerm}
             pastTerms={pastTerms}
             scheduleEmpty={!selectedCourses.length}
           />
@@ -955,7 +915,19 @@ export default function TermWorkspacePage() {
           inert={!mapShown}
         >
           <div className="h-full w-[400px] xl:w-[440px] max-md:w-full">
-            {mapMounted && (
+            {mapMounted && !rooms && (
+              <div className="flex h-full flex-col gap-2 p-4 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+                <p className="font-semibold">No map for {termName || "this quarter"}</p>
+                <p>
+                  UCSD&rsquo;s public schedule for {termName || "this quarter"} lists no rooms, so there are no pins or walking
+                  times. Check the official schedule or TSS for each room.
+                </p>
+                <button type="button" onClick={() => (isPhone ? pickView("week") : toggleMap(false))} className="self-start text-xs font-semibold underline underline-offset-2">
+                  Back to the week
+                </button>
+              </div>
+            )}
+            {mapMounted && rooms && (
               <MapPanel
                 darkMode={darkMode}
                 events={events}
@@ -1071,5 +1043,6 @@ export default function TermWorkspacePage() {
         })}
       </div>
     </div>
+    </TermFeaturesProvider>
   );
 }

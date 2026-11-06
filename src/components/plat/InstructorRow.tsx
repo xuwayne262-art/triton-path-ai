@@ -4,6 +4,8 @@ import { useId, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, ExternalLink, Star } from "lucide-react";
 import { professorHref, type ProfRecord, type ProfessorRecord } from "@/lib/plat";
+import { withTerm } from "@/lib/terms";
+import { useTerm } from "./useTerm";
 import { DifficultyTag, GradeBadge, RmpRating } from "./Grade";
 import GradeBars from "./GradeBars";
 import RateProfessor from "./RateProfessor";
@@ -44,6 +46,7 @@ export default function InstructorRow({
   canRate: boolean;
 }) {
   const panel = useId();
+  const quarter = useTerm()?.term ?? null;
   const [open, setOpen] = useState(defaultOpen);
   const [rateOpen, setRateOpen] = useState(false);
   const { ratings } = useTermRatings();
@@ -58,7 +61,7 @@ export default function InstructorRow({
         <div className="min-w-0 flex-1">
           {profile ? (
             <Link
-              href={professorHref(profile.n)}
+              href={withTerm(professorHref(profile.n), quarter)}
               className="text-sm font-semibold text-[#182B49] underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#182B49] dark:text-[#FFCD00] dark:focus-visible:ring-[#FFCD00]"
             >
               {prof.i}

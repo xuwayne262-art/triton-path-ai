@@ -408,9 +408,6 @@ export default function CourseCatalog({
                     selectedMajor={selectedMajor}
                     selectedMinor={selectedMinor}
                     selectedCollege={selectedCollege}
-                    selectedCourses={selectedCourses}
-                    addToSchedule={addToSchedule}
-                    removeFromSchedule={removeFromSchedule}
                     plannedCourses={plannedCourses}
                     addAICourseToPlan={addAICourseToPlan}
                     removePlannedCourse={removePlannedCourse}

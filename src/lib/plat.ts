@@ -4,7 +4,13 @@
  * Everything here reads the static JSON emitted by scripts/build-plat-data.mjs
  * into /public/data/plat. Files are fetched once per page load and memoized on
  * the module, so navigating between routes never refetches.
+ *
+ * These loaders read the shared files, which carry Fall 2026's schedule. A
+ * page that shows a chosen quarter reads through lib/termData.ts instead.
  */
+
+import type { TermFeatures } from "@/lib/terms";
+import type { DeptGuidance, TermListing } from "@/lib/termData";
 
 // ── Wire types (short keys keep the 8k-course index small) ───────────────────
 
@@ -36,6 +42,10 @@ export interface CourseRow {
   pa: number | null;  // ...historical A rate
   pd: number | null;  // ...RateMyProfessors difficulty, drives the workload tag
   pg: number | null;  // ...their own average GPA for this course
+  /** Every section counted in sa/sl takes a waitlist only (terms after Fall 2026). */
+  wo?: 1;
+  /** Everyone teaching it this term (terms after Fall 2026). */
+  in?: string[];
 }
 
 export interface Subject {
@@ -65,6 +75,12 @@ export interface IndexMeta {
   catalogCourses: number;
   offered: number;
   sources: string[];
+  /** What this term's schedule publishes; absent on the shared file, which has everything. */
+  features?: TermFeatures;
+  /** The snapshot this term's files were built from. */
+  v?: string;
+  /** The term's files are from another build than this page expects: a reload brings them into step. */
+  stale?: boolean;
 }
 
 /** "2026-09-25 15:53:24+00" -> "Sep 25, 2026" in San Diego; null when unreadable. */
@@ -210,6 +226,22 @@ export interface CourseDetail {
   seatsAt?: string;
   profs: ProfRecord[];
   sec: SectionTuple[];
+  /** The quarter `sec`, `fa`, `res` and `offered` describe; absent on the shared file (Fall 2026). */
+  term?: string;
+  /** The catalog's units when this quarter's listing prints other ones: BENG 190 is "1-4", Winter's listing "1". */
+  ucat?: string;
+  /** UCSD's listings for the course this term, exactly as published (terms after Fall 2026). */
+  listings?: TermListing[];
+  /** Topic names when its listings teach different things ("CSE 190"). */
+  topics?: string[];
+  /** "LD", "UD", "GR", as this term's schedule gives it. */
+  lvl?: string | null;
+  /** Prerequisites as this term's schedule words them, apart from the catalog's general rule in `pre`. */
+  tpre?: string | null;
+  /** A department's own notes for the term, separate from UCSD's schedule. */
+  dept?: DeptGuidance;
+  /** The official catalog entry, when the shared dataset has no description of its own. */
+  cat?: { url: string; heading?: string; text?: string };
 }
 
 export interface SubjectFile {
@@ -218,6 +250,11 @@ export interface SubjectFile {
   term: string;
   termName: string;
   courses: Record<string, CourseDetail>;
+  /** What this term's schedule publishes; absent on the shared files, which have everything. */
+  features?: TermFeatures;
+  v?: string;
+  /** Built from another snapshot than the page expects: a reload brings them into step. */
+  stale?: boolean;
 }
 
 export interface GEArea {
@@ -320,89 +357,11 @@ export const loadSubject = (sub: string) =>
 
 // ── Enrollment calendar ──────────────────────────────────────────────────────
 
+/** A dated mark on a seat chart: one of Fall 2026's passes, or a quarter's booking date (lib/termTimeline.ts). */
 export interface Pass {
   label: string;
   date: Date;
 }
-
-/** The three Fall 2026 enrollment passes. Times are 8am Pacific. */
-export const ENROLLMENT_PASSES: Pass[] = [
-  { label: "Pass 1", date: new Date("2026-07-22T08:00:00-07:00") },
-  { label: "Pass 2", date: new Date("2026-08-17T08:00:00-07:00") },
-  { label: "Pass 3", date: new Date("2026-09-12T08:00:00-07:00") },
-];
-
-/** "Jul 22" — the label under each marker. */
-export function passDate(pass: Pass): string {
-  return pass.date.toLocaleDateString("en-US", {
-    month: "short", day: "numeric", timeZone: "America/Los_Angeles",
-  });
-}
-
-export function nextPass(now = new Date()): { pass: Pass; days: number } | null {
-  const upcoming = ENROLLMENT_PASSES.find((p) => p.date.getTime() > now.getTime());
-  if (!upcoming) return null;
-  const days = Math.ceil((upcoming.date.getTime() - now.getTime()) / 86_400_000);
-  return { pass: upcoming, days };
-}
-
-// useSyncExternalStore compares snapshots by identity, so this must hand back the
-// same object every call — returning a fresh nextPass() would re-render forever.
-let countdownCache: { pass: Pass; days: number } | null | undefined;
-
-/** Client snapshot of the countdown; the server renders nothing. */
-export function countdownSnapshot() {
-  if (countdownCache === undefined) countdownCache = nextPass();
-  return countdownCache;
-}
-export const countdownServerSnapshot = () => null;
-/** The countdown only changes by the day, so there is nothing to subscribe to. */
-export const noopSubscribe = () => () => {};
-
-/** How far through the enrollment cycle we are, 0-1, for the progress bar. */
-export function passProgress(now = new Date()): number {
-  const first = ENROLLMENT_PASSES[0].date.getTime();
-  const last = ENROLLMENT_PASSES[ENROLLMENT_PASSES.length - 1].date.getTime();
-  return Math.min(1, Math.max(0, (now.getTime() - first) / (last - first)));
-}
-
-export interface PassMark {
-  pass: Pass;
-  /** Already opened. */
-  done: boolean;
-  /** The one being counted down to. */
-  next: boolean;
-}
-
-export interface PassTimelineState {
-  marks: PassMark[];
-  /** 0-1 along the bar. */
-  progress: number;
-  countdown: { pass: Pass; days: number } | null;
-}
-
-// Same identity-stable trick as the countdown above: useSyncExternalStore
-// compares snapshots by reference, so this is computed once per page load.
-let timelineCache: PassTimelineState | undefined;
-
-/** Client snapshot of the whole timeline; the server renders nothing. */
-export function timelineSnapshot(): PassTimelineState {
-  if (timelineCache === undefined) {
-    const now = new Date();
-    const upcoming = nextPass(now);
-    timelineCache = {
-      marks: ENROLLMENT_PASSES.map((pass) => ({
-        pass,
-        done: pass.date.getTime() <= now.getTime(),
-        next: upcoming?.pass === pass,
-      })),
-      progress: passProgress(now),
-      countdown: upcoming,
-    };
-  }
-  return timelineCache;
-}
-export const timelineServerSnapshot = () => null;
 
 // ── Grade / rating presentation ──────────────────────────────────────────────
 
@@ -555,6 +514,8 @@ export const SECTION_TYPES: Record<string, string> = {
   LE: "Lecture", DI: "Discussion", LA: "Lab", SE: "Seminar", ST: "Studio",
   FI: "Final Exam", MI: "Midterm", TU: "Tutorial", PR: "Practicum",
   FW: "Fieldwork", CL: "Clinical", IN: "Independent study", OT: "Other",
+  // UCSD's Schedule of Classes legend; Winter 2027's public schedule uses both.
+  IT: "Internship", CO: "Conference",
 };
 
 /**

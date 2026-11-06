@@ -7,7 +7,7 @@ import {
 } from "./sections";
 import type { SectionTuple } from "./plat";
 
-/** A row in the shape fetch-classplanner.mjs emits, all 19 positions. */
+/** A section row in the shape the shared dataset publishes, all 19 positions. */
 function row(
   code: string, type: string, days: string, start: string, end: string,
   over: { room?: string; building?: string; bcode?: string; id?: string; status?: string; avail?: number } = {},

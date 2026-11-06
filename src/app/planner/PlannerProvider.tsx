@@ -16,11 +16,13 @@ import {
   MINOR_REQUIREMENTS,
 } from "@/data/requirements";
 import {
-  HttpError, loadBuildings, loadIndex, loadSubject, tidyTitle,
+  HttpError, loadBuildings, tidyTitle,
   type Building, type CourseRow as PlatRow, type SectionTuple,
 } from "@/lib/plat";
+import { loadIndexFor, loadSubjectFor } from "@/lib/termData";
 import { useShortlist } from "@/components/plat/useShortlist";
 import { useTheme } from "@/components/plat/theme";
+import { useTerm } from "@/components/plat/useTerm";
 import {
   completedCourses, courseRole, majorSubjects, platRowToCourse, rowToTimes, ROLE_STYLES,
   type CourseRole, type RoleContext,
@@ -34,7 +36,7 @@ import {
   cleanPlanner, DEFAULT_MAJOR, DEFAULT_MINOR,
   type PastTerm, type PlannedCourse, type PlannerDoc, type PlanQuarter, type PlanYear, type ScheduleCourse,
 } from "@/lib/plan/record";
-import { inTerm, LEGACY_TERM, termRank } from "@/lib/plan/term";
+import { canonical, inTerm, LEGACY_TERM } from "@/lib/plan/term";
 import type { PlanChange } from "@/lib/plan/change";
 import {
   noteLocalChange, PLANNER_EVENT, PLANNER_KEY, useAccountSync, type SyncStatus,
@@ -332,14 +334,25 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   const { codes: savedCodes, toggle: toggleSaved } = useShortlist();
   const majorSubjectSet = useMemo(() => majorSubjects(selectedMajor), [selectedMajor]);
 
+  // The quarter the student is looking at (the picker, the address, their
+  // last choice). Its courses arrive together with its name, so the rows,
+  // the term and the picks shown below always switch at once; a quarter
+  // switched away from before its index arrived is never applied.
+  const viewTerm = useTerm()?.term ?? null;
   useEffect(() => {
-    loadIndex()
+    if (!viewTerm) return;
+    let live = true;
+    loadIndexFor(viewTerm)
       .then((d) => {
+        if (!live) return;
         setPlatRows(d.courses);
         setTerm(d.meta.term);
         setTermName(d.meta.termName);
       })
       .catch(() => {});
+    return () => { live = false; };
+  }, [viewTerm]);
+  useEffect(() => {
     // Ten kilobytes, and the map is useless without it; a failure only means
     // every meeting is listed as "not on the map" rather than pinned.
     loadBuildings().then((f) => setBuildings(f.buildings)).catch(() => {});
@@ -427,19 +440,19 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
 
   // ── Which term the picks belong to ──────────────────────────────────────────
   /**
-   * The term the plan has moved on to, when this page loaded an older term's
-   * schedule: a tab opened before the dataset switched, holding a plan another
-   * device has since moved. Its section files cannot answer for that term's
-   * picks, so nothing here picks or saves until the page is reloaded.
+   * Kept for the notice that used to warn of a plan another device had moved
+   * to a later term. A plan now holds each quarter's picks under its own term
+   * and any quarter can be shown, so there is nothing to wait for.
    */
-  const newerPlanTerm = hydrated && term && planTerm && termRank(planTerm) > termRank(term) ? planTerm : null;
+  const newerPlanTerm: string | null = null;
   /** The picks and this page's schedule are the same term's; until then nothing is picked or added on its own. */
   const termSettled = hydrated && !!term && planTerm === term;
 
-  // When the dataset has moved on to a later term since this plan was saved,
-  // the earlier term's picks are put away under it (lib/plan/term.ts) rather
-  // than read against the new term's sections, where "A01" is a different
-  // section. A plan saved before terms were recorded is stamped with its term.
+  // The quarter on screen, from the plan: its own picks come out and the
+  // ones they replace are put away under their term (lib/plan/term.ts), never
+  // read against this quarter's sections, where "A01" is a different section.
+  // Switching back brings the earlier quarter's exact picks back. A plan saved
+  // before terms were recorded is Fall 2026's.
   useEffect(() => {
     if (!hydrated || !term) return;
     const from = planTerm || LEGACY_TERM;
@@ -447,8 +460,6 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       if (planTerm !== term) setPlanTerm(term);
       return;
     }
-    // The plan is ahead of this page (newerPlanTerm): never move it back.
-    if (termRank(term) < termRank(from)) return;
     const moved = inTerm({
       major: selectedMajor, minor: selectedMinor, college: selectedCollege,
       schedule: selectedCourses, planned: plannedCourses, synced: [...syncedRef.current],
@@ -464,7 +475,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   ]);
 
   useEffect(() => {
-    if (!hydrated || newerPlanTerm) return;
+    if (!hydrated) return;
     const payload: PlannerDoc = {
       major: selectedMajor,
       minor: selectedMinor,
@@ -477,10 +488,13 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       ...(Object.keys(pastTerms).length ? { past: pastTerms } : {}),
       ...(changeLog.length ? { log: changeLog } : {}),
     };
-    try { localStorage.setItem(PLANNER_KEY, JSON.stringify(payload)); } catch {}
+    // Stored the same way whichever quarter is on screen (see canonical), so
+    // switching quarters saves nothing new and two devices showing different
+    // quarters never take turns moving the plan.
+    try { localStorage.setItem(PLANNER_KEY, JSON.stringify(canonical(payload))); } catch {}
     noteLocalChange();
   }, [
-    hydrated, newerPlanTerm, selectedMajor, selectedMinor, selectedCollege,
+    hydrated, selectedMajor, selectedMinor, selectedCollege,
     selectedCourses, plannedCourses, selections, planTerm, pastTerms, changeLog,
   ]);
 
@@ -489,7 +503,23 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   // only for subjects actually on the schedule. plat.ts memoizes each file, so
   // adding a second CSE course costs nothing.
 
+  // Sections are one quarter's: a new quarter starts with none, and an answer
+  // for the quarter just left is dropped when it lands (termRef below).
+  const termRef = useRef(term);
+  termRef.current = term;
+  const [sectionsTerm, setSectionsTerm] = useState(term);
+  if (sectionsTerm !== term) {
+    setSectionsTerm(term);
+    loadedSubjects.current = new Set();
+    setSectionsByCode({});
+    setTssByCode({});
+    setLoadingSubjects(new Set());
+    setFailedSubjects(new Set());
+  }
+
   useEffect(() => {
+    if (!term) return;
+    const forTerm = term;
     const wanted = new Set<string>();
     for (const { course } of selectedCourses) {
       const subject = course.departments?.[0] ?? course.code.split(" ")[0];
@@ -502,7 +532,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
 
     Promise.all(
       [...wanted].map((subject) =>
-        loadSubject(subject)
+        loadSubjectFor(subject, forTerm)
           .then((file) => {
             const rows: Record<string, SectionTuple[]> = {};
             const tss: Record<string, string | null> = {};
@@ -525,7 +555,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
           })),
       ),
     ).then((results) => {
-      if (!mounted.current) return;
+      if (!mounted.current || termRef.current !== forTerm) return;
       setSectionsByCode((prev) => Object.assign({}, prev, ...results.map((r) => r.rows)));
       setTssByCode((prev) => Object.assign({}, prev, ...results.map((r) => r.tss)));
       setLoadingSubjects((prev) => {
@@ -541,7 +571,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     // while `loadedSubjects` had already marked the subject as requested, so
     // nothing ever retried and the rail sat on "Loading sections…" forever.
     // Results are merged by course code, so a late arrival is simply correct.
-  }, [selectedCourses, retryTick]);
+  }, [selectedCourses, retryTick, term]);
 
   const retrySections = useCallback(() => {
     // Forgetting that they were requested is what lets the effect above ask again.
