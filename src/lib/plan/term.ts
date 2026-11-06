@@ -109,3 +109,25 @@ export function inTerm(p: PlannerDoc, term: string): PlannerDoc {
   else delete out.past;
   return out;
 }
+
+/** A quarter the site serves, as far as a commute cares: whether its schedule lists rooms. */
+export interface RoomsQuarter {
+  code: string;
+  name: string;
+  rooms: boolean;
+}
+
+/**
+ * The quarter a commute is measured to: the newest whose schedule lists rooms
+ * and holds the student's courses, else the newest with rooms. `passedOver`
+ * names a later quarter with courses but no rooms, so a page can say why its
+ * classes were not used.
+ */
+export function commuteTerm(p: PlannerDoc | null, quarters: RoomsQuarter[]): { term: string | null; passedOver: string | null } {
+  const newestFirst = [...quarters].sort((a, b) => termRank(b.code) - termRank(a.code));
+  const has = (code: string) => !!p && picksFor(p, code).schedule.length > 0;
+  const withRooms = newestFirst.filter((q) => q.rooms);
+  const chosen = withRooms.find((q) => has(q.code)) ?? withRooms[0] ?? null;
+  const passed = newestFirst.find((q) => !q.rooms && has(q.code) && (!chosen || termRank(q.code) > termRank(chosen.code)));
+  return { term: chosen?.code ?? null, passedOver: passed?.name ?? null };
+}

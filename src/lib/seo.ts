@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { CourseDetail, PlatIndex, ProfessorFile } from "./plat";
+import { termsServed } from "./terms";
 
 /**
  * The dataset, read from disk on the server, for the titles and descriptions
@@ -42,6 +43,23 @@ let index: Promise<PlatIndex | null> | null = null;
 export function indexForMeta(): Promise<PlatIndex | null> {
   index ??= readJson<PlatIndex>("index.json");
   return index;
+}
+
+let later: Promise<Map<string, string>> | null = null;
+/**
+ * Courses on a later quarter's schedule (Winter 2027's), code to title: the
+ * shared files name only Fall 2026's offerings, so a course new in Winter is
+ * found here.
+ */
+export function laterTermCourses(): Promise<Map<string, string>> {
+  later ??= Promise.all(
+    termsServed().filter((t) => t.path).map((t) => readJson<{ courses?: { k: string; t: string }[] }>(t.path!, "index.json")),
+  ).then((files) => {
+    const out = new Map<string, string>();
+    for (const f of files) for (const c of f?.courses ?? []) if (!out.has(c.k)) out.set(c.k, c.t);
+    return out;
+  });
+  return later;
 }
 
 /** Where the site lives, for absolute links in the sitemap. */

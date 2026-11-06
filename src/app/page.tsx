@@ -62,7 +62,7 @@ function varied(rows: Row[], count: number): Row[] {
  * and shelves of real courses for a student who knows nothing yet.
  */
 export default function HomePage() {
-  const [data, setData] = useState<PlatIndex | null>(null);
+  const [loaded, setLoaded] = useState<{ term: string; index: PlatIndex } | null>(null);
   const [ge, setGE] = useState<GEFile | null>(null);
   const [profs, setProfs] = useState<ProfessorRecord[]>([]);
   const [q, setQ] = useState("");
@@ -71,11 +71,11 @@ export default function HomePage() {
 
   // The chosen quarter's courses and professors. A quarter switched away from
   // mid-request is ignored when it lands, so it can never paint over the new one.
+  const data = loaded && loaded.term === term ? loaded.index : null;
   useEffect(() => {
     if (!term) return;
     let live = true;
-    setData(null);
-    loadIndexFor(term).then((d) => { if (live) setData(d); }).catch(() => {});
+    loadIndexFor(term).then((d) => { if (live) setLoaded({ term, index: d }); }).catch(() => {});
     loadProfessorsFor(term).then((d) => { if (live) setProfs(d.professors); }).catch(() => {});
     return () => { live = false; };
   }, [term]);

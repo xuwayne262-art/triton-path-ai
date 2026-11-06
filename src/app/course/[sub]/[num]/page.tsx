@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useId, useMemo, useState, useSyncExternalStore } from "react";
+import { use, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -138,12 +138,12 @@ export default function CourseDetailPage({
     setFailed(null);
   }
   // A choice in the address is the old quarter's once the quarter changes.
-  const [pickTerm, setPickTerm] = useState<string | null>(null);
+  const pickTerm = useRef<string | null>(null);
   useEffect(() => {
     if (!term) return;
-    if (pickTerm && pickTerm !== term) writePick(undefined);
-    setPickTerm(term);
-  }, [term, pickTerm]);
+    if (pickTerm.current && pickTerm.current !== term) writePick(undefined);
+    pickTerm.current = term;
+  }, [term]);
 
   const detail: CourseDetail | undefined = subject?.term === (term ?? subject?.term) ? subject?.courses[code] : undefined;
   const row = index?.courses.find((c) => c.k === code);

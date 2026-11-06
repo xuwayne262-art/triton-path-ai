@@ -6,7 +6,9 @@ import { ArrowUpRight, Instagram, Mail } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import { PAGE_PAD, PAGE_TITLE, SECTION_TITLE } from "@/components/plat/typeScale";
 import { CONTACT_EMAIL, INSTAGRAM_HANDLE, INSTAGRAM_URL } from "@/components/plat/ContactMenu";
-import { collegeName, dayLabel, loadGE, loadIndex, refreshedLabel, type GEFile, type IndexMeta } from "@/lib/plat";
+import { collegeName, dayLabel, loadGE, refreshedLabel, type GEFile, type IndexMeta } from "@/lib/plat";
+import { loadIndexFor } from "@/lib/termData";
+import { BASE_TERM, termsServed } from "@/lib/terms";
 import { SEAT_STALE_HOURS, seatSpan, spanLabel } from "@/lib/freshness";
 import { COLLEGE_SOURCES, COLLEGE_SOURCES_CHECKED } from "@/data/collegeSources";
 
@@ -17,9 +19,24 @@ import { COLLEGE_SOURCES, COLLEGE_SOURCES_CHECKED } from "@/data/collegeSources"
  * sources in a sentence.
  */
 export default function AboutPage() {
-  const [meta, setMeta] = useState<IndexMeta | null>(null);
+  // Every quarter on the site, each described from its own schedule file.
+  const [metas, setMetas] = useState<Record<string, IndexMeta>>({});
   const [ge, setGE] = useState<GEFile | null>(null);
-  useEffect(() => { loadIndex().then((d) => setMeta(d.meta)).catch(() => {}); }, []);
+  useEffect(() => {
+    let live = true;
+    for (const t of termsServed()) {
+      loadIndexFor(t.code).then((d) => { if (live) setMetas((m) => ({ ...m, [t.code]: d.meta })); }).catch(() => {});
+    }
+    return () => { live = false; };
+  }, []);
+  const meta = metas[BASE_TERM] ?? null;
+  // Quarters read from the public schedule: no rooms, no time per seat count.
+  const publicOnly = termsServed().filter((t) => !t.features.seatTimes);
+  const publicText = publicOnly.map((t) => {
+    const m = metas[t.code];
+    const on = refreshedLabel(m?.refreshed);
+    return `${t.name}'s sections, instructors, seats and waitlists come from Class Planner's public schedule, which lists no rooms yet${on ? `. UCSD last refreshed it on ${on}` : ""}.`;
+  }).join(" ");
   const takenOn = refreshedLabel(meta?.refreshed);
   const readOn = refreshedLabel(meta?.retrieved);
   // Class Planner recounts each section's seats from TSS on its own clock, so
@@ -79,8 +96,8 @@ export default function AboutPage() {
               name="UC San Diego Class Planner"
               url="https://classplanner.apps.ucsd.edu"
               what={meta
-                ? `${meta.termName}'s sections, rooms, instructors, seats and waitlists. UCSD last refreshed these listings${takenOn ? ` on ${takenOn}` : ""}${readOn ? `, and this site last read them on ${readOn}` : ""}. Seat counts are Class Planner's own counts from TSS, taken section by section${span ? ` between ${spanLabel(span)}` : ""}. See "How fresh the seat counts are" below.`
-                : "This term's sections, rooms, seats and waitlists."}
+                ? `${meta.termName}'s sections, rooms, instructors, seats and waitlists. UCSD last refreshed these listings${takenOn ? ` on ${takenOn}` : ""}${readOn ? `, and this site last read them on ${readOn}` : ""}. Seat counts are Class Planner's own counts from TSS, taken section by section${span ? ` between ${spanLabel(span)}` : ""}.${publicText ? ` ${publicText}` : ""} See "How fresh the seat counts are" below.`
+                : "Each quarter's sections, seats and waitlists."}
             />
             <Source
               name="UCSD Academic Senate: Diversity, Equity & Inclusion approved courses"
@@ -116,6 +133,13 @@ export default function AboutPage() {
               which is not the same as no seats. When this site reads Class Planner again and nothing was
               recounted, the counts keep their old times. Reading them again does not make them newer.
             </p>
+            {publicOnly.length > 0 && (
+              <p>
+                {publicOnly.map((t) => t.name).join(" and ")} {publicOnly.length === 1 ? "comes" : "come"} from
+                Class Planner&rsquo;s public schedule, which does not say when each section was counted. Those seat
+                counts are a snapshot from the day UCSD refreshed the schedule.
+              </p>
+            )}
             <p>Before you enroll, check the section in TSS, which has the live numbers.</p>
           </div>
         </section>

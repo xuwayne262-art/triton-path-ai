@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { loadBuildings, loadSubject, type Building } from "@/lib/plat";
+import { loadBuildings, type Building } from "@/lib/plat";
 import {
   buildEvents, forcedSelection, groupSections, selectedSections,
   type CalEvent, type SectionSelection,
 } from "@/lib/sections";
-import { quarterByKey } from "@/lib/housing/terms";
+import { cleanPlanner } from "@/lib/plan/record";
 import { PLANNER_EVENT, PLANNER_KEY, useAccountSync } from "@/lib/plan/sync";
+import { commuteTerm, picksFor } from "@/lib/plan/term";
+import { loadSubjectFor } from "@/lib/termData";
+import { termEntry, termsServed } from "@/lib/terms";
 
 /**
  * The week a student has built in the planner, read for the housing pages.
@@ -21,11 +24,11 @@ import { PLANNER_EVENT, PLANNER_KEY, useAccountSync } from "@/lib/plan/sync";
  * On a device that has never opened the planner, the stored plan arrives from
  * the student's account a moment after the page loads, so the week is worked
  * out again whenever the sync replaces it.
+ *
+ * A commute needs rooms, so it is measured to the newest quarter whose
+ * schedule lists them (see commuteTerm). Winter 2027's public schedule has
+ * none yet, so a student with Winter courses is told their Fall classes are used.
  */
-
-interface StoredCourse {
-  course?: { code?: unknown; title?: unknown; departments?: unknown };
-}
 
 export interface TermSchedule {
   status: "loading" | "empty" | "ready";
@@ -38,28 +41,26 @@ export interface TermSchedule {
   undecided: string[];
   /** "Fall 2026" */
   termName: string;
+  /** "Winter 2027": a later quarter with courses whose schedule lists no rooms, so it was not used. */
+  passedOver: string | null;
 }
 
-const EMPTY: TermSchedule = { status: "loading", events: [], buildings: {}, courses: [], undecided: [], termName: "" };
+const EMPTY: TermSchedule = { status: "loading", events: [], buildings: {}, courses: [], undecided: [], termName: "", passedOver: null };
 
-function readPlan(): { courses: { code: string; title: string; subject: string }[]; sections: Record<string, SectionSelection> } {
-  try {
-    const raw = JSON.parse(localStorage.getItem(PLANNER_KEY) ?? "null") as {
-      schedule?: StoredCourse[];
-      sections?: Record<string, SectionSelection>;
-    } | null;
-    const courses = (Array.isArray(raw?.schedule) ? raw.schedule : []).flatMap((s) => {
-      const code = typeof s?.course?.code === "string" ? s.course.code : "";
-      if (!code) return [];
-      const depts = Array.isArray(s.course?.departments) ? s.course.departments : [];
-      const subject = typeof depts[0] === "string" ? depts[0] : code.split(" ")[0];
-      return [{ code, title: typeof s.course?.title === "string" ? s.course.title : code, subject }];
-    });
-    const sections = raw?.sections && typeof raw.sections === "object" ? raw.sections : {};
-    return { courses, sections };
-  } catch {
-    return { courses: [], sections: {} };
-  }
+/** The courses and section picks of the quarter a commute is measured to. */
+function readPlan(): { term: string | null; passedOver: string | null; courses: { code: string; title: string; subject: string }[]; sections: Record<string, SectionSelection> } {
+  let doc = null;
+  try { doc = cleanPlanner(JSON.parse(localStorage.getItem(PLANNER_KEY) ?? "null")); } catch { /* unreadable: no plan */ }
+  const { term, passedOver } = commuteTerm(doc, termsServed().map((t) => ({ code: t.code, name: t.name, rooms: t.features.rooms })));
+  if (!doc || !term) return { term, passedOver, courses: [], sections: {} };
+  const picks = picksFor(doc, term);
+  const courses = picks.schedule.flatMap((s) => {
+    const code = s.course?.code ?? "";
+    if (!code) return [];
+    const subject = s.course.departments?.[0] ?? code.split(" ")[0];
+    return [{ code, title: s.course.title || code, subject }];
+  });
+  return { term, passedOver, courses, sections: picks.sections ?? {} };
 }
 
 export function useTermSchedule(): TermSchedule {
@@ -76,17 +77,17 @@ export function useTermSchedule(): TermSchedule {
 
   useEffect(() => {
     let live = true;
-    const { courses, sections } = readPlan();
+    const { term, passedOver, courses, sections } = readPlan();
 
     (async () => {
       const buildingsFile = await loadBuildings().catch(() => null);
       const buildings = buildingsFile?.buildings ?? {};
-      const termName = quarterByKey(buildingsFile?.term)?.name ?? "this term";
+      const termName = termEntry(term)?.name ?? "this term";
 
       const subjects = [...new Set(courses.map((c) => c.subject))];
       const files = new Map(
         await Promise.all(
-          subjects.map(async (s) => [s, await loadSubject(s).catch(() => null)] as const),
+          subjects.map(async (s) => [s, term ? await loadSubjectFor(s, term).catch(() => null) : null] as const),
         ),
       );
 
@@ -109,6 +110,7 @@ export function useTermSchedule(): TermSchedule {
         courses: courses.map((c) => c.code).filter((c) => withMeetings.has(c)),
         undecided: courses.map((c) => c.code).filter((c) => !withMeetings.has(c)),
         termName,
+        passedOver,
       });
     })();
 

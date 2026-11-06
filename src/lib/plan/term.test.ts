@@ -1,7 +1,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_MAJOR, DEFAULT_MINOR, MAX_PAST_TERMS, type PlannerDoc } from "./record";
-import { canonical, canonicalTerm, inTerm, LEGACY_TERM, laterTerm, picksFor, termLabel, termOf, termRank } from "./term";
+import { canonical, canonicalTerm, commuteTerm, inTerm, LEGACY_TERM, laterTerm, picksFor, termLabel, termOf, termRank } from "./term";
 
 const course = (code: string) => ({
   id: code.toLowerCase().replace(/\s+/g, ""), code, title: code, units: 4, departments: [code.split(" ")[0]],
@@ -136,5 +136,28 @@ describe("two quarters at once", () => {
     const legacy = plan(["CSE 11"]);
     assert.equal(canonicalTerm(legacy), LEGACY_TERM);
     assert.deepEqual(picksFor(inTerm(legacy, "WI27"), "FA26").schedule.map((e) => e.course.code), ["CSE 11"]);
+  });
+});
+
+describe("commuteTerm", () => {
+  const quarters = [
+    { code: "FA26", name: "Fall 2026", rooms: true },
+    { code: "WI27", name: "Winter 2027", rooms: false },
+  ];
+  const doc = (fall: string[], winter: string[]): PlannerDoc =>
+    plan(winter, { term: "WI27", past: fall.length ? { FA26: { schedule: fall.map(on), sections: {} } } : undefined });
+
+  test("uses the newest quarter with rooms, and names a newer one without", () => {
+    assert.deepEqual(commuteTerm(doc(["CSE 12"], ["CSE 15L"]), quarters), { term: "FA26", passedOver: "Winter 2027" });
+  });
+  test("a plan with only Fall courses says nothing about Winter", () => {
+    assert.deepEqual(commuteTerm(doc(["CSE 12"], []), quarters), { term: "FA26", passedOver: null });
+  });
+  test("no plan: the newest quarter with rooms", () => {
+    assert.deepEqual(commuteTerm(null, quarters), { term: "FA26", passedOver: null });
+  });
+  test("once Winter lists rooms, Winter is used", () => {
+    const later = quarters.map((q) => ({ ...q, rooms: true }));
+    assert.deepEqual(commuteTerm(doc(["CSE 12"], ["CSE 15L"]), later), { term: "WI27", passedOver: null });
   });
 });

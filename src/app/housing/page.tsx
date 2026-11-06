@@ -401,6 +401,7 @@ function ScheduleBanner({
             <p className="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
               {schedule.courses.join(", ")}
               {schedule.undecided.length > 0 && ` · no section yet for ${schedule.undecided.join(", ")}`}
+              {schedule.passedOver && ` · ${schedule.passedOver} lists no rooms yet`}
               {" · "}
               <Link href="/planner" className="font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]">Change</Link>
             </p>
@@ -409,9 +410,11 @@ function ScheduleBanner({
           <div className="min-w-0">
             <p className="text-sm font-semibold">Trips go to Library Walk for now</p>
             <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-              {schedule.undecided.length
-                ? `Pick sections for ${schedule.undecided.join(", ")} and every place is measured to your own classrooms instead. `
-                : "Add your classes in the planner and every place is measured to your own classrooms instead. "}
+              {schedule.passedOver && !schedule.undecided.length
+                ? `UCSD's public ${schedule.passedOver} schedule lists no rooms yet, so there are no classrooms to measure to. `
+                : schedule.undecided.length
+                  ? `Pick sections for ${schedule.undecided.join(", ")} and every place is measured to your own classrooms instead. `
+                  : "Add your classes in the planner and every place is measured to your own classrooms instead. "}
               <Link href="/planner" className="font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]">Open the planner →</Link>
             </p>
           </div>

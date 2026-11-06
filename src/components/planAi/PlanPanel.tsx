@@ -5,7 +5,8 @@ import { AlertTriangle, CalendarDays, List } from "lucide-react";
 import WeekCalendar from "@/components/planner/WeekCalendar";
 import { usePlanner } from "@/app/planner/PlannerProvider";
 import type { DayOfWeek } from "@/components/triton/types";
-import { loadIndex } from "@/lib/plat";
+import { refreshedLabel } from "@/lib/plat";
+import { loadIndexFor } from "@/lib/termData";
 import { seatDay } from "@/lib/freshness";
 import { minutesToLabel, type CalEvent } from "@/lib/sections";
 import { clockLabel } from "@/lib/planAi/vocabulary";
@@ -63,10 +64,22 @@ export default function PlanPanel({
   fading: Set<string>;
   phone: boolean;
 }) {
-  const { events, darkMode, selectedCourses, plannedCourses, totalUnits, conflictCodes, termName } = usePlanner();
+  const { events, darkMode, selectedCourses, plannedCourses, totalUnits, conflictCodes, termName, term } = usePlanner();
   const [view, setView] = useState<"calendar" | "agenda" | null>(null);
-  const [seatsAsOf, setSeatsAsOf] = useState<string | null>(null);
-  useEffect(() => { loadIndex().then((d) => setSeatsAsOf(d.meta.seatsAsOf ?? null)).catch(() => {}); }, []);
+  // When the quarter's seat counts were taken: per section (oldest shown), or one snapshot of the public schedule.
+  const [seats, setSeats] = useState<{ oldest: string | null; snapshot: string | null } | null>(null);
+  useEffect(() => {
+    if (!term) return;
+    let live = true;
+    loadIndexFor(term)
+      .then((d) => {
+        if (!live) return;
+        const perSection = d.meta.features?.seatTimes ?? true;
+        setSeats({ oldest: perSection ? d.meta.seatsAsOf ?? null : null, snapshot: perSection ? null : refreshedLabel(d.meta.refreshed) });
+      })
+      .catch(() => { if (live) setSeats(null); });
+    return () => { live = false; };
+  }, [term]);
 
   const target = settings?.target ?? null;
   const isTerm = !target || target.kind === "term";
@@ -140,8 +153,11 @@ export default function PlanPanel({
               Times not fully checked for {facts.unscheduled.join(", ")}: some aren’t published or chosen yet.
             </p>
           )}
-          {isTerm && seatsAsOf && (
-            <p className="col-span-2 text-[11px] text-gray-600 sm:col-span-4 dark:text-gray-400">Seat counts come from UCSD&rsquo;s Class Planner, some as old as {seatDay(seatsAsOf)}. They aren&rsquo;t live.</p>
+          {isTerm && seats?.oldest && (
+            <p className="col-span-2 text-[11px] text-gray-600 sm:col-span-4 dark:text-gray-400">Seat counts come from UCSD&rsquo;s Class Planner, some as old as {seatDay(seats.oldest)}. They aren&rsquo;t live.</p>
+          )}
+          {isTerm && seats?.snapshot && (
+            <p className="col-span-2 text-[11px] text-gray-600 sm:col-span-4 dark:text-gray-400">Seat counts are a snapshot of UCSD&rsquo;s public schedule from {seats.snapshot}. They aren&rsquo;t live.</p>
           )}
         </dl>
 

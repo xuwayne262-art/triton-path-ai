@@ -9,7 +9,9 @@ import SearchBox from "./SearchBox";
 import TridentMark from "./TridentMark";
 import { useTheme } from "./theme";
 import { useSignedIn, useSignInHref } from "./useSignedIn";
-import { loadIndex, refreshedLabel, type IndexMeta } from "@/lib/plat";
+import { refreshedLabel, type IndexMeta } from "@/lib/plat";
+import { loadIndexFor } from "@/lib/termData";
+import { useTerm } from "./useTerm";
 import { seatSpan, spanLabel } from "@/lib/freshness";
 
 /**
@@ -43,14 +45,23 @@ export default function PlatShell({
   const signInHref = useSignInHref();
   const [meta, setMeta] = useState<IndexMeta | null>(null);
 
-  useEffect(() => { loadIndex().then((d) => setMeta(d.meta)).catch(() => {}); }, []);
+  // The footer describes the quarter on screen.
+  const term = useTerm()?.term ?? null;
+  useEffect(() => {
+    if (!term) return;
+    let live = true;
+    loadIndexFor(term).then((d) => { if (live) setMeta(d.meta); }).catch(() => {});
+    return () => { live = false; };
+  }, [term]);
   const refreshed = refreshedLabel(meta?.refreshed);
   // Class Planner counts each section's seats on its own clock, so one dataset
   // holds counts weeks apart: the footer gives the span, never one date.
   const span = meta?.seatsNewest ? seatSpan([meta.seatsAsOf, meta.seatsNewest]) : null;
   const seats = span
     ? `seat counts taken ${spanLabel(span)}, ${new Date(span.newest).getUTCFullYear()} (each section shows its own)`
-    : `seat counts dated where Class Planner gives a time${refreshed ? `; listings refreshed ${refreshed}` : ""}`;
+    : meta?.features && !meta.features.seatTimes
+      ? `listings and seat counts as UCSD refreshed them${refreshed ? ` on ${refreshed}` : ""}`
+      : `seat counts dated where Class Planner gives a time${refreshed ? `; listings refreshed ${refreshed}` : ""}`;
 
   const tab = (active: boolean) =>
     `inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${

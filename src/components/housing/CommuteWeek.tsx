@@ -50,6 +50,7 @@ export default function CommuteWeek({
           <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
             About {formatHours(perQuarter(measure.week))} over a {QUARTER_WEEKS}-week quarter, at one round trip a
             day to your {schedule.termName} classes.
+            {schedule.passedOver && ` ${schedule.passedOver}'s public schedule lists no rooms yet.`}
           </p>
 
           <ol className="mt-4 space-y-2">

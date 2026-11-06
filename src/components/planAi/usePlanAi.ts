@@ -3,8 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePlanner } from "@/app/planner/PlannerProvider";
 import { DEPARTMENTS } from "@/data/ucsdStructure";
-import { collegeName, loadGE, loadIndex, loadSubject, type GEFile, type SubjectFile } from "@/lib/plat";
+import { collegeName, loadGE, type GEFile, type SubjectFile } from "@/lib/plat";
+import { loadIndexFor, loadSubjectFor } from "@/lib/termData";
+import { termsServed } from "@/lib/terms";
 import { cleanPlanner } from "@/lib/plan/record";
+import { inTerm } from "@/lib/plan/term";
 import { newChangeId, type PlanOp } from "@/lib/plan/change";
 import { planFingerprint, type PatchProblem } from "@/lib/plan/patch";
 import { accountSyncStatus, adoptAccountPlan, PLANNER_KEY, settleAccountPlan } from "@/lib/plan/sync";
@@ -106,13 +109,21 @@ export function usePlanAi(): PlanAiState {
   // ── Data the engine reads ──────────────────────────────────────────────────
   useEffect(() => {
     loadGE().then(setGe).catch(() => setGe(null));
-    loadIndex().then((d) => setSeatsAsOf(d.meta.seatsAsOf ?? null)).catch(() => {});
     fetch("/api/plan-ai", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : { model: false }))
       .then((b) => setModel(b?.model === true))
       .catch(() => setModel(false));
   }, []);
 
+  // The quarter on screen decides whose seats and sections the engine reads.
+  useEffect(() => {
+    if (!term) return;
+    let live = true;
+    loadIndexFor(term).then((d) => { if (live) setSeatsAsOf(d.meta.seatsAsOf ?? null); }).catch(() => { if (live) setSeatsAsOf(null); });
+    return () => { live = false; };
+  }, [term]);
+
+  /** Subject files by "WI27|ECON": one quarter's sections are never read as another's. */
   const subjects = useRef(new Map<string, SubjectFile | null>());
   const data = useMemo<DataAccess>(() => ({
     term,
@@ -120,10 +131,12 @@ export function usePlanAi(): PlanAiState {
     rows: platRows,
     row: (c) => platByCode.get(c),
     ge,
-    detail: (code) => subjects.current.get(platByCode.get(code)?.s ?? code.split(" ")[0])?.courses[code],
+    detail: (code) => subjects.current.get(`${term}|${platByCode.get(code)?.s ?? code.split(" ")[0]}`)?.courses[code],
     async load(list) {
-      await Promise.all(list.filter((s) => !subjects.current.has(s)).map((s) =>
-        loadSubject(s).then((f) => { subjects.current.set(s, f); }).catch(() => { subjects.current.set(s, null); })));
+      await Promise.all(list.filter((s) => !subjects.current.has(`${term}|${s}`)).map((s) =>
+        loadSubjectFor(s, term)
+          .then((f) => { subjects.current.set(`${term}|${s}`, f); })
+          .catch(() => { subjects.current.set(`${term}|${s}`, null); })));
     },
     seatsAsOf,
   }), [term, termName, platRows, platByCode, ge, seatsAsOf]);
@@ -140,7 +153,7 @@ export function usePlanAi(): PlanAiState {
   }), [term, selectedCourses, selections, plannedCourses]);
 
   const targets = useMemo<PlanContext>(() => ({
-    datasetTerm: term, planned: plannedCourses, scheduleCodes: selectedCourses.map((s) => s.course.code),
+    datasetTerm: term, served: termsServed().map((t) => t.code), planned: plannedCourses, scheduleCodes: selectedCourses.map((s) => s.course.code),
   }), [term, plannedCourses, selectedCourses]);
 
   // The latest of everything, for async work that outlives the render it started in.
@@ -152,6 +165,12 @@ export function usePlanAi(): PlanAiState {
   useEffect(() => {
     if (!settings && term && termSettled) setSettingsState(defaultSettings(termTarget(term)));
   }, [settings, term, termSettled]);
+
+  // Switching quarters moves "This term" with it; a 4-year plan slot stays chosen.
+  useEffect(() => {
+    if (!term || !termSettled) return;
+    setSettingsState((s) => (s && s.target.kind === "term" && s.target.term !== term ? { ...s, target: termTarget(term) } : s));
+  }, [term, termSettled]);
 
   // ── Conversation state that is not rendered directly ──────────────────────
   /** What "the second one" refers to: the latest options or cards, in order. */
@@ -371,7 +390,8 @@ export function usePlanAi(): PlanAiState {
   const storedFingerprint = useCallback((): string => {
     try {
       const doc = cleanPlanner(JSON.parse(localStorage.getItem(PLANNER_KEY) ?? "null"));
-      return doc ? planFingerprint(doc) : live.current.fingerprint;
+      // Stored with its latest quarter in front (canonical): compared as the quarter on screen.
+      return doc ? planFingerprint(inTerm(doc, live.current.term)) : live.current.fingerprint;
     } catch {
       return live.current.fingerprint;
     }

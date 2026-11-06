@@ -8,10 +8,13 @@ import PlatShell from "@/components/plat/PlatShell";
 import PageHeader from "@/components/plat/PageHeader";
 import { PAGE_GAP, PAGE_PAD, SECTION_TITLE } from "@/components/plat/typeScale";
 import CourseResults, { DEFAULT_FILTERS, type ResultFilters } from "@/components/plat/CourseResults";
+import QuarterPicker from "@/components/plat/QuarterPicker";
+import { useTerm } from "@/components/plat/useTerm";
 import {
-  CAMPUS, UNIVERSITY_REQUIREMENTS, collegeName, loadGE, loadIndex,
+  CAMPUS, UNIVERSITY_REQUIREMENTS, collegeName, loadGE,
   type GEFile, type PlatIndex,
 } from "@/lib/plat";
+import { loadIndexFor } from "@/lib/termData";
 import { EMPTY_GE, geQueryString, geResults, parseGeQuery, type GeState } from "@/lib/geQuery";
 import { cleanPlanner } from "@/lib/plan/record";
 import { PLANNER_KEY } from "@/lib/plan/sync";
@@ -47,7 +50,13 @@ function rememberedCollege(): { key: string; from: "here" | "planner" } | null {
 
 /** Puts a state in the address bar, as a new history entry so Back returns to the last one. */
 function go(state: GeState, filters: ResultFilters, { replace = false } = {}) {
-  const url = `/ge${geQueryString(state, filters, BASE)}`;
+  const qs = geQueryString(state, filters, BASE);
+  // The quarter rides along, so a filter never switches the list to another one.
+  const quarter = new URLSearchParams(window.location.search).get("term");
+  const params = new URLSearchParams(qs.startsWith("?") ? qs.slice(1) : qs);
+  if (quarter) params.set("term", quarter);
+  const s = params.toString();
+  const url = `/ge${s ? `?${s}` : ""}`;
   if (replace) window.history.replaceState(null, "", url);
   else window.history.pushState(null, "", url);
 }
@@ -62,12 +71,21 @@ function go(state: GeState, filters: ResultFilters, { replace = false } = {}) {
  */
 function GESearch() {
   const search = useSearchParams();
-  const [index, setIndex] = useState<PlatIndex | null>(null);
+  const [loaded, setLoaded] = useState<{ term: string; index: PlatIndex } | null>(null);
   const [ge, setGE] = useState<GEFile | null>(null);
   const [failed, setFailed] = useState(false);
   const [memory, setMemory] = useState<{ key: string; from: "here" | "planner" } | null>(null);
 
-  useEffect(() => { loadIndex().then(setIndex).catch(() => setFailed(true)); }, []);
+  // The chosen quarter's schedule decides "offered"; a late answer for a
+  // quarter switched away from is dropped.
+  const term = useTerm()?.term ?? null;
+  const index = loaded && loaded.term === term ? loaded.index : null;
+  useEffect(() => {
+    if (!term) return;
+    let live = true;
+    loadIndexFor(term).then((d) => { if (live) setLoaded({ term, index: d }); }).catch(() => { if (live) setFailed(true); });
+    return () => { live = false; };
+  }, [term]);
   useEffect(() => { loadGE().then(setGE).catch(() => setFailed(true)); }, []);
 
   const parsed = useMemo(
@@ -146,6 +164,7 @@ function GESearch() {
           title="Easy GEs"
           description="Courses on each college's GE lists and UCSD's university-requirement lists, with how they have graded in the past."
         />
+        <QuarterPicker className="mt-4" />
 
         {/* ── Where the lists come from, before anything is chosen from them ── */}
         <div className="mt-6 flex gap-2.5 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm leading-relaxed text-amber-950 dark:border-amber-500/25 dark:bg-amber-500/5 dark:text-amber-100">

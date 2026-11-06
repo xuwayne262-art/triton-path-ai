@@ -11,6 +11,11 @@ const sections: Record<string, SectionTuple[]> = {
   "CSE 11": [sec("A00", "LE", "MWF", "10:00a", "10:50a", { id: "L1" }), sec("A01", "DI", "M", "1:00p", "1:50p"), sec("A02", "DI", "W", "1:00p", "1:50p"), final("2026-12-08", "8:00a", "10:59a", "L1")],
   "ECON 1": [sec("A00", "LE", "TuTh", "11:00a", "12:20p"), sec("A01", "DI", "F", "9:00a", "9:50a")],
 };
+/** Winter 2027's own schedule: a course Fall does not offer, with its own sections. */
+const winterRows: Record<string, CourseRow> = { "ECON 110B": row("ECON 110B") };
+const winterSections: Record<string, SectionTuple[]> = {
+  "ECON 110B": [sec("A00", "LE", "TuTh", "9:30a", "10:50a"), sec("A01", "DI", "F", "1:00p", "1:50p")],
+};
 
 /** A plan store in memory, with the same compare-and-set rule as the real drivers. */
 function memoryStore(failPut = false) {
@@ -44,11 +49,11 @@ function fixture({ email, failPut, ...over }: Partial<Omit<ApplyDependencies, "e
     store: () => store,
     ownerTag: tag,
     planKey: key,
-    data: async () => ({
-      term: "FA26", termName: "Fall 2026",
-      row: (c) => rows[c],
-      sections: async (c) => sections[c] ?? null,
-    }),
+    data: async (term) => term === "FA26"
+      ? { term, termName: "Fall 2026", row: (c) => rows[c], sections: async (c) => sections[c] ?? null }
+      : term === "WI27"
+        ? { term, termName: "Winter 2027", row: (c) => winterRows[c], sections: async (c) => winterSections[c] ?? null }
+        : null,
     metric: async (e) => { events.push(e); },
     now: () => new Date("2026-10-21T12:00:00Z"),
     ...over,
@@ -195,5 +200,58 @@ describe("undo", () => {
     assert.equal(body.code, "UNDO_CONFLICT");
     assert.deepEqual(body.problems, [{ code: "SECTIONS_CHANGED", course: "CSE 11" }]);
     assert.deepEqual(store.plans.get(key("alex@ucsd.edu"))!.docs.planner!.sections["CSE 11"], { family: "A", parts: { DI: "A02" } });
+  });
+});
+
+describe("two quarters", () => {
+  const ADD_ECON = { op: "add_term", code: "ECON 110B", selection: { family: "A", parts: { DI: "A01" } } };
+  const winter = (id: string, ops: unknown[], baseRev: number) =>
+    ({ owner: "aaaaaaaaaaaaaaaa", baseRev, change: { id, kind: "apply", term: "WI27", ops } });
+
+  test("a Winter change leaves Fall's picks exactly where they were", async () => {
+    const { deps, store } = fixture();
+    await handleApply(request(change(ID1)), deps);
+    const res = await handleApply(request(winter(ID2, [ADD_ECON], 1)), deps);
+    assert.equal(res.status, 200);
+    const planner = store.plans.get(key("alex@ucsd.edu"))!.docs.planner!;
+    // Stored with the latest quarter in front, as every device stores it.
+    assert.equal(planner.term, "WI27");
+    assert.deepEqual(planner.schedule.map((e) => e.course.code), ["ECON 110B"]);
+    assert.deepEqual(planner.past?.FA26?.schedule.map((e) => e.course.code), ["CSE 11"]);
+    assert.deepEqual(planner.past?.FA26?.sections["CSE 11"], { family: "A", parts: { DI: "A01" } });
+    assert.equal(planner.log?.find((c) => c.id === ID2)?.term, "WI27");
+    assert.equal(planner.log?.find((c) => c.id === ID2)?.label, "Added ECON 110B to Winter 2027");
+  });
+
+  test("Fall's sections are never accepted for Winter", async () => {
+    const { deps, store } = fixture();
+    const res = await handleApply(request(winter(ID1, [ADD_CSE11], 0)), deps);
+    assert.equal(res.status, 409);
+    assert.equal(store.puts, 0);
+  });
+
+  test("a Fall change after a Winter one keeps Winter in front", async () => {
+    const { deps, store } = fixture();
+    await handleApply(request(winter(ID1, [ADD_ECON], 0)), deps);
+    const res = await handleApply(request({ ...change(ID2), baseRev: 1 }), deps);
+    assert.equal(res.status, 200);
+    const planner = store.plans.get(key("alex@ucsd.edu"))!.docs.planner!;
+    assert.equal(planner.term, "WI27");
+    assert.deepEqual(planner.schedule.map((e) => e.course.code), ["ECON 110B"]);
+    assert.deepEqual(planner.past?.FA26?.schedule.map((e) => e.course.code), ["CSE 11"]);
+  });
+
+  test("an undo sent while Fall is on screen reverses the Winter change it names", async () => {
+    const { deps, store } = fixture();
+    await handleApply(request(change(ID1)), deps);
+    await handleApply(request(winter(ID2, [ADD_ECON], 1)), deps);
+    const undo = { owner: "aaaaaaaaaaaaaaaa", baseRev: 2, change: { id: ID3, kind: "undo", undoOf: ID2, term: "FA26", ops: [] } };
+    const res = await handleApply(request(undo), deps);
+    assert.equal(res.status, 200);
+    const planner = store.plans.get(key("alex@ucsd.edu"))!.docs.planner!;
+    const fall = planner.term === "FA26" ? planner.schedule : planner.past?.FA26?.schedule;
+    assert.deepEqual(fall?.map((e) => e.course.code), ["CSE 11"]);
+    const winterLeft = planner.term === "WI27" ? planner.schedule : planner.past?.WI27?.schedule ?? [];
+    assert.deepEqual(winterLeft.map((e) => e.course.code), []);
   });
 });

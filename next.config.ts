@@ -8,8 +8,11 @@ const nextConfig: NextConfig = {
   // change is checked against before it is saved.
   outputFileTracingIncludes: {
     "/api/plan-ai/interpret": ["./public/data/plat/index.json", "./public/data/plat/ge.json"],
-    "/api/plan-ai/apply": ["./public/data/plat/index.json", "./public/data/plat/subject/*.json"],
-    "/course/[sub]/[num]": ["./public/data/plat/subject/*.json"],
+    "/api/plan-ai/apply": [
+      "./public/data/plat/index.json", "./public/data/plat/subject/*.json",
+      "./public/data/plat/terms/*/index.json", "./public/data/plat/terms/*/subject/*.json",
+    ],
+    "/course/[sub]/[num]": ["./public/data/plat/subject/*.json", "./public/data/plat/terms/*/index.json"],
     "/professor/[name]": ["./public/data/plat/professors.json"],
   },
 };
