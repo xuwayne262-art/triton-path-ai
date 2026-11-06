@@ -1,30 +1,36 @@
-# Keeps the course dataset (public/data/plat) in step with UCSD's Class Planner.
+# Keeps each quarter's schedule (public/data/plat/terms/) in step with UCSD's
+# public Class Planner schedule.
 #
-# Every half hour it asks Class Planner whether anything changed
-# (scripts/watch-classplanner.mjs): the next quarter's listings, the term's
-# course, section or meeting counts, or seats recounted from TSS. Once a day,
-# after UCSD's own refresh (about 16:10 UTC), it rebuilds whatever it hears,
-# which catches an instructor or a room changing.
+# Every half hour it asks UCSD's public terms list what changed
+# (scripts/watch-public-terms.mjs): a quarter's course, section or meeting
+# counts, a refresh of a quarter since the one last seen, or a next quarter
+# appearing. It rebuilds only those quarters, from the public search
+# (scripts/fetch-public-term.mjs, scripts/build-term-data.mjs).
 #
-# A rebuild is published only when it passes scripts/check-data.mjs and the
-# test suite, and only when it changed something besides the times its sources
-# were read (scripts/data-changed.mjs). Publishing is a commit to main, which
-# Vercel deploys. A failure publishes nothing — the site keeps the data it had —
-# and an issue labelled "data-update" says what went wrong. Later failures edit
-# that issue instead of opening more, and the next good update closes it.
+# Fall 2026 is the shared dataset (public/data/plat/index.json and subject/)
+# as last built on Oct 24, 2026: its rooms and booking links came from Class
+# Planner routes that have needed a sign-in since late October, and the
+# public schedule has neither. Changes UCSD makes to it are reported, not
+# rebuilt.
+#
+# A rebuild is published only when it passes scripts/check-term-data.mjs and
+# the test suite, and only when it changed something besides UCSD's refresh
+# time. Publishing is a commit to main, which Vercel deploys. A failure —
+# UCSD not answering included — publishes nothing (the site keeps the data
+# it had) and an issue labelled "data-update" says what went wrong; later
+# failures edit that issue, and the next good update closes it.
 
 name: Update course data
 
 on:
   schedule:
     - cron: "*/30 * * * *"
-    - cron: "20 17 * * *"
   workflow_dispatch:
     inputs:
-      force:
-        description: Rebuild even if Class Planner shows no change
-        type: boolean
-        default: false
+      terms:
+        description: Rebuild these quarters even if UCSD shows no change (space-separated, e.g. WI27)
+        type: string
+        default: ""
 
 permissions:
   contents: write
@@ -37,101 +43,72 @@ concurrency:
 jobs:
   update:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
-    env:
-      DAILY: ${{ github.event.schedule == '20 17 * * *' }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
-      # No npm cache here: most runs only ask Class Planner and stop, and
-      # restoring one would make every half-hourly check slower.
+      # No npm cache here: most runs only ask UCSD and stop.
       - uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      - name: Ask Class Planner what changed
+      # The refresh time UCSD gave for each quarter at the last good run, so a
+      # refresh is rebuilt once rather than every half hour.
+      - name: Recall what UCSD said last time
+        uses: actions/cache/restore@v4
+        with:
+          path: .data-cache/watch-state.json
+          key: watch-state-${{ github.run_id }}
+          restore-keys: watch-state-
+
+      - name: Ask UCSD what changed
         id: watch
-        run: node scripts/watch-classplanner.mjs $([ "$DAILY" = "true" ] && echo --daily)
+        run: node scripts/watch-public-terms.mjs --state .data-cache/watch-state.json --save-seen "$RUNNER_TEMP/seen.json"
 
       # After a failure, wait six hours before rebuilding again: a check that
-      # keeps failing would otherwise rebuild every half hour, and each
-      # rebuild costs minutes the free plan does not have to spare.
+      # keeps failing would otherwise rebuild every half hour.
       - name: Decide whether to rebuild
         id: go
         env:
           GH_TOKEN: ${{ github.token }}
           UPDATE: ${{ steps.watch.outputs.update }}
-          FORCE: ${{ inputs.force }}
+          WATCHED: ${{ steps.watch.outputs.terms }}
+          FORCED: ${{ inputs.terms }}
           REASON: ${{ steps.watch.outputs.reason }}
         run: |
           echo "$REASON"
           failed=$(gh issue list --label data-update --state open --json updatedAt --jq '.[0].updatedAt // empty' 2>/dev/null || true)
           recent=false
           if [ -n "$failed" ] && [ $(( $(date -u +%s) - $(date -u -d "$failed" +%s) )) -lt 21600 ]; then recent=true; fi
-          if [ "$FORCE" = "true" ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
+          if [ -n "$FORCED" ]; then
+            echo "terms=$FORCED" >> "$GITHUB_OUTPUT"; echo "run=true" >> "$GITHUB_OUTPUT"
           elif [ "$UPDATE" = "true" ] && [ "$recent" = "true" ]; then
             echo "An update failed less than six hours ago ($failed); trying again after that."
             echo "run=false" >> "$GITHUB_OUTPUT"
           elif [ "$UPDATE" = "true" ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "terms=$WATCHED" >> "$GITHUB_OUTPUT"; echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
 
-      # The catalog and the requirement lists change a few times a year; they
-      # are fetched once a week and kept between runs. The grade archive is not
-      # fetched: it went behind UCSD's sign-in in October 2026, and the build
-      # reads its last open harvest from data/sources/as-grades.json.
-      - name: Name this week
-        if: steps.go.outputs.run == 'true'
-        id: week
-        run: echo "week=$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
-
-      - name: Restore this week's catalog and requirement lists
-        if: steps.go.outputs.run == 'true'
-        id: inputs
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            .data-cache/catalog.json
-            .data-cache/requirements.json
-          key: inputs-${{ steps.week.outputs.week }}
-
-      - name: Fetch them
-        if: steps.go.outputs.run == 'true' && steps.inputs.outputs.cache-hit != 'true'
-        run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils > /dev/null
-          node scripts/fetch-catalog.mjs
-          node scripts/fetch-requirements.mjs
-
-      - name: Keep them for the rest of the week
-        if: steps.go.outputs.run == 'true' && steps.inputs.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            .data-cache/catalog.json
-            .data-cache/requirements.json
-          key: inputs-${{ steps.week.outputs.week }}
-
-      - name: Fetch the term from Class Planner
+      # Each quarter is captured into a new directory, verified, and only then
+      # built; a capture or build that fails leaves the published quarter as it was.
+      - name: Capture and build each quarter
         if: steps.go.outputs.run == 'true'
         env:
-          TERM_CODE: ${{ steps.watch.outputs.term }}
-        run: node scripts/fetch-classplanner.mjs ${TERM_CODE:+--term "$TERM_CODE"}
-
-      - name: Build the dataset
-        if: steps.go.outputs.run == 'true'
+          TERMS: ${{ steps.go.outputs.terms }}
         run: |
-          cp -r public/data/plat "$RUNNER_TEMP/previous"
-          node scripts/build-plat-data.mjs
+          for t in $TERMS; do
+            node scripts/fetch-public-term.mjs "$t" ".data-cache/terms/$t/capture"
+            node scripts/build-term-data.mjs "$t" --raw ".data-cache/terms/$t/capture/raw" --report "$RUNNER_TEMP/$t.json"
+          done
 
-      # The findings also go on the run's summary page, warnings included.
-      - name: Check it for errors
+      # The findings also go on the run's summary page.
+      - name: Check the published quarters
         if: steps.go.outputs.run == 'true'
         run: |
           set +e
-          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-data.mjs --previous "$RUNNER_TEMP/previous" --report "$RUNNER_TEMP/report.md"
+          node scripts/check-term-data.mjs --report "$RUNNER_TEMP/report.md"
           code=$?
           set -e
           if [ -f "$RUNNER_TEMP/report.md" ]; then cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"; fi
@@ -140,8 +117,6 @@ jobs:
       - name: Run the tests against it
         if: steps.go.outputs.run == 'true'
         env:
-          # Tests that would hold back a new term over a new subject prefix
-          # step aside; the checker above warns about it instead.
           DATA_UPDATE: "1"
         run: |
           npm ci --no-audit --no-fund
@@ -151,13 +126,8 @@ jobs:
         if: steps.go.outputs.run == 'true'
         id: diff
         run: |
-          set +e
-          node scripts/data-changed.mjs "$RUNNER_TEMP/previous"
-          code=$?
-          set -e
-          if [ $code -eq 0 ]; then echo "changed=true" >> "$GITHUB_OUTPUT"
-          elif [ $code -eq 3 ]; then echo "changed=false" >> "$GITHUB_OUTPUT"
-          else exit $code; fi
+          if [ -n "$(git status --porcelain public/data/plat)" ]; then echo "changed=true" >> "$GITHUB_OUTPUT"
+          else echo "  nothing changed but UCSD's refresh times"; echo "changed=false" >> "$GITHUB_OUTPUT"; fi
 
       # Committed as the site's owner: Vercel deploys a private repository's
       # commits only when its owner wrote them.
@@ -169,13 +139,30 @@ jobs:
           git config user.name "xuwayne262-art"
           git config user.email "244912651+xuwayne262-art@users.noreply.github.com"
           git add public/data/plat
-          git commit -q -m "Update course data from UCSD's Class Planner" -m "$REASON" -m "$(cat "$RUNNER_TEMP/report.md")" -m "Automatic update: .github/workflows/update-data.yml"
+          git commit -q -m "Update course data from UCSD's public schedule" -m "$REASON" -m "$(cat "$RUNNER_TEMP/report.md")" -m "Automatic update: .github/workflows/update-data.yml"
           git fetch -q origin main
           git rebase -q origin/main
           git push -q origin HEAD:main
 
+      # Kept only once a rebuild went through, or none was needed: a failed
+      # rebuild, or one put off after a failure, is tried again.
+      - name: Remember what UCSD said
+        id: seen
+        if: success() && (steps.go.outputs.run == 'true' || steps.watch.outputs.update != 'true')
+        run: |
+          mkdir -p .data-cache
+          if cmp -s "$RUNNER_TEMP/seen.json" .data-cache/watch-state.json; then echo "save=false" >> "$GITHUB_OUTPUT"
+          else cp "$RUNNER_TEMP/seen.json" .data-cache/watch-state.json; echo "save=true" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Keep it for the next run
+        if: success() && (steps.go.outputs.run == 'true' || steps.watch.outputs.update != 'true') && steps.seen.outputs.save == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .data-cache/watch-state.json
+          key: watch-state-${{ github.run_id }}
+
       - name: Close the failure issue, if one is open
-        if: success() && steps.go.outputs.run == 'true'
+        if: success()
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -194,7 +181,7 @@ jobs:
           {
             echo "The automatic course-data update failed, so nothing was published: the site still shows the data it had."
             echo
-            echo "Why it ran: ${REASON:-it did not get as far as asking Class Planner}"
+            echo "What it found: ${REASON:-it could not read UCSD's public schedule}"
             echo
             echo "Run, with each step's log: $RUN_URL"
             echo

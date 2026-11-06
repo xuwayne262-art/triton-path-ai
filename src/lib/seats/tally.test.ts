@@ -58,19 +58,45 @@ describe("counting a course's seats", () => {
   });
 });
 
-describe("when Class Planner counted the seats", () => {
-  test("reads the label it shows students, in Pacific time", async () => {
-    const { seatTime } = await import("./snapshot");
-    assert.equal(seatTime("9/21/26 8:37 AM PDT"), "2026-09-21T15:37:00.000Z");
-    assert.equal(seatTime("9/20/26 5:48 PM PDT"), "2026-09-21T00:48:00.000Z", "evening in San Diego is the next day in UTC");
-    assert.equal(seatTime("1/12/27 12:05 AM PST"), "2027-01-12T08:05:00.000Z", "standard time is eight hours behind");
-    assert.equal(seatTime("12/1/2026 12:30 PM PST"), "2026-12-01T20:30:00.000Z");
+describe("the daily seat snapshot", () => {
+  test("counts every quarter still running or ahead, never a summer session or one that ended", async () => {
+    const { quartersToCount } = await import("./snapshot");
+    const terms = [
+      { term_code: "WI27", configured: true },
+      { term_code: "FA26", configured: true },
+      { term_code: "S126", configured: true },
+      { term_code: "SP26", configured: true },
+      { term_code: "SP27", configured: false },
+    ];
+    assert.deepEqual(quartersToCount(terms, "2026-11-06").map((t) => t.term_code), ["WI27", "FA26"]);
+    assert.deepEqual(quartersToCount(terms, "2026-12-13").map((t) => t.term_code), ["WI27"]);
   });
 
-  test("says nothing about a label it does not know", async () => {
-    const { seatTime } = await import("./snapshot");
-    assert.equal(seatTime("18 days ago"), null);
-    assert.equal(seatTime(""), null);
-    assert.equal(seatTime(null), null);
+  test("pages the public search per term and counts a course's listings together", async () => {
+    const { takeSnapshots } = await import("./snapshot");
+    const listing = (term: string, code: string, enrolled: number) => ({
+      term_code: term, subject_code: "CSE", course_code: code,
+      sections: [{ section_id: `${term}${code}${enrolled}`, instruction_type_name: "lecture", capacity: 100, enrolled, status: "AC" }],
+    });
+    const listings: Record<string, ReturnType<typeof listing>[]> = {
+      WI27: [listing("WI27", "190", 10), listing("WI27", "190", 5), listing("WI27", "011", 50)],
+      FA26: [listing("FA26", "012", 90)],
+    };
+    const asked: unknown[] = [];
+    const fake = async (url: string, init?: { body?: string }) => {
+      if (url.endsWith("/terms")) {
+        return Response.json({ terms: [{ term_code: "WI27", last_full_refresh_at: "2026-11-06 01:38:11+00" }, { term_code: "FA26" }] });
+      }
+      const { term_code, offset, limit } = JSON.parse(String(init?.body));
+      asked.push([term_code, offset, limit]);
+      const all = listings[term_code];
+      return Response.json({ term_code, total: all.length, offset, limit, courses: all.slice(offset, offset + limit) });
+    };
+    const snaps = await takeSnapshots(fake as typeof fetch, new Date("2026-11-06T20:00:00Z"));
+    assert.deepEqual(snaps.map((s) => [s.term, s.refreshed, s.rows.map((r) => [r.course, r.enrolled])]), [
+      ["WI27", "2026-11-06 01:38:11+00", [["CSE 11", 50], ["CSE 190", 15]]],
+      ["FA26", null, [["CSE 12", 90]]],
+    ]);
+    assert.deepEqual(asked, [["WI27", 0, 48], ["FA26", 0, 48]]);
   });
 });

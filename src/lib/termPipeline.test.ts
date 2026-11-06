@@ -12,6 +12,7 @@ import {
   buildTerm, changesSince, departmentGuidance, primaryMeeting, publishTerm, seatTotals, unitsNumber,
 } from "../../scripts/build-term-data.mjs";
 import { listingTuples } from "./termData";
+import { decide } from "../../scripts/watch-public-terms.mjs";
 
 /**
  * The Winter 2027 release snapshot (UCSD's public schedule, refreshed Nov 6,
@@ -279,6 +280,40 @@ describe("building the term from the capture", () => {
     const lecture = { section_id: "1", instruction_type_name: "lecture", status: "AC", capacity: 100, seats_available: 40 };
     const discussion = { section_id: "2", instruction_type_name: "discussion", status: "AC", capacity: 50, seats_available: 10 };
     assert.deepEqual(seatTotals([lecture, discussion, lecture]), { avail: 40, limit: 100, waitlistOnly: false });
+  });
+});
+
+describe("watching UCSD for changes", () => {
+  const manifest = {
+    terms: [
+      { code: "FA26", path: null, refreshed: "2026-10-24 15:49:38+00", summary: { courses: 2347, sections: 9013, meetings: 13011 } },
+      { code: "WI27", path: "terms/WI27", refreshed: "2026-11-06 01:38:11+00", summary: { courses: 2262, sections: 7552, meetings: 11693 } },
+    ],
+  };
+  const wi27 = { term_code: "WI27", configured: true, course_count: 2262, section_count: 7552, meeting_count: 11693, last_full_refresh_at: "2026-11-06 01:38:11+00" };
+  const fa26 = { term_code: "FA26", configured: true, course_count: 2347, section_count: 9016, meeting_count: 13016, last_full_refresh_at: "2026-10-27 16:12:31+00" };
+
+  test("nothing new: no rebuild; Fall's own changes are reported, never rebuilt", () => {
+    const d = decide([wi27, fa26], manifest);
+    assert.equal(d.update, false);
+    assert.deepEqual(d.terms, []);
+    assert.match(d.reason, /FA26 changed at UCSD .* kept as built/);
+  });
+
+  test("a refresh or a count change rebuilds that quarter, once", () => {
+    const refreshed = { ...wi27, last_full_refresh_at: "2026-11-07 01:40:00+00" };
+    assert.deepEqual(decide([refreshed, fa26], manifest).terms, ["WI27"]);
+    assert.deepEqual(decide([refreshed, fa26], manifest, { WI27: "2026-11-07 01:40:00+00" }).terms, [], "already seen");
+    assert.deepEqual(decide([{ ...wi27, section_count: 7555 }], manifest).terms, ["WI27"]);
+  });
+
+  test("a next quarter is added once it is listed in earnest; summer sessions are not quarters", () => {
+    const spring = { term_code: "SP27", configured: true, course_count: 2100, section_count: 7000, meeting_count: 11000, last_full_refresh_at: "2027-02-12 01:00:00+00" };
+    assert.deepEqual(decide([spring, wi27], manifest).terms, ["SP27"]);
+    const partial = decide([{ ...spring, course_count: 300 }, wi27], manifest);
+    assert.deepEqual(partial.terms, []);
+    assert.match(partial.reason, /waiting for at least 1131/);
+    assert.deepEqual(decide([{ ...spring, term_code: "S127" }, wi27], manifest).terms, []);
   });
 });
 

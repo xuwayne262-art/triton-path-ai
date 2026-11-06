@@ -5,8 +5,12 @@
  *   as-grades.json     AS Instructor Grade Archive — 2015-2026 grade distributions (fetch-as-grades.mjs)
  *   catalog.json       catalog.ucsd.edu  — every catalogued course, its description
  *                      and prerequisites (fetch-catalog.mjs)
- *   classplanner.json  UCSD Class Planner — this term's sections, per-section
- *                      instructors, live seats, TSS module ids (fetch-classplanner.mjs)
+ *   classplanner.json  UCSD Class Planner — Fall 2026's sections, per-section
+ *                      instructors, seats, TSS module ids and rooms. Its fetcher
+ *                      read routes that have needed a sign-in since late October
+ *                      2026, so only an existing harvest can be used, and never
+ *                      one older than the published dataset (see checkInputs).
+ *                      Later quarters are built by build-term-data.mjs instead.
  *   requirements.json  the campus-wide AHI and DEI course lists (fetch-requirements.mjs)
  *   data.json          ucsd-easy-a-radar — RateMyProfessors scores only
  *   ge-courses.json    ucsd-easy-a-radar — approved GE lists per UCSD college
@@ -113,13 +117,18 @@ const SUBJECT_NAMES = {
 function checkInputs() {
   fs.mkdirSync(CACHE, { recursive: true });
   console.log(`  grades  ${path.relative(ROOT, gradesFile())}`);
-  for (const [file, script] of [
-    ["catalog.json", "fetch-catalog.mjs"],
-    ["classplanner.json", "fetch-classplanner.mjs"],
-  ]) {
-    if (!fs.existsSync(path.join(CACHE, file))) {
-      throw new Error(`missing .data-cache/${file} — run: node scripts/${script}`);
-    }
+  if (!fs.existsSync(path.join(CACHE, "catalog.json"))) {
+    throw new Error("missing .data-cache/catalog.json — run: node scripts/fetch-catalog.mjs");
+  }
+  const sched = path.join(CACHE, "classplanner.json");
+  if (!fs.existsSync(sched)) throw new Error("missing .data-cache/classplanner.json: Fall 2026's harvest, which can no longer be fetched");
+  // A harvest older than what is published would put old seats, instructors
+  // and rooms back on the site. The published one is the newest that exists.
+  const published = path.join(OUT, "index.json");
+  const harvested = JSON.parse(fs.readFileSync(sched, "utf8")).generated || "";
+  const live = fs.existsSync(published) ? JSON.parse(fs.readFileSync(published, "utf8")).meta?.retrieved || "" : "";
+  if (live && harvested < live && !process.argv.includes("--allow-older")) {
+    throw new Error(`.data-cache/classplanner.json was read ${harvested || "at an unknown time"}, before the published dataset (${live}); pass --allow-older to build from it anyway`);
   }
   for (const f of SOURCES) {
     console.log(cached(f) ? `  cached  ${f}` : `  carry   ${f} is not in .data-cache; carrying its part of the published dataset over (${RAW})`);
@@ -469,7 +478,7 @@ function build() {
    * seat time at all is published from them.
    */
   const datedSeats = Array.isArray(sched.secCols) && sched.secCols.includes("seatsAt");
-  if (!datedSeats) console.log("  classplanner.json predates per-section seat times — publishing seats undated (run: node scripts/fetch-classplanner.mjs)");
+  if (!datedSeats) console.log("  classplanner.json predates per-section seat times — publishing seats undated");
   const ge = cached("ge-courses.json") ? readCache("ge-courses.json") : null;
   const requirements = fs.existsSync(path.join(CACHE, "requirements.json")) ? readCache("requirements.json") : null;
   // Without ucsd-easy-a-radar's files, their part comes from what is published.
@@ -1125,7 +1134,7 @@ function build() {
     };
   }
   if (!Object.keys(buildings).length) {
-    console.log("  no building codes in classplanner.json — run: node scripts/fetch-classplanner.mjs");
+    console.log("  no building codes in classplanner.json");
   }
 
   const sizeIndex = write("index.json", { meta, subjects, courses: index });

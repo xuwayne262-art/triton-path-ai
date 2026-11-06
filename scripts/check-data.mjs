@@ -38,7 +38,7 @@ const TERM_CODE = /^[A-Z][A-Z0-9]\d{2}$/;
 const DAYS = /^(M|Tu|W|Th|F|Sa|Su)+$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const CLOCK = /^(\d{1,2}):(\d{2})([ap])$/;
-/** A section tuple's columns, as scripts/fetch-classplanner.mjs writes them. */
+/** A section tuple's columns, as the shared dataset publishes them (see SectionTuple in src/lib/plat.ts). */
 const S = {
   code: 0, type: 1, days: 2, start: 3, end: 4, building: 5, room: 6, instructor: 7,
   seats: 8, limit: 9, cancelled: 10, waitlist: 11, enrolled: 12, id: 13,

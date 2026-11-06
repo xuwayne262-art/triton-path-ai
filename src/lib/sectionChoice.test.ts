@@ -7,7 +7,7 @@ import {
   choicePackage, decodeChoice, encodeChoice, familyExams, finalOverview, finalSlots, packageUrl, summarizeChoice,
 } from "./sectionChoice";
 
-/** A row in the shape fetch-classplanner.mjs emits. */
+/** A section row in the shape the shared dataset publishes (see SectionTuple). */
 function row(
   code: string, type: string, days: string, start: string, end: string,
   over: { id?: string; pkg?: string[]; avail?: number | null; limit?: number | null; room?: string } = {},

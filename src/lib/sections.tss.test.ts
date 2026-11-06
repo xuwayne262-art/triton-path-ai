@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { sectionTssUrl, sectionWaitlist } from "./sections";
 import type { SectionTuple } from "./plat";
 
-/** A section tuple in the shape fetch-classplanner.mjs emits. */
+/** A section tuple in the shape the shared dataset publishes. */
 function section(over: Partial<{
   code: string; type: string; avail: number | null; limit: number | null;
   waitlist: number; pkg: string[];

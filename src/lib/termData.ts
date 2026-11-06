@@ -367,7 +367,9 @@ export function overlayIndex(base: PlatIndex, file: TermIndexFile, entry: TermEn
     ...(t.in ? { in: t.in } : {}),
   });
   const courses: CourseRow[] = base.courses.map((row) => {
-    const { sat: _sat, ...rest } = row;
+    // Fall's seat-count time describes Fall's seats only.
+    const rest = { ...row };
+    delete rest.sat;
     const t = rows.get(row.k);
     return t ? { ...rest, ...termFields(t), pr: (row.pr || (t.tp ? 1 : 0)) as 0 | 1 } : { ...rest, ...UNOFFERED };
   });
@@ -386,7 +388,11 @@ export function overlayIndex(base: PlatIndex, file: TermIndexFile, entry: TermEn
     n: courses.filter((c) => c.s === s.code).length,
     offered: courses.filter((c) => c.s === s.code && c.o).length,
   })).sort((a, b) => a.code.localeCompare(b.code));
-  const { seatsAsOf: _a, seatsNewest: _b, retrieved: _r, ...shared } = base.meta;
+  // Fall's seat times and read time say nothing about this term.
+  const shared = { ...base.meta };
+  delete shared.seatsAsOf;
+  delete shared.seatsNewest;
+  delete shared.retrieved;
   return {
     meta: {
       ...shared,

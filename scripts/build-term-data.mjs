@@ -181,8 +181,11 @@ function readShared() {
 
 /** A listing as published: everything UCSD sent, less what the file says once. */
 function publishedListing(l) {
-  const { term_code: _t, subject_code: _s, subject_name: _n, ...rest } = l;
-  return rest;
+  const out = { ...l };
+  delete out.term_code;
+  delete out.subject_code;
+  delete out.subject_name;
+  return out;
 }
 
 /**
@@ -352,6 +355,26 @@ export function changesSince(previousDir, built) {
   };
 }
 
+/**
+ * Whether the built term says nothing the published one does not. UCSD's
+ * refresh time and the version stamp that carries it are set aside: a refresh
+ * that changed nothing is not news, and publishing it would be a commit and a
+ * deploy for nothing.
+ */
+export function sameAsPublished(built, outDir) {
+  if (!fs.existsSync(path.join(outDir, "index.json"))) return false;
+  const plain = (file) => JSON.stringify({ ...file, v: undefined, meta: file.meta ? { ...file.meta, v: undefined, refreshed: undefined } : undefined });
+  if (plain(readJson(path.join(outDir, "index.json"))) !== plain(built.index)) return false;
+  const dir = path.join(outDir, "subject");
+  const published = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith(".json")) : [];
+  if (published.length !== built.subjects.size) return false;
+  for (const [sub, file] of built.subjects) {
+    const p = path.join(dir, `${sub}.json`);
+    if (!fs.existsSync(p) || plain(readJson(p)) !== plain(file)) return false;
+  }
+  return true;
+}
+
 /** Writes the built term next to the published one, then swaps it in. */
 export function publishTerm(built, outDir) {
   const parent = path.dirname(outDir);
@@ -441,6 +464,12 @@ function main() {
   const zeroed = zeroedImport(built.coverage, prevCoverage);
   if (zeroed) throw new Error(`refusing to publish ${term}: ${zeroed}`);
   const changes = changesSince(outDir, built);
+  const report = flag("report");
+  if (sameAsPublished(built, outDir)) {
+    console.log(`  ${term}: nothing changed but UCSD's refresh time (${built.index.meta.refreshed}); the published files are kept`);
+    if (report) fs.writeFileSync(report, `${JSON.stringify({ coverage: built.coverage, changes, unchanged: true }, null, 2)}\n`);
+    return;
+  }
   publishTerm(built, outDir);
   const meta = built.index.meta;
   writeManifest({
@@ -459,7 +488,6 @@ function main() {
   console.log(`  UCSD's summary: ${c.term_summary.course_count}/${c.term_summary.section_count}/${c.term_summary.meeting_count} (summary minus search: ${Object.values(c.summary_minus_observed).join("/")})`);
   console.log(`  ${built.newCourses} courses the shared dataset has never seen; ${guidance.size} with department guidance; ${catalog.size} catalog references`);
   if (changes) console.log(`  since ${changes.previous}: +${changes.coursesAdded.length}/-${changes.coursesWithdrawn.length} courses, +${changes.sectionsAdded}/-${changes.sectionsWithdrawn} sections, ${changes.sectionsChanged} sections changed`);
-  const report = flag("report");
   if (report) fs.writeFileSync(report, `${JSON.stringify({ coverage: c, changes }, null, 2)}\n`);
   console.log(`  wrote ${path.relative(ROOT, outDir)} (${built.subjects.size} subject files) and ${path.relative(ROOT, MANIFEST)}`);
 }

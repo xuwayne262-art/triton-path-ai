@@ -1,20 +1,26 @@
-import { termRank } from "@/lib/plan/term";
+import { quarterOf, termRank } from "@/lib/terms";
+import { QUARTERS, todayInSanDiego } from "@/lib/housing/terms";
 import { tallyPlannerSections, type PlannerSection, type SeatCount } from "./tally";
 
 /**
- * Today's seats for every course UCSD's Class Planner lists — the same
- * first-party source as the dataset's schedule, read the way
- * scripts/fetch-classplanner.mjs reads it, minus everything but the counts.
+ * Today's seats for every course in each quarter UCSD's public schedule
+ * serves — Fall and Winter together while Winter is being booked — so each
+ * course page can draw how its own quarter filled.
  *
- * About 250 requests: one course list per subject, paged 48 at a time (the
- * API refuses more). Run once a day by the cron route; UCSD refreshes the
- * term's availability roughly daily (`last_full_refresh_at`).
+ * It reads the public search (POST /api/v1/public/catalog/courses/search),
+ * paged 48 listings at a time with an explicit term and offset: about fifty
+ * requests a quarter. The routes it used before (/planner/terms,
+ * /catalog/courses, /schedules/{ref}) answer 401 since late October 2026.
+ *
+ * The public schedule does not say when UCSD counted a section's seats, so a
+ * snapshot is filed under the San Diego day it was read on, and the chart
+ * says so; UCSD's own refresh time is kept beside it, never as a count time.
  */
 
-const API = "https://classplanner.apps.ucsd.edu/api/v1";
-/** The API rejects anything larger; it is not a suggestion. */
+const API = "https://classplanner.apps.ucsd.edu/api/v1/public/catalog";
+/** The search refuses larger pages. */
 const PAGE = 48;
-const CONCURRENCY = 6;
+const CONCURRENCY = 4;
 
 export interface CourseSeats extends SeatCount {
   /** "CSE 12" */
@@ -23,48 +29,30 @@ export interface CourseSeats extends SeatCount {
 
 export interface Snapshot {
   term: string;
-  /** When UCSD last refreshed the term, as the API says it. */
+  /** When UCSD last refreshed the term, as the API says it. Not when any seat was counted. */
   refreshed: string | null;
-  /**
-   * When Class Planner last counted seats from TSS (ISO), judged on the term's
-   * busiest courses; null when it would not say. Its counts can stay the same
-   * for weeks — Fall 2026's were Sep 21's on Oct 10 — so a snapshot is filed
-   * under this day, not the day it was taken.
-   */
-  counted: string | null;
   rows: CourseSeats[];
 }
 
-/**
- * When Class Planner says it last counted a course's seats: "9/21/26 8:37 AM
- * PDT" -> "2026-09-21T15:37:00.000Z". Null for a label in another shape.
- */
-export function seatTime(label: string | null | undefined): string | null {
-  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4}) (\d{1,2}):(\d{2}) ?([AP]M) (PDT|PST)$/i.exec(String(label ?? "").trim());
-  if (!m) return null;
-  const year = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
-  const hour = (Number(m[4]) % 12) + (/^p/i.test(m[6]) ? 12 : 0);
-  const t = Date.UTC(year, Number(m[1]) - 1, Number(m[2]), hour + (/^PST$/i.test(m[7]) ? 8 : 7), Number(m[5]));
-  return Number.isFinite(t) ? new Date(t).toISOString() : null;
-}
-
-/** A share link's schedule ref, as Class Planner builds it: ids sorted, at most 15 courses. */
-const scheduleRef = (ids: string[], term: string) =>
-  "CS2" + Buffer.from(JSON.stringify({ s: [...new Set(ids)].sort(), t: term })).toString("base64").replace(/=+$/, "");
-
 type Fetch = typeof fetch;
 
-async function getJson<T>(f: Fetch, url: string, tries = 3): Promise<T> {
+async function call<T>(f: Fetch, path: string, body?: unknown, tries = 3): Promise<T> {
   for (let attempt = 1; ; attempt++) {
     try {
-      const res = await f(url, {
-        headers: { accept: "application/json", "user-agent": "UCSDPlans seat history (student project)" },
+      const res = await f(`${API}${path}`, {
+        method: body ? "POST" : "GET",
+        headers: {
+          accept: "application/json",
+          "user-agent": "UCSDPlans seat history (student project)",
+          ...(body ? { "content-type": "application/json", origin: "https://classplanner.apps.ucsd.edu" } : {}),
+        },
+        body: body ? JSON.stringify(body) : undefined,
         cache: "no-store",
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return (await res.json()) as T;
     } catch (err) {
-      if (attempt >= tries) throw new Error(`${url}: ${err instanceof Error ? err.message : String(err)}`);
+      if (attempt >= tries) throw new Error(`${path}: ${err instanceof Error ? err.message : String(err)}`);
       await new Promise((r) => setTimeout(r, 400 * attempt));
     }
   }
@@ -85,10 +73,24 @@ async function pool<T, R>(items: T[], worker: (item: T) => Promise<R>): Promise<
   return out;
 }
 
-interface PlannerCourse {
+interface Listing {
+  term_code: string;
   subject_code: string;
   course_code: string;
   sections?: PlannerSection[];
+}
+
+interface Page {
+  term_code: string;
+  total: number;
+  offset: number;
+  courses: Listing[];
+}
+
+interface TermHeader {
+  term_code: string;
+  configured?: boolean;
+  last_full_refresh_at?: string | null;
 }
 
 /** "CSE", "005" -> "CSE 5": the code every other part of the site uses. */
@@ -96,76 +98,58 @@ export const plannerCode = (subject: string, course: string) =>
   `${subject} ${String(course).replace(/^0+(?=\d)/, "")}`;
 
 /**
- * One snapshot of the term Class Planner currently serves. A topics course
- * listed once per topic (CSE 190) is one course, so its entries are counted
- * together.
+ * The quarters worth a snapshot today: every configured Fall, Winter or Spring
+ * whose finals are not over. A summer session is not a quarter on UCSD's
+ * calendar, and a finished quarter's seats no longer move.
  */
-export async function takeSnapshot(f: Fetch = fetch): Promise<Snapshot> {
-  const { terms } = await getJson<{ terms?: { term_code: string; configured?: boolean; last_full_refresh_at?: string }[] }>(
-    f, `${API}/planner/terms`,
-  );
-  // The latest quarter, as scripts/fetch-classplanner.mjs picks it: once the
-  // next quarter's listings are out, both are served, and the next is the one
-  // being enrolled in. A summer session is not a quarter.
-  const configured = (terms ?? []).filter((t) => t.configured !== false);
-  const quarters = configured.filter((t) => /^(FA|WI|SP)\d{2}$/.test(t.term_code));
-  const term = [...(quarters.length ? quarters : configured)].sort((a, b) => termRank(b.term_code) - termRank(a.term_code))[0];
-  if (!term) throw new Error("Class Planner lists no configured term");
-
-  const filters = await getJson<{ subjects?: { value: string }[] }>(
-    f, `${API}/catalog/filters?term_code=${encodeURIComponent(term.term_code)}`,
-  );
-  const subjects = (filters.subjects ?? []).map((s) => s.value);
-
-  const pages = await pool(subjects, async (subject) => {
-    const rows: PlannerCourse[] = [];
-    for (let offset = 0; ; offset += PAGE) {
-      const page = await getJson<{ courses?: PlannerCourse[]; total?: number }>(
-        f,
-        `${API}/catalog/courses?term_code=${encodeURIComponent(term.term_code)}&subject_code=${encodeURIComponent(subject)}&limit=${PAGE}&offset=${offset}`,
-      );
-      const got = page.courses ?? [];
-      rows.push(...got);
-      if (got.length < PAGE || rows.length >= (page.total ?? 0)) break;
-    }
-    return rows;
+export function quartersToCount(terms: TermHeader[], today: string): TermHeader[] {
+  return terms.filter((t) => {
+    if (t.configured === false || !/^(FA|WI|SP)\d{2}$/.test(t.term_code)) return false;
+    const q = quarterOf(t.term_code);
+    // A quarter the calendar here does not have yet is a new one, unless it is older than all it has.
+    return q ? today <= q.end : termRank(t.term_code) > termRank(QUARTERS[0].key);
   });
+}
 
+/** Every listing of one term, page by page, checked to belong to it and to add up to its total. */
+async function termListings(f: Fetch, term: string): Promise<Listing[]> {
+  const first = await call<Page>(f, "/courses/search", { term_code: term, offset: 0, limit: PAGE });
+  const offsets: number[] = [];
+  for (let o = first.courses.length; o < first.total; o += PAGE) offsets.push(o);
+  const rest = await pool(offsets, (offset) => call<Page>(f, "/courses/search", { term_code: term, offset, limit: PAGE }));
+  const pages = [first, ...rest];
+  const listings = pages.flatMap((p) => p.courses ?? []);
+  if (pages.some((p) => p.term_code !== term) || listings.some((l) => l.term_code !== term)) {
+    throw new Error(`the search answered with another term's listings when asked for ${term}`);
+  }
+  if (listings.length !== first.total) throw new Error(`${term}: ${listings.length} of ${first.total} listings`);
+  return listings;
+}
+
+/** One snapshot of one term. A course listed more than once (topics, families) is counted together. */
+export async function snapshotTerm(f: Fetch, header: TermHeader): Promise<Snapshot> {
+  const listings = await termListings(f, header.term_code);
   const sections = new Map<string, PlannerSection[]>();
-  for (const c of pages.flat()) {
+  for (const c of listings) {
     const code = plannerCode(c.subject_code, c.course_code);
     sections.set(code, [...(sections.get(code) ?? []), ...(c.sections ?? [])]);
   }
-
   const rows: CourseSeats[] = [];
   for (const [course, secs] of sections) {
     const count = tallyPlannerSections(secs);
     if (count) rows.push({ course, ...count });
   }
   rows.sort((a, b) => a.course.localeCompare(b.course));
+  return { term: header.term_code, refreshed: header.last_full_refresh_at ?? null, rows };
+}
 
-  // When the counts were taken, asked of the busiest fifteen courses (one
-  // schedule request holds at most fifteen). An outage here is not fatal:
-  // the snapshot is then filed under the day it was taken, as it used to be.
-  let counted: string | null = null;
-  const busiest = rows
-    .map((r) => ({ r, id: (sections.get(r.course) ?? []).find((s) => s.section_id)?.section_id }))
-    .filter((x): x is { r: CourseSeats; id: string } => Boolean(x.id))
-    .sort((a, b) => b.r.enrolled - a.r.enrolled)
-    .slice(0, 15);
-  if (busiest.length) {
-    try {
-      const res = await getJson<{ course_details?: Record<string, { seat_freshness?: { label?: string } }> }>(
-        f, `${API}/schedules/${scheduleRef(busiest.map((x) => x.id), term.term_code)}?context=planner`,
-      );
-      counted = Object.values(res.course_details ?? {})
-        .map((d) => seatTime(d.seat_freshness?.label))
-        .filter((t): t is string => Boolean(t))
-        .sort()
-        .pop() ?? null;
-    } catch (err) {
-      console.error(`[seats] could not ask when the seats were counted: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-  return { term: term.term_code, refreshed: term.last_full_refresh_at ?? null, counted, rows };
+/** Today's snapshot of every quarter worth one (see quartersToCount). */
+export async function takeSnapshots(f: Fetch = fetch, now: Date = new Date()): Promise<Snapshot[]> {
+  const { terms } = await call<{ terms?: TermHeader[] }>(f, "/terms");
+  const wanted = quartersToCount(terms ?? [], todayInSanDiego(now));
+  if (!wanted.length) throw new Error("UCSD's public schedule lists no quarter in progress or ahead");
+  const out: Snapshot[] = [];
+  // One term at a time: each is about fifty requests, and UCSD's API is shared.
+  for (const t of wanted) out.push(await snapshotTerm(f, t));
+  return out;
 }
