@@ -1,11 +1,12 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useId, useSyncExternalStore } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { daysBetween } from "@/lib/housing/terms";
 import { dayLabel } from "@/lib/plat";
-import { positionOf, readClock, splitDuration, type ClockReading, type Milestone } from "@/lib/quarterClock";
+import { positionOf, readClock, readQuarter, splitDuration, type Milestone, type QuarterReading } from "@/lib/quarterClock";
+import { progressPhase } from "@/lib/academicTimeline";
 
 /**
  * The quarter at a glance: which week it is, how much of it has gone by, and
@@ -60,25 +61,32 @@ function calendarUrl(key: string): string {
   return `https://blink.ucsd.edu/instructors/resources/academic/calendars/${firstYear}.html`;
 }
 
-const FRAME =
-  "relative isolate overflow-hidden rounded-2xl px-5 py-4 text-white ring-1 ring-white/10 " +
-  "bg-[linear-gradient(135deg,#0a1630_0%,#10224a_52%,#182B49_100%)] dark:ring-[#FFCD00]/15";
+const SURFACE = "relative isolate overflow-hidden px-5 py-4 text-white bg-[linear-gradient(135deg,#0a1630_0%,#10224a_52%,#182B49_100%)]";
+/** On its own: its own rounded frame. Inside the calendar panel, the panel owns the frame. */
+const FRAME = `${SURFACE} rounded-2xl ring-1 ring-white/10 dark:ring-[#FFCD00]/15`;
 
 /**
- * `term`: show the strip only while that quarter is the one on the clock, so
- * a page about Fall never shows Winter's weeks (or the reverse) because the
- * calendar moved on. Without it, the strip follows the calendar.
+ * `term`: one quarter by its own boundaries, ahead, under way or ended, so
+ * Fall reads "Ended" after Dec 12 instead of vanishing or showing Winter's
+ * weeks. Without it, the strip follows whichever quarter the calendar is in.
+ * `embedded`: drawn as the top of the calendar panel, which owns the frame.
+ * `action`: a link for this quarter, beside its calendar link.
  */
-export default function QuarterClock({ className = "", term }: { className?: string; term?: string }) {
+export default function QuarterClock({
+  className = "", term, embedded = false, action,
+}: { className?: string; term?: string; embedded?: boolean; action?: React.ReactNode }) {
   const t = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-  if (!t) return <Placeholder className={className} />;
-  const reading = readClock(t);
+  const frame = embedded ? SURFACE : FRAME;
+  if (!t) return <Placeholder className={`${frame} ${className}`} />;
+  const now = readClock(t);
+  const reading: QuarterReading | null = term ? readQuarter(term, t) : now && { ...now, ended: false };
   // Past the last quarter the calendar lists, there is nothing true to show.
-  if (!reading || (term && reading.quarter.key !== term)) return null;
-  return <Strip r={reading} className={className} />;
+  if (!reading) return null;
+  return <Strip r={reading} className={`${frame} ${className}`} action={action} />;
 }
 
-function Strip({ r, className }: { r: ClockReading; className: string }) {
+function Strip({ r, className, action }: { r: QuarterReading; className: string; action?: React.ReactNode }) {
+  const titleId = useId();
   const at = (iso: string) => positionOf(iso, r.start, r.end) * 100;
   const finals = r.milestones.find((m) => m.kind === "finals");
   const markers = r.milestones.filter((m) => m.kind === "instruction" || m.kind === "holiday" || m.kind === "last-class");
@@ -87,16 +95,18 @@ function Strip({ r, className }: { r: ClockReading; className: string }) {
   const next = r.next && !(r.stage?.kind === "finals" && r.next.kind === "finals") ? upNext(r.next, r.today) : null;
 
   return (
-    <section aria-labelledby="quarter-title" className={`${FRAME} ${className}`}>
+    <section aria-labelledby={titleId} className={className}>
       <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 -z-10 h-48 w-48 rounded-full bg-[#FFCD00]/20 blur-3xl" />
 
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 id="quarter-title" className="text-[15px] font-semibold tracking-tight">
+        <h3 id={titleId} className="text-[15px] font-semibold tracking-tight">
           {r.quarter.name}
-          {r.stage && <span className="ml-2 font-medium text-white/75">· {stageText(r.stage)}</span>}
-        </h2>
+          {(r.stage || r.ended) && <span className="ml-2 font-medium text-white/75">· {r.ended ? "Ended" : progressPhase(r)}</span>}
+        </h3>
         <p className="text-sm tabular-nums text-white/85">
-          {r.started ? (
+          {r.ended ? (
+            <>Last day {dayLabel(r.quarter.end, { year: true })}</>
+          ) : r.started ? (
             <><span className="font-semibold text-[#FFCD00]">{percent}%</span> gone · {toGo(r.remaining)} to go</>
           ) : (
             <>Begins {dayLabel(r.quarter.begins)}, in {daysToStart} {daysToStart === 1 ? "day" : "days"}</>
@@ -126,24 +136,31 @@ function Strip({ r, className }: { r: ClockReading; className: string }) {
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 text-xs">
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 text-xs">
         {next ? (
           <p className="text-white/85">
             <span className="font-semibold text-[#FFCD00]">{next.label}:</span> {next.value}, {next.sub}
           </p>
+        ) : r.ended ? (
+          <p className="text-white/85">Its classes and finals are over.</p>
         ) : <span />}
-        <a
-          href={calendarUrl(r.quarter.key)}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="inline-flex items-center gap-1 text-white/70 underline-offset-2 transition hover:text-white hover:underline"
-        >
-          Dates: UCSD Academic Calendar <ArrowUpRight aria-hidden className="h-3 w-3" />
-          <span className="sr-only">(opens in a new tab)</span>
-        </a>
+        <span className="flex flex-wrap items-center gap-x-4">
+          {action}
+          <a
+            href={calendarUrl(r.quarter.key)}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex min-h-8 items-center gap-1 text-white/70 underline-offset-2 transition hover:text-white hover:underline"
+          >
+            Academic calendar <ArrowUpRight aria-hidden className="h-3 w-3" />
+            <span className="sr-only">(UCSD, opens in a new tab)</span>
+          </a>
+        </span>
       </div>
       <p className="sr-only">
-        {r.started
+        {r.ended
+          ? `${r.quarter.name} ended ${dayLabel(r.quarter.end)}.`
+          : r.started
           ? `${percent}% of ${r.quarter.name} has gone by; ${toGo(r.remaining)} to go.`
           : `${r.quarter.name} begins ${dayLabel(r.quarter.begins)}, in ${daysToStart} ${daysToStart === 1 ? "day" : "days"}.`}
       </p>
@@ -173,13 +190,6 @@ function Marker({ m, left, upcoming }: { m: Milestone; left: number; upcoming: b
   );
 }
 
-/** "Week 3 of 10", or where the quarter is outside the numbered weeks. */
-function stageText(s: NonNullable<ClockReading["stage"]>): string {
-  if (s.kind === "before-instruction") return "Before instruction";
-  if (s.kind === "finals") return "Finals week";
-  return `Week ${s.week} of ${s.of}`;
-}
-
 /** The time left in the unit it is best read in: "60 days", and on the last day "5 hours". */
 function toGo(ms: number): string {
   const d = splitDuration(ms);
@@ -204,7 +214,7 @@ function nextDayOf(iso: string): string {
 /** The strip's outline, so nothing below moves when the time arrives. */
 function Placeholder({ className }: { className: string }) {
   return (
-    <section aria-label="Quarter progress" className={`${FRAME} ${className}`}>
+    <section aria-label="Quarter progress" className={className}>
       <div className="h-[22px] w-48 animate-pulse rounded bg-white/10 motion-reduce:animate-none" />
       <div className="mt-6 h-1.5 rounded-full bg-white/10" />
       <div className="mt-3 h-4 w-64 rounded bg-white/[0.06]" />

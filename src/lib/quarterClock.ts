@@ -166,27 +166,48 @@ export interface ClockReading {
   next: Milestone | null;
 }
 
-/** Everything the clock shows, at one instant. */
-export function readClock(now: number): ClockReading | null {
-  const at = clockQuarter(now);
-  if (!at) return null;
-  const { quarter, started } = at;
+/** One quarter at an instant, whether the calendar is in it or not: ahead, under way, or over. */
+export interface QuarterReading extends ClockReading {
+  /** Past the end of its last day: the bar is full and there is no next date. */
+  ended: boolean;
+}
+
+function readingOf(quarter: Quarter, now: number): QuarterReading {
   const { start, end } = quarterSpan(quarter);
+  const started = now >= start;
+  const ended = now >= end;
   const today = todayInSanDiego(new Date(now));
   const all = milestones(quarter);
   return {
     quarter,
     started,
+    ended,
     start,
     end,
-    fraction: started ? Math.min(1, Math.max(0, (now - start) / (end - start))) : 0,
-    elapsed: started ? now - start : 0,
-    remaining: started ? end - now : start - now,
+    fraction: ended ? 1 : started ? Math.min(1, Math.max(0, (now - start) / (end - start))) : 0,
+    elapsed: started ? Math.min(now, end) - start : 0,
+    remaining: ended ? 0 : started ? end - now : start - now,
     today,
-    stage: started ? stageOn(quarter, today) : null,
+    stage: started && !ended ? stageOn(quarter, today) : null,
     milestones: all,
-    next: all.find((m) => m.to >= today) ?? null,
+    next: ended ? null : all.find((m) => m.to >= today) ?? null,
   };
+}
+
+/** Everything the clock shows, at one instant: the quarter under way, or between quarters the next. */
+export function readClock(now: number): ClockReading | null {
+  const at = clockQuarter(now);
+  return at ? readingOf(at.quarter, now) : null;
+}
+
+/**
+ * One named quarter's reading, by its own boundaries. The home page shows
+ * Fall's progress beside Winter's dates whichever is being browsed, so Fall
+ * must read "ended" after Dec 12 rather than vanish or borrow Winter's weeks.
+ */
+export function readQuarter(key: string, now: number): QuarterReading | null {
+  const quarter = QUARTERS.find((q) => q.key === key);
+  return quarter ? readingOf(quarter, now) : null;
 }
 
 /** Whole days, hours, minutes and seconds in a span of milliseconds, rounded down. */

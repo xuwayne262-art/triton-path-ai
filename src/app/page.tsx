@@ -6,11 +6,10 @@ import {
   ArrowRight, CalendarDays, GraduationCap, Layers, RotateCw, User, X,
 } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
-import QuarterClock from "@/components/plat/QuarterClock";
 import { PAGE_PAD, SECTION_TITLE } from "@/components/plat/typeScale";
 import CourseRow from "@/components/plat/CourseRow";
 import QuarterPicker from "@/components/plat/QuarterPicker";
-import TermTimeline from "@/components/plat/TermTimeline";
+import AcademicTimelinePanel from "@/components/plat/AcademicTimelinePanel";
 import { chooseTerm, useTerm } from "@/components/plat/useTerm";
 import ProfessorRow from "@/components/plat/ProfessorShelf";
 import SearchCombobox from "@/components/plat/SearchCombobox";
@@ -23,8 +22,8 @@ import {
   type CourseRow as Row, type GEFile, type PlatIndex, type ProfessorRecord,
 } from "@/lib/plat";
 import { loadIndexFor, loadProfessorsFor } from "@/lib/termData";
-import { defaultTerm, termLabelFor, termPhase, termsServed, withTerm, type TermPhase } from "@/lib/terms";
-import { quarterStage, timelineFor } from "@/lib/termTimeline";
+import { termLabelFor, termPhase, termsServed, withTerm, type TermPhase } from "@/lib/terms";
+import { quarterStage } from "@/lib/termTimeline";
 import { quarterByKey, todayInSanDiego } from "@/lib/housing/terms";
 import { announcementHref, isNewAnnouncement, latestAnnouncement } from "@/lib/announcements";
 import { SHELF_RULE, shelfEligible } from "@/lib/recommend";
@@ -70,13 +69,14 @@ const LOOK = {
 } as const;
 
 /**
- * The front door leads with the quarter chosen and what it is for. During
- * booking, "Plan Winter 2027": the quarter control, the search and the way
- * into that quarter's planner, with its dates beside them. During a quarter,
- * its week and its schedule. The other quarter is one switch away in the
- * quarter control, never a second full-size panel competing with the first.
- * Then subject shortcuts and one GE entry, courses and professors worth a
- * look, and last the news and the services that are not about a quarter.
+ * The front door leads with the quarter chosen and what it is for: "Plan
+ * Winter 2027" (or Fall 2026), the quarter control, the search and the way
+ * into that quarter's planner, then subject shortcuts, one GE entry and Plan
+ * with AI. Beside them, one compact academic calendar shows Fall's progress
+ * and Winter's dates together, whichever quarter is being browsed; every
+ * Winter date opens in a dialog, so the calendar never grows the page. Then
+ * courses and professors worth a look, and last the news and the services
+ * that are not about a quarter.
  */
 export default function HomePage() {
   const [loaded, setLoaded] = useState<{ term: string; index: PlatIndex } | null>(null);
@@ -155,9 +155,9 @@ export default function HomePage() {
       <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 ${PAGE_PAD}`}>
         {/* Phones read these in order: the quarter and search, its dates, then shortcuts. */}
         {/* The second row takes any height the dates add, so the shortcuts sit right under the search. */}
-        <div className="grid grid-cols-1 gap-x-12 gap-y-6 lg:grid-cols-12 lg:grid-rows-[auto_1fr]">
+        <div className="grid grid-cols-1 gap-x-8 gap-y-6 lg:grid-cols-12 lg:grid-rows-[auto_1fr] lg:items-start">
           {/* ── The quarter chosen, the search and its planner ───────────── */}
-          <div className="min-w-0 lg:col-span-7 lg:row-start-1">
+          <div className="min-w-0 lg:col-span-6 lg:row-start-1">
             <QuarterLead term={term} today={today} />
             {/* Static on purpose: counts that arrived with the data added a line here and moved everything below it. */}
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-gray-700 dark:text-gray-300">
@@ -178,13 +178,13 @@ export default function HomePage() {
             <QuarterActions term={term} today={today} />
           </div>
 
-          {/* ── The quarter's dates, or its week ─────────────────────────── */}
-          <div className="min-w-0 lg:col-span-5 lg:col-start-8 lg:row-span-2 lg:row-start-1">
-            <QuarterPanel term={term} today={today} />
+          {/* ── Fall's progress and Winter's dates, the same for either quarter ── */}
+          <div className="min-w-0 lg:col-span-6 lg:col-start-7 lg:row-span-2 lg:row-start-1">
+            <AcademicTimelinePanel />
           </div>
 
           {/* ── Shortcuts: subjects, one GE entry, and Plan with AI ───────── */}
-          <div className="min-w-0 lg:col-span-7 lg:row-start-2">
+          <div className="min-w-0 lg:col-span-6 lg:row-start-2">
             {searches.length > 0 && (
               <div className="flex max-w-2xl flex-wrap items-center gap-2">
                 <span className="mr-0.5 text-xs text-gray-600 dark:text-gray-400">Recent searches</span>
@@ -230,7 +230,7 @@ export default function HomePage() {
 
         {/* ── Pick up where you left off ─────────────────────────────────── */}
         {visits.length > 0 && (
-          <section className="mt-16" aria-labelledby="recent-title">
+          <section className="mt-8" aria-labelledby="recent-title">
             <div className="flex items-baseline justify-between gap-2">
               <h2 id="recent-title" className={SECTION_TITLE}>Recently viewed</h2>
               <button type="button" onClick={clearRecent} className="inline-flex items-center gap-1 text-xs font-semibold text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
@@ -245,7 +245,7 @@ export default function HomePage() {
         )}
 
         {/* ── The index on the left, the shelves across the rest ─────────── */}
-        <div className="mt-16 grid grid-cols-1 gap-14 lg:grid-cols-12 lg:gap-12">
+        <div className={`${visits.length > 0 ? "mt-16" : "mt-8"} grid grid-cols-1 gap-14 lg:grid-cols-12 lg:gap-12`}>
           {/* An index, not courses: on a phone it waits below the two shelves. */}
           <aside className="order-last lg:order-none lg:col-span-3" aria-labelledby="busiest-title">
             <h2 id="busiest-title" className={SECTION_TITLE}>Busiest subjects</h2>
@@ -367,7 +367,7 @@ function phaseOf(term: string | null, today: string | null): TermPhase | null {
 
 const lookOf = (term: string | null) => (term?.startsWith("WI") ? LOOK.winter : LOOK.standard);
 
-/** "Plan Winter 2027" while it is ahead; the quarter and its week while it runs; "ended" after. */
+/** "Plan Winter 2027" while it is ahead; the quarter's name while it runs (the calendar beside it has its week); "ended" after. */
 function QuarterLead({ term, today }: { term: string | null; today: string | null }) {
   const phase = phaseOf(term, today);
   // The heading's room is held while the browser decides the quarter, so nothing below moves.
@@ -378,13 +378,8 @@ function QuarterLead({ term, today }: { term: string | null; today: string | nul
   return (
     <h1 className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xl font-semibold tracking-tight sm:text-2xl">
       {phase === "upcoming" ? <>Plan {name}</> : name}
-      {stage && phase !== "upcoming" && (
-        <span className={`text-sm font-semibold ${lookOf(term).eyebrow}`}>
-          {stage.kind === "teaching" ? `Week ${stage.week} of ${stage.of}`
-            : stage.kind === "finals" ? "Finals week"
-            : stage.kind === "ended" ? `Ended ${dayLabel(stage.end, { year: true })}`
-            : `Classes start ${dayLabel(stage.classes)}`}
-        </span>
+      {stage?.kind === "ended" && (
+        <span className={`text-sm font-semibold ${lookOf(term).eyebrow}`}>Ended {dayLabel(stage.end, { year: true })}</span>
       )}
     </h1>
   );
@@ -416,38 +411,6 @@ function QuarterActions({ term, today }: { term: string | null; today: string | 
         </button>
       )}
     </div>
-  );
-}
-
-/**
- * Beside the search: a quarter's dates while it is being booked, its week
- * once it runs (with the dates still there for add and drop deadlines), and
- * after it ends, what is left of its calendar. Nothing for the other quarter.
- */
-function QuarterPanel({ term, today }: { term: string | null; today: string | null }) {
-  const phase = phaseOf(term, today);
-  // Held at the size of what most first visits get (the newest quarter's dates), so nothing below jumps when it arrives.
-  if (!term || !phase) return <div aria-hidden className={`${timelineFor(defaultTerm()) ? "h-[27.5rem]" : "h-40"} rounded-2xl border border-gray-100 dark:border-white/5`} />;
-  const dates = timelineFor(term) ? <TermTimeline term={term} /> : null;
-  if (phase === "in-progress") {
-    return (
-      <div className="flex flex-col gap-4">
-        <QuarterClock term={term} />
-        {dates}
-      </div>
-    );
-  }
-  if (dates) return dates;
-  const q = quarterByKey(term);
-  return (
-    <section className="rounded-2xl border border-gray-200 px-4 py-4 text-sm dark:border-white/10">
-      <h2 className="font-semibold">{termLabelFor(term)}</h2>
-      <p className="mt-1 text-gray-700 dark:text-gray-300">
-        {phase === "ended"
-          ? `Ended ${q ? dayLabel(q.end, { year: true }) : ""}. Its schedule, sections and finals stay in the Planner.`
-          : `Begins ${q ? dayLabel(q.begins, { year: true }) : "soon"}.`}
-      </p>
-    </section>
   );
 }
 
