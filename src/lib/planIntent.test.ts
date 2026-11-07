@@ -45,4 +45,13 @@ describe("telling a click from a link", () => {
     assert.equal(madeHere("{not json", intent, now), false);
     assert.equal(madeHere(null, intent, now), false);
   });
+
+  test("a pick made for one quarter is asked about, not applied, in another", () => {
+    const stored = storedIntent(intent, now, "WI27");
+    assert.equal(madeHere(stored, intent, now, "WI27"), true);
+    // The student switched the Planner to Fall before the choice arrived.
+    assert.equal(madeHere(stored, intent, now, "FA26"), false);
+    // One stored before quarters were recorded still matches.
+    assert.equal(madeHere(storedIntent(intent, now), intent, now, "FA26"), true);
+  });
 });

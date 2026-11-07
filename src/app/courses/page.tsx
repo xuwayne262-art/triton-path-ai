@@ -118,7 +118,11 @@ export default function CoursesPage() {
     [stats, needle, subjectNames],
   );
 
-  const totalDepts = schools.reduce((n, g) => n + g.depts.length, 0) + colleges.length;
+  // Subjects no department claims are filtered the same way, by code and by
+  // name, and counted with the rest: typing "CINE" used to hide CINE's own
+  // link and report two other matches.
+  const others = ungrouped.filter((s) => !needle || s.code.toLowerCase().includes(needle) || (s.name ?? "").toLowerCase().includes(needle));
+  const totalDepts = schools.reduce((n, g) => n + g.depts.length, 0) + colleges.length + others.length;
 
   return (
     <PlatShell>
@@ -132,12 +136,12 @@ export default function CoursesPage() {
           }
           actions={
             <label className="relative block w-full sm:w-72">
-              <span className="sr-only">Filter departments</span>
+              <span className="sr-only">Filter this list of departments, colleges and subjects</span>
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Biology, CSE, Literature…"
+                placeholder="Filter this list: Biology, CSE…"
                 className="h-9 w-full rounded-lg border border-gray-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-[#182B49] dark:border-white/10 dark:bg-white/5 dark:text-gray-100 dark:focus:border-[#FFCD00]"
               />
             </label>
@@ -148,8 +152,10 @@ export default function CoursesPage() {
         <DiscoverLink className="mt-5 inline-flex items-center text-sm font-semibold text-[#182B49] underline underline-offset-4 dark:text-[#FFCD00]" />
 
         {needle && (
-          <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
-            {totalDepts} matching {totalDepts === 1 ? "listing" : "listings"}
+          <p role="status" className="mt-4 text-xs text-gray-600 dark:text-gray-400">
+            {totalDepts
+              ? `${totalDepts} matching ${totalDepts === 1 ? "department, college or subject" : "departments, colleges and subjects"}`
+              : `No department, college or subject matches “${q.trim()}”. To find a course, use the search at the top.`}
           </p>
         )}
 
@@ -252,14 +258,14 @@ export default function CoursesPage() {
               </Link>
             </section>
           )}
-          {ungrouped.length > 0 && !needle && (
+          {others.length > 0 && (
             <section>
               <h2 className={LABEL}>Other subjects on the {data?.meta.termName} schedule</h2>
               <p className="mt-1.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
                 UCSD lists these subjects for {data?.meta.termName}; this directory does not group them under a department.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">
-                {ungrouped.map((s) => (
+                {others.map((s) => (
                   <Link
                     key={s.code}
                     href={withTerm(`/courses/${s.code}`, term)}

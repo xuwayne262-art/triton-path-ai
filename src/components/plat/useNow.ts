@@ -13,19 +13,36 @@ let now = 0;
 const listeners = new Set<() => void>();
 let timer: ReturnType<typeof setInterval> | undefined;
 
+function tick() {
+  now = Date.now();
+  for (const l of listeners) l();
+}
+
+/**
+ * A tab put to sleep (a laptop closed overnight, a phone's browser in the
+ * background) misses its minutes; coming back reads the clock at once, so a
+ * date that turned "today" while it slept says so.
+ */
+function onWake() {
+  if (document.visibilityState === "visible") tick();
+}
+
 function subscribe(listener: () => void) {
   listeners.add(listener);
   if (!timer) {
-    timer = setInterval(() => {
-      now = Date.now();
-      for (const l of listeners) l();
-    }, 60_000);
+    timer = setInterval(tick, 60_000);
+    document.addEventListener("visibilitychange", onWake);
+    window.addEventListener("pageshow", onWake);
+    window.addEventListener("focus", onWake);
   }
   return () => {
     listeners.delete(listener);
     if (!listeners.size && timer) {
       clearInterval(timer);
       timer = undefined;
+      document.removeEventListener("visibilitychange", onWake);
+      window.removeEventListener("pageshow", onWake);
+      window.removeEventListener("focus", onWake);
     }
   };
 }

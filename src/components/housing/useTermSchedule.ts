@@ -39,13 +39,15 @@ export interface TermSchedule {
   courses: string[];
   /** Courses on the schedule with no section chosen yet — no room to measure to. */
   undecided: string[];
+  /** "FA26": the quarter measured to, so a link to the Planner opens that quarter. */
+  term: string | null;
   /** "Fall 2026" */
   termName: string;
   /** "Winter 2027": a later quarter with courses whose schedule lists no rooms, so it was not used. */
   passedOver: string | null;
 }
 
-const EMPTY: TermSchedule = { status: "loading", events: [], buildings: {}, courses: [], undecided: [], termName: "", passedOver: null };
+const EMPTY: TermSchedule = { status: "loading", events: [], buildings: {}, courses: [], undecided: [], term: null, termName: "", passedOver: null };
 
 /** The courses and section picks of the quarter a commute is measured to. */
 function readPlan(): { term: string | null; passedOver: string | null; courses: { code: string; title: string; subject: string }[]; sections: Record<string, SectionSelection> } {
@@ -109,6 +111,7 @@ export function useTermSchedule(): TermSchedule {
         buildings,
         courses: courses.map((c) => c.code).filter((c) => withMeetings.has(c)),
         undecided: courses.map((c) => c.code).filter((c) => !withMeetings.has(c)),
+        term,
         termName,
         passedOver,
       });

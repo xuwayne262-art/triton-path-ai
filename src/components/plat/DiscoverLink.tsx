@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { useTerm } from "./useTerm";
+import { withTerm } from "@/lib/terms";
 
 /**
  * The way into Plan with AI from Home and Courses, where the AI search link
@@ -8,8 +12,9 @@ import Link from "next/link";
  * behind the same sign-in as the rest of a student's plan.
  */
 export default function DiscoverLink({ className = "" }: { className?: string }) {
+  const term = useTerm()?.term ?? null;
   return (
-    <Link href="/planner/ai" className={className}>
+    <Link href={withTerm("/planner/ai", term)} className={className}>
       Describe the quarter you want · Plan with AI
     </Link>
   );

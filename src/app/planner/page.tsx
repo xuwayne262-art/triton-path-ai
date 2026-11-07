@@ -32,6 +32,7 @@ import {
 import { choiceText, decodeChoice, encodeChoice } from "@/lib/sectionChoice";
 import { ADD_INTENT_KEY, madeHere, parseAddIntent, type AddIntent } from "@/lib/planIntent";
 import { usePlanner } from "./PlannerProvider";
+import TermGate from "@/components/planner/TermGate";
 import { coursesUnitsText } from "@/lib/units";
 
 /**
@@ -111,7 +112,7 @@ export default function TermWorkspacePage() {
     platRows, platByCode, savedCourses, toggleSaved, addCourseByCode, termSettled,
     selectedMajor, selectedMinor, selectedCollege,
     roleOf, getColorForCourse, activeRequirements,
-    term, termName, pastTerms, buildings,
+    term, termName, pastTerms, buildings, requestedTerm, termStatus, retryTerm,
   } = usePlanner();
   // What this quarter's schedule publishes. UCSD's public Winter schedule
   // has no rooms, so there is nothing to pin or walk between.
@@ -142,7 +143,14 @@ export default function TermWorkspacePage() {
   const [preview, setPreview] = useState<{ events: CalEvent[]; label: string } | null>(null);
   const [focusCode, setFocusCode] = useState<string | null>(null);
   const [hl, setHl] = useState<Highlight | null>(null);
-  const [toast, setToast] = useState<Toast | null>(null);
+  // Each note belongs to the quarter it was made in: it is shown only there,
+  // so an Undo cannot carry Fall's picks into Winter.
+  const [toast, setToastState] = useState<(Toast & { term: string }) | null>(null);
+  const setToast = useCallback(
+    (t: Toast | null) => setToastState(t ? { ...t, term } : null),
+    [term],
+  );
+  const shownToast = toast && toast.term === term && termStatus === "ready" ? toast : null;
   /** The week, frozen at the moment "Save image" was pressed, while its dialog is open. */
   const [picture, setPicture] = useState<ScheduleImageInput | null>(null);
 
@@ -171,7 +179,7 @@ export default function TermWorkspacePage() {
 
   useEffect(() => {
     if (!toast) return;
-    const t = window.setTimeout(() => setToast(null), 8000);
+    const t = window.setTimeout(() => setToastState(null), 8000);
     return () => window.clearTimeout(t);
   }, [toast]);
 
@@ -184,7 +192,7 @@ export default function TermWorkspacePage() {
   const search = useSyncExternalStore(noSubscribe, readSearch, () => "");
   const intent = useMemo(() => parseAddIntent(new URLSearchParams(search)), [search]);
   const [askAbout, setAskAbout] = useState<AddIntent | null>(null);
-  const [pendingPick, setPendingPick] = useState<{ code: string; pick: string | null; had: boolean } | null>(null);
+  const [pendingPick, setPendingPick] = useState<{ code: string; pick: string | null; had: boolean; term: string } | null>(null);
   const handledIntent = useRef<string | null>(null);
 
   const applyIntent = useCallback((i: AddIntent) => {
@@ -195,8 +203,8 @@ export default function TermWorkspacePage() {
       setToast({ text: `${i.code} isn’t on the ${termName || "current"} schedule, so it wasn’t added.` });
       return;
     }
-    setPendingPick({ code: i.code, pick: i.pick, had });
-  }, [addCourseByCode, termName, selectedCourses]);
+    setPendingPick({ code: i.code, pick: i.pick, had, term });
+  }, [addCourseByCode, termName, selectedCourses, setToast, term]);
 
   // Both steps run a tick after the render that makes them possible, as the
   // rest of the page's effect-driven state does; the guard is set inside the
@@ -209,15 +217,20 @@ export default function TermWorkspacePage() {
       handledIntent.current = key;
       let stored: string | null = null;
       try { stored = sessionStorage.getItem(ADD_INTENT_KEY); } catch { /* treated as not made here */ }
-      if (madeHere(stored, intent, Date.now())) applyIntent(intent);
+      if (madeHere(stored, intent, Date.now(), term)) applyIntent(intent);
       else setAskAbout(intent);
     }, 0);
     return () => window.clearTimeout(t);
-  }, [intent, termSettled, platByCode, applyIntent]);
+  }, [intent, termSettled, platByCode, applyIntent, term]);
 
   useEffect(() => {
     if (!pendingPick) return;
     const { code, pick, had } = pendingPick;
+    // Its sections are that quarter's; another quarter's "A01" is a different section.
+    if (pendingPick.term !== term) {
+      const t = window.setTimeout(() => setPendingPick(null), 0);
+      return () => window.clearTimeout(t);
+    }
     // Every offered course has sections, so a pick waits for them — or for the
     // file to fail. "Not loading" is no sign: the load starts a render later.
     const sec = sectionsByCode[code];
@@ -242,7 +255,7 @@ export default function TermWorkspacePage() {
       setPendingPick(null);
     }, 0);
     return () => window.clearTimeout(t);
-  }, [pendingPick, sectionsByCode, sectionStatus, setSelection]);
+  }, [pendingPick, sectionsByCode, sectionStatus, setSelection, setToast, term]);
 
   const courseByCode = useMemo(() => {
     const m = new Map<string, Course>();
@@ -423,7 +436,7 @@ export default function TermWorkspacePage() {
     // The phone's default view follows the schedule; adding a course must not
     // whisk someone off the list they are adding from.
     if (!chosenView) pickView("courses");
-  }, [addToSchedule, pickTab, pickView, chosenView]);
+  }, [addToSchedule, pickTab, pickView, chosenView, setToast]);
 
   // Removing is one click, so undoing it is too. A course and its section picks
   // were minutes of work; a confirm dialog would tax every removal instead.
@@ -433,14 +446,15 @@ export default function TermWorkspacePage() {
     if (!gone) return;
     removeFromSchedule(id);
     setPreview(null);
-    setToast({ text: `${gone.course.code} removed`, action: { label: "Undo", run: () => restoreSchedule(snapshot) } });
-  }, [selectedCourses, removeFromSchedule, restoreSchedule]);
+    setToast({ text: `${gone.course.code} removed`, action: { label: "Undo", run: () => restoreSchedule(snapshot, term) } });
+  }, [selectedCourses, removeFromSchedule, restoreSchedule, setToast, term]);
 
   // "Fit my sections" says what it changed and can be undone — it rewrites
   // choices across the whole term, and used to do it without a word.
   const fitWithReport = useCallback(() => {
-    const { changed, failed, before } = autoPickAll();
-    const undo = changed.length ? { label: "Undo", run: () => restoreSelections(before) } : undefined;
+    if (!termSettled) return;
+    const { changed, failed, before, term: fitted } = autoPickAll();
+    const undo = changed.length ? { label: "Undo", run: () => { restoreSelections(before, fitted); } } : undefined;
     const list = (codes: string[]) =>
       codes.length <= 2 ? codes.join(" and ") : `${codes.slice(0, 2).join(", ")} and ${codes.length - 2} more`;
     const kept = selectedCourses.filter(({ course }) => sectionsByCode[course.code]?.length).length
@@ -455,9 +469,10 @@ export default function TermWorkspacePage() {
     } else {
       setToast({ text: "Everything already fits. Nothing changed." });
     }
-  }, [autoPickAll, restoreSelections, selectedCourses, sectionsByCode]);
+  }, [autoPickAll, restoreSelections, selectedCourses, sectionsByCode, setToast, termSettled]);
 
   const openPicture = useCallback(() => {
+    if (!termSettled) return;
     setPicture(scheduleImageInput({
       termName,
       roomsPublished: rooms,
@@ -475,14 +490,16 @@ export default function TermWorkspacePage() {
         selection: selections[course.code],
       })),
     }));
-  }, [termName, rooms, events, exams, selectedCourses, roleOf, platByCode, sectionsByCode, selections]);
+  }, [termSettled, termName, rooms, events, exams, selectedCourses, roleOf, platByCode, sectionsByCode, selections]);
 
   // The week as a calendar file, for Google, Apple or Outlook Calendar. Only
   // offered for a term whose instruction dates and holidays are on file.
   const quarter = quarterByKey(term);
-  const canExportCalendar = Boolean(quarter?.lastClass) && events.some((e) => !e.ghost);
+  const canExportCalendar = termSettled && Boolean(quarter?.lastClass) && events.some((e) => !e.ghost);
   const downloadCalendar = useCallback(() => {
-    if (!quarter?.lastClass) return;
+    // Checked when pressed, not only when drawn: the file is named and dated
+    // for the quarter loaded, which must be the quarter asked for.
+    if (!termSettled || !quarter?.lastClass || quarter.key !== requestedTerm) return;
     const text = buildIcs({
       quarter: {
         key: quarter.key, name: quarter.name, classes: quarter.classes,
@@ -498,7 +515,7 @@ export default function TermWorkspacePage() {
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     setToast({ text: "Calendar file saved. Open it to add every class and final to your calendar." });
-  }, [quarter, events, exams, courseByCode, termName]);
+  }, [termSettled, requestedTerm, quarter, events, exams, courseByCode, termName, setToast]);
 
   const clearWithUndo = useCallback(() => {
     const snapshot = selectedCourses;
@@ -506,9 +523,9 @@ export default function TermWorkspacePage() {
     clearSchedule();
     setToast({
       text: `Cleared ${snapshot.length} ${snapshot.length === 1 ? "course" : "courses"}`,
-      action: { label: "Undo", run: () => restoreSchedule(snapshot) },
+      action: { label: "Undo", run: () => { restoreSchedule(snapshot, term); } },
     });
-  }, [selectedCourses, clearSchedule, restoreSchedule]);
+  }, [selectedCourses, clearSchedule, restoreSchedule, setToast, term]);
 
   const pending = selectedCourses.filter(({ course }) => {
     const st = sectionStatus(course.code);
@@ -550,6 +567,12 @@ export default function TermWorkspacePage() {
   };
 
   const scheduledCodes = useMemo(() => new Set(selectedCourses.map((sc) => sc.course.code)), [selectedCourses]);
+
+  // The quarter asked for is not the one in memory yet, or failed: show that,
+  // never the other quarter's week under this one's name.
+  if (termStatus !== "ready") {
+    return <TermGate status={termStatus} asked={requestedTerm} loaded={term} onRetry={retryTerm} />;
+  }
 
   return (
     <TermFeaturesProvider value={features}>
@@ -670,6 +693,7 @@ export default function TermWorkspacePage() {
               legend={<ColorLegend />}
               savedPanel={
                 <SavedCourses
+                  termName={termName}
                   saved={savedCourses}
                   scheduledCodes={scheduledCodes}
                   roleOf={roleOf}
@@ -949,16 +973,16 @@ export default function TermWorkspacePage() {
 
         {/* Always mounted, so a screen reader hears each note as it appears. */}
         <div role="status" className="pointer-events-none absolute bottom-3 left-3 z-40 w-[316px] max-w-[calc(100%-1.5rem)]">
-          {toast && (
+          {shownToast && (
             <div className="pointer-events-auto flex items-center gap-2 rounded-xl bg-[#182B49] px-3 py-2 text-[13px] text-white shadow-xl dark:bg-[#FFCD00] dark:text-[#182B49]">
-              <span className="line-clamp-2 min-w-0 flex-1 font-semibold leading-snug">{toast.text}</span>
-              {toast.action && (
+              <span className="line-clamp-2 min-w-0 flex-1 font-semibold leading-snug">{shownToast.text}</span>
+              {shownToast.action && (
                 <button
                   type="button"
-                  onClick={() => { toast.action?.run(); setToast(null); }}
+                  onClick={() => { shownToast.action?.run(); setToast(null); }}
                   className="shrink-0 rounded-md bg-white/15 px-2 py-1 text-xs font-semibold hover:bg-white/25 dark:bg-[#182B49]/15 dark:hover:bg-[#182B49]/25"
                 >
-                  {toast.action.label}
+                  {shownToast.action.label}
                 </button>
               )}
               <button

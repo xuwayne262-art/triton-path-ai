@@ -7,6 +7,8 @@ import { clockLabel } from "@/lib/planAi/vocabulary";
 import type { CourseCard } from "@/lib/planAi/types";
 import { courseHref, dayLabel, typicalGrade } from "@/lib/plat";
 import CheckList, { StatusIcon, statusWord } from "./CheckList";
+import { useTerm } from "@/components/plat/useTerm";
+import { withTerm } from "@/lib/terms";
 
 /**
  * One suggested course: what it is, when it meets, the one reason it fits
@@ -28,6 +30,7 @@ export default function CourseCardView({
   onFocus?: (code: string | null) => void;
   disabled?: boolean;
 }) {
+  const term = useTerm()?.term ?? null;
   const grade = card.grades ? typicalGrade(card.grades.gpa, card.grades.terms) : null;
   return (
     <article
@@ -38,7 +41,7 @@ export default function CourseCardView({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-[#182B49] dark:text-white">
-            <Link href={courseHref(card.code)} className="hover:underline focus-visible:underline">{card.code}</Link>
+            <Link href={withTerm(courseHref(card.code), term)} className="hover:underline focus-visible:underline">{card.code}</Link>
             <span className="font-normal text-gray-700 dark:text-gray-300"> · {card.title}</span>
           </h3>
           <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-400">{card.units} units{card.instructor ? ` · ${card.instructor}` : ""}</p>

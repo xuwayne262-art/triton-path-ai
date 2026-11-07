@@ -7,9 +7,9 @@ import type { CourseRow } from "@/lib/plat";
 import type { Course } from "./types";
 
 /**
- * Courses saved over in the explorer. They are placed on the weekly schedule
- * automatically; this panel is the record of what you saved, so you can drop one
- * from the schedule and still put it back without hunting for it again.
+ * Courses saved over in the explorer that this quarter offers. Saving is one
+ * list for every quarter, so nothing here is scheduled on its own: adding one
+ * is a click that names the quarter it goes into.
  *
  * Only shown once something is saved — its empty state used to be the largest
  * thing at the top of Browse, explaining a button on another page.
@@ -20,8 +20,11 @@ export default function SavedCourses({
   roleOf,
   onAdd,
   onRemoveSaved,
+  termName,
 }: {
   saved: { course: Course; row: CourseRow }[];
+  /** "Winter 2027": the quarter an added course goes into. */
+  termName: string;
   scheduledCodes: Set<string>;
   roleOf: (course: Course) => CourseRole;
   onAdd: (course: Course) => void;
@@ -51,8 +54,8 @@ export default function SavedCourses({
                 type="button"
                 onClick={() => onAdd(course)}
                 disabled={added}
-                aria-label={added ? `${course.code} is on your schedule` : `Put ${course.code} back on the schedule`}
-                title={added ? "On your schedule" : "Put back on the schedule"}
+                aria-label={added ? `${course.code} is on your ${termName} schedule` : `Add ${course.code} to ${termName}`}
+                title={added ? `On your ${termName} schedule` : `Add to ${termName}`}
                 className={`shrink-0 rounded-md p-1.5 transition-colors ${
                   added
                     ? "text-emerald-600 dark:text-emerald-400"

@@ -11,7 +11,7 @@ import {
   type CourseRow, type ProfessorRecord,
 } from "@/lib/plat";
 import { loadIndexFor, loadProfessorsFor } from "@/lib/termData";
-import { withTerm } from "@/lib/terms";
+import { termLabelFor, withTerm } from "@/lib/terms";
 import { MIN_QUERY, moveActive, resultSummary } from "@/lib/combobox";
 
 /**
@@ -21,6 +21,9 @@ import { MIN_QUERY, moveActive, resultSummary } from "@/lib/combobox";
  * changes (lib/combobox.ts has the rules). The site bar and the home page
  * share it, so the two behave alike.
  */
+const NO_COURSES: CourseRow[] = [];
+const NO_PROFS: ProfessorRecord[] = [];
+
 export default function SearchCombobox({
   variant,
   label = "Search courses and professors",
@@ -43,8 +46,6 @@ export default function SearchCombobox({
   const router = useRouter();
   const id = useId();
   const listId = `${id}-list`;
-  const [courses, setCourses] = useState<CourseRow[]>([]);
-  const [profs, setProfs] = useState<ProfessorRecord[]>([]);
   const [own, setOwn] = useState("");
   const q = value ?? own;
   const setQ = (v: string) => (onValueChange ? onValueChange(v) : setOwn(v));
@@ -53,15 +54,40 @@ export default function SearchCombobox({
   const boxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // The chosen quarter's courses and who teaches in it; the query is kept when the quarter changes.
+  // The chosen quarter's courses and who teaches in it; the query is kept when
+  // the quarter changes. Each answer is kept with the quarter it came from and
+  // read only for that quarter: switching to Winter used to keep Fall's rows
+  // on screen, and a Winter file that failed left Fall's "not offered" result
+  // standing for a course Winter offers. A download that failed proves
+  // nothing about what is offered, so it says it failed and offers a retry.
   const term = useTerm()?.term ?? null;
+  const [index, setIndex] = useState<{ term: string; courses: CourseRow[] | null }>({ term: "", courses: null });
+  const [people, setPeople] = useState<{ term: string; profs: ProfessorRecord[] | null }>({ term: "", profs: null });
+  const [tick, setTick] = useState(0);
+  // The bar's search loads its quarter's courses when a student reaches for
+  // it (pointer, focus, typing), not on every page: Announcements or Housing
+  // downloaded 600 KB for a search nobody had touched. The home page's search
+  // is the page's purpose, so it loads at once.
+  const [wanted, setWanted] = useState(variant === "hero" || Boolean(value));
+  const want = () => { if (!wanted) setWanted(true); };
   useEffect(() => {
-    if (!term) return;
+    if (!term || !wanted) return;
     let live = true;
-    loadIndexFor(term).then((d) => { if (live) setCourses(d.courses); }).catch(() => {});
-    loadProfessorsFor(term).then((d) => { if (live) setProfs(d.professors); }).catch(() => {});
+    loadIndexFor(term)
+      .then((d) => { if (live) setIndex({ term, courses: d.courses }); })
+      .catch(() => { if (live) setIndex({ term, courses: null }); });
+    loadProfessorsFor(term)
+      .then((d) => { if (live) setPeople({ term, profs: d.professors }); })
+      .catch(() => { if (live) setPeople({ term, profs: null }); });
     return () => { live = false; };
-  }, [term]);
+  }, [term, tick, wanted]);
+  const indexNow = term && index.term === term ? index : null;
+  const peopleNow = term && people.term === term ? people : null;
+  const courses = indexNow?.courses ?? NO_COURSES;
+  const profs = peopleNow?.profs ?? NO_PROFS;
+  const failed = indexNow != null && indexNow.courses === null;
+  const profsFailed = peopleNow != null && peopleNow.profs === null;
+  const termName = term ? termLabelFor(term) : "this quarter";
 
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
@@ -95,12 +121,14 @@ export default function SearchCombobox({
     [courses, profs, q],
   );
   const hrefs = useMemo(() => resultHrefs(results), [results]);
-  const loaded = courses.length > 0;
+  const loaded = indexNow?.courses != null;
 
-  // A new query starts over at the first result.
-  const [activeFor, setActiveFor] = useState(q);
-  if (activeFor !== q) {
-    setActiveFor(q);
+  // A new query, or the same one in another quarter, starts over at the first
+  // result; a result list that is not shown points at nothing.
+  const activeKey = `${q}\u0000${loaded ? term : ""}`;
+  const [activeFor, setActiveFor] = useState(activeKey);
+  if (activeFor !== activeKey) {
+    setActiveFor(activeKey);
     setActive(hrefs.length ? 0 : -1);
   }
 
@@ -146,8 +174,9 @@ export default function SearchCombobox({
         autoComplete="off"
         spellCheck={false}
         value={q}
-        onChange={(e) => { setQ(e.target.value); setOpen(true); }}
-        onFocus={() => setOpen(true)}
+        onChange={(e) => { setQ(e.target.value); setOpen(true); want(); }}
+        onFocus={() => { setOpen(true); want(); }}
+        onPointerEnter={want}
         onKeyDown={onKeyDown}
         placeholder={shortPlaceholder && !fits ? shortPlaceholder : placeholder}
         className={hero
@@ -171,16 +200,34 @@ export default function SearchCombobox({
         {/* Only options live in the listbox; its empty and loading states sit beside it. */}
         <div id={listId} role="listbox" aria-label="Search results">
           {shown && loaded && hrefs.length > 0 && (
-            <SearchResults results={results} query={q} active={active} onHover={setActive} onPick={go} idPrefix={id} />
+            <SearchResults results={results} query={q} active={active} onHover={setActive} onPick={go} idPrefix={id} termName={termName} />
           )}
         </div>
-        {shown && !loaded && <p className="px-4 py-6 text-center text-sm text-gray-600 dark:text-gray-400">Loading courses…</p>}
+        {shown && !loaded && !failed && (
+          <p className="px-4 py-6 text-center text-sm text-gray-600 dark:text-gray-400">Loading {termName} courses…</p>
+        )}
+        {shown && failed && (
+          <div role="alert" className="px-4 py-5 text-center text-sm text-gray-700 dark:text-gray-300">
+            <p>{termName} courses didn&rsquo;t load, so nothing is listed yet.</p>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => setTick((n) => n + 1)}
+              className="mt-2 rounded-lg border border-gray-300 px-3 py-1 text-xs font-semibold hover:bg-gray-50 dark:border-white/15 dark:hover:bg-white/10"
+            >
+              Try again
+            </button>
+          </div>
+        )}
         {shown && loaded && hrefs.length === 0 && (
-          <SearchResults results={results} query={q} active={-1} onHover={setActive} onPick={go} idPrefix={id} />
+          <SearchResults results={results} query={q} active={-1} onHover={setActive} onPick={go} idPrefix={id} termName={termName} />
+        )}
+        {shown && loaded && profsFailed && (
+          <p className="px-4 pb-2 pt-1 text-xs text-gray-600 dark:text-gray-400">Instructor names didn&rsquo;t load; courses still match by code and title.</p>
         )}
       </div>
       <p className="sr-only" aria-live="polite" aria-atomic="true">
-        {shown && loaded ? resultSummary(results.profs.length, results.courses.length) : ""}
+        {shown && failed ? `${termName} courses didn't load.` : shown && loaded ? resultSummary(results.profs.length, results.courses.length) : ""}
       </p>
     </div>
   );

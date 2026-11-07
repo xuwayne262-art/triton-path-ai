@@ -133,7 +133,7 @@ export function finalsText(finals: SectionTuple[], room: "same" | "varies" = "sa
   return finalSlots(finals).map(({ row, rooms }) => {
     const known = rooms.filter(Boolean);
     const where = !roomsPublished && !known.length
-      ? "room unavailable · check UCSD"
+      ? "room not published"
       : room === "varies"
         ? "room varies by lecture"
         : known.length ? known.join(" or ") : "room not listed";
@@ -231,7 +231,7 @@ export default function SectionPicker({
         ) : (
           <>
             Seats are a snapshot of UCSD&rsquo;s public schedule, which does not say when each was counted, so check TSS
-            before you enroll.{rooms ? "" : " The public schedule lists no rooms for this quarter."}
+            before you enroll.
           </>
         )}
       </p>

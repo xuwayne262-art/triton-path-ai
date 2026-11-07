@@ -11,6 +11,7 @@ import { QUARTER_WEEKS } from "@/lib/housing/terms";
 import type { TermSchedule } from "./useTermSchedule";
 import { ModeIcon, ModeToggle, toneFor, type Measure } from "./parts";
 
+import { withTerm } from "@/lib/terms";
 /**
  * "Your week from here" — the part of a listing no other housing site can
  * show: each day, when to leave for the first class and how long the trip is,
@@ -120,7 +121,7 @@ export default function CommuteWeek({
                 ? `Pick sections for ${schedule.undecided.join(", ")} in the planner, and this shows when you would leave each morning and how long every trip takes.`
                 : "Add your classes in the planner, and this shows when you would leave each morning, to which building, and how long every trip takes."}
             </p>
-            <Link href="/planner" className="mt-2 inline-flex text-[11px] font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]">
+            <Link href={withTerm("/planner", schedule.term)} className="mt-2 inline-flex text-[11px] font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]">
               Open the planner →
             </Link>
           </div>

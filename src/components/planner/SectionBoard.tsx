@@ -8,6 +8,8 @@ import {
 } from "lucide-react";
 import { GradeBadge } from "@/components/plat/Grade";
 import { useTermFeatures } from "@/components/plat/termFeatures";
+import { useTerm } from "@/components/plat/useTerm";
+import { withTerm } from "@/lib/terms";
 import { courseHref, searchCourses, type Building, type CourseRow, type SectionTuple } from "@/lib/plat";
 import { ROLE_STYLES, type CourseRole } from "@/lib/plannerBridge";
 import { formatDistance, previewWalks, type LegStatus } from "@/lib/campus";
@@ -323,6 +325,7 @@ function CourseSections({
   onRetry: () => void;
 }) {
   const course = entry.course;
+  const term = useTerm()?.term ?? null;
   const style = ROLE_STYLES[role];
   const families = useMemo(() => groupSections(sec), [sec]);
   const family = findFamily(families, selection?.family);
@@ -435,7 +438,7 @@ function CourseSections({
         <span aria-hidden className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: style.hex }} />
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-1.5">
-            <Link href={courseHref(course.code)} className="truncate text-sm font-bold hover:underline">
+            <Link href={withTerm(courseHref(course.code), term)} className="truncate text-sm font-bold hover:underline">
               {course.code}
             </Link>
             <span className="shrink-0 text-xs tabular-nums text-gray-500 dark:text-gray-400">{courseUnitsText(course)} units</span>

@@ -9,6 +9,8 @@ import TridentMark from "@/components/plat/TridentMark";
 import ProgramPicker from "@/components/planner/ProgramPicker";
 import SyncBadge from "@/components/planner/SyncBadge";
 import { PlannerProvider, usePlanner } from "./PlannerProvider";
+import { useTerm } from "@/components/plat/useTerm";
+import { withTerm } from "@/lib/terms";
 
 /**
  * Chrome shared by the planner pages: which view you are looking at, and
@@ -40,6 +42,9 @@ function PlannerChrome({ children }: { children: React.ReactNode }) {
     selectedMinor, setSelectedMinor,
     selectedCollege, setSelectedCollege,
   } = usePlanner();
+  // Every link out of here keeps the quarter on screen, so This term, Plan
+  // with AI and the way back to Courses all show the quarter you came with.
+  const term = useTerm()?.term ?? null;
   // Where the tab row scrolls, the page you are on stays in view, also once
   // the controls beside it finish loading and narrow it. Only the row moves.
   const tabs = useRef<HTMLDivElement>(null);
@@ -65,7 +70,7 @@ function PlannerChrome({ children }: { children: React.ReactNode }) {
     <div className="flex h-dvh flex-col bg-slate-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
       <header className="flex h-14 shrink-0 items-center gap-2 border-b border-gray-200 bg-white px-3 dark:border-white/10 dark:bg-gray-800 sm:gap-3 sm:px-4">
         {/* Logo — also the way back to the course explorer */}
-        <Link href="/" className="flex shrink-0 items-center gap-2" title="Back to courses">
+        <Link href={withTerm("/", term)} className="flex shrink-0 items-center gap-2" title="Back to courses">
           <TridentMark className="h-8 w-8" />
           <span className="hidden text-[15px] font-bold tracking-tight lg:inline">
             UCSD<span className="text-[#1B2C4F] dark:text-[#FFC72C]">Plans</span>
@@ -75,7 +80,7 @@ function PlannerChrome({ children }: { children: React.ReactNode }) {
         <nav aria-label="Planner" className="flex min-w-0 items-center gap-1">
           {/* On a phone the logo beside it is the way back, and the tabs need the room. */}
           <Link
-            href="/"
+            href={withTerm("/", term)}
             className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white max-sm:hidden"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -89,7 +94,7 @@ function PlannerChrome({ children }: { children: React.ReactNode }) {
               return (
                 <Link
                   key={href}
-                  href={href}
+                  href={withTerm(href, term)}
                   aria-current={active ? "page" : undefined}
                   className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-[13px] font-semibold transition max-[380px]:px-1.5 sm:px-2.5 sm:text-sm ${
                     active

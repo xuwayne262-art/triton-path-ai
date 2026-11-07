@@ -41,6 +41,54 @@ export interface Announcement {
 
 export const ANNOUNCEMENTS: readonly Announcement[] = [
   {
+    id: "2026-11-07-each-quarter",
+    date: "2026-11-07",
+    title: "Each quarter, its own page",
+    summary: "The home page now leads with the quarter you pick, and Winter dates show what is next for you.",
+    groups: [
+      {
+        label: "Home",
+        items: [
+          {
+            title: "Plan Winter 2027",
+            text: "Pick Winter and the home page shows its dates and a button into your Winter planner.",
+            link: { href: "/?term=WI27", label: "Open Winter on the home page" },
+          },
+          {
+            title: "Fall stays one click away",
+            text: "Pick Fall to see this week of the quarter and your Fall schedule.",
+          },
+        ],
+      },
+      {
+        label: "Winter dates",
+        items: [
+          {
+            title: "Dates for you",
+            text: "Show dates for all students, undergraduates or graduate students, grouped by day.",
+          },
+          {
+            title: "Fees due Dec 18",
+            text: "UCSD’s fee pages list Dec 18 for Winter registration fees, so it is on the calendar now.",
+          },
+        ],
+      },
+      {
+        label: "Fixes",
+        items: [
+          {
+            title: "Links keep your quarter",
+            text: "A Fall link stays on Fall through the menu, the Planner and search.",
+          },
+          {
+            title: "Clear errors",
+            text: "If a quarter fails to load, the page says so and offers a retry instead of showing the other quarter.",
+          },
+        ],
+      },
+    ],
+  },
+  {
     id: "2026-11-06-winter-2027",
     date: "2026-11-06",
     title: "Winter 2027 is here",

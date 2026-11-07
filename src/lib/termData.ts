@@ -488,6 +488,14 @@ export function loadIndexFor(term: string): Promise<PlatIndex> {
   });
 }
 
+/**
+ * A quarter's index if this page has already asked for it, without asking:
+ * for a footnote that should never download a schedule of its own.
+ */
+export function peekIndexFor(term: string): Promise<PlatIndex> | null {
+  return (merged.get(`index|${term}`) as Promise<PlatIndex> | undefined) ?? null;
+}
+
 /** One subject's courses for one quarter. 404 only when neither the shared nor the term's file has the subject. */
 export function loadSubjectFor(sub: string, term: string): Promise<SubjectFile> {
   return memo(`subject|${term}|${sub}`, async () => {

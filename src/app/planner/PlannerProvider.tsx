@@ -37,6 +37,7 @@ import {
   type PastTerm, type PlannedCourse, type PlannerDoc, type PlanQuarter, type PlanYear, type ScheduleCourse,
 } from "@/lib/plan/record";
 import { canonical, inTerm, LEGACY_TERM } from "@/lib/plan/term";
+import { termStatusOf, type TermStatus } from "@/lib/plan/termGate";
 import type { PlanChange } from "@/lib/plan/change";
 import {
   noteLocalChange, PLANNER_EVENT, PLANNER_KEY, useAccountSync, type SyncStatus,
@@ -107,6 +108,8 @@ export interface FitReport {
   failed: string[];
   /** The changed courses' selections before, for undo; undefined means none was made. */
   before: Record<string, SectionSelection | undefined>;
+  /** The quarter fitted, so its Undo cannot land in another one. */
+  term: string;
 }
 
 /**
@@ -195,7 +198,7 @@ interface PlannerValue {
    * anything added since. Section picks were never dropped, so they come back
    * with their courses.
    */
-  restoreSchedule: (snapshot: ScheduleCourse[]) => void;
+  restoreSchedule: (snapshot: ScheduleCourse[], forTerm?: string) => boolean;
 
   /** Real per-section rows, lazily fetched per subject. */
   sectionsByCode: Record<string, SectionTuple[]>;
@@ -215,8 +218,14 @@ interface PlannerValue {
    * pastTerms, and anything added would be filed under the old term.
    */
   termSettled: boolean;
-  /** This term, "FA26", as the dataset names it. */
+  /** The term loaded, "FA26", as the dataset names it. */
   term: string;
+  /** The quarter asked for (address, picker, last choice); may still be loading, or have failed. */
+  requestedTerm: string | null;
+  /** Whether the quarter asked for is the one loaded: only "ready" shows or changes a schedule. */
+  termStatus: TermStatus;
+  /** Asks again for a quarter whose schedule failed to load. */
+  retryTerm: () => void;
   /** "Fall 2026", or "" until the dataset has loaded. */
   termName: string;
   /** Earlier terms' schedules, put away when the dataset moved on (see lib/plan/term.ts). */
@@ -240,7 +249,7 @@ interface PlannerValue {
   /** Fits every course, keeping the picks that already fit; says what it did. */
   autoPickAll: () => FitReport;
   /** Undo for autoPickAll: puts the listed courses' selections back as they were. */
-  restoreSelections: (before: Record<string, SectionSelection | undefined>) => void;
+  restoreSelections: (before: Record<string, SectionSelection | undefined>, forTerm?: string) => boolean;
   /** Asks again for section files that failed to load. */
   retrySections: () => void;
   sectionStatus: (code: string) => SectionStatus;
@@ -339,6 +348,9 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   // the term and the picks shown below always switch at once; a quarter
   // switched away from before its index arrived is never applied.
   const viewTerm = useTerm()?.term ?? null;
+  /** The quarter whose index could not be fetched, until "Try again" asks once more. */
+  const [failedTerm, setFailedTerm] = useState<string | null>(null);
+  const [indexTick, setIndexTick] = useState(0);
   useEffect(() => {
     if (!viewTerm) return;
     let live = true;
@@ -348,10 +360,19 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
         setPlatRows(d.courses);
         setTerm(d.meta.term);
         setTermName(d.meta.termName);
+        setFailedTerm((f) => (f === viewTerm ? null : f));
       })
-      .catch(() => {});
+      // The quarter left on screen stays the one loaded; the page says this
+      // one failed instead of showing the other under its name.
+      .catch(() => { if (live) setFailedTerm(viewTerm); });
     return () => { live = false; };
-  }, [viewTerm]);
+  }, [viewTerm, indexTick]);
+  const retryTerm = useCallback(() => {
+    setFailedTerm(null);
+    setIndexTick((n) => n + 1);
+  }, []);
+  /** Whether the quarter asked for is the one loaded (lib/plan/termGate.ts). */
+  const termStatus: TermStatus = termStatusOf(viewTerm, term, failedTerm);
   useEffect(() => {
     // Ten kilobytes, and the map is useless without it; a failure only means
     // every meeting is listed as "not on the map" rather than pinned.
@@ -445,8 +466,22 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
    * and any quarter can be shown, so there is nothing to wait for.
    */
   const newerPlanTerm: string | null = null;
-  /** The picks and this page's schedule are the same term's; until then nothing is picked or added on its own. */
-  const termSettled = hydrated && !!term && planTerm === term;
+  /**
+   * The picks, this page's schedule and the quarter asked for are all the same
+   * term's; until then nothing is picked, added, fitted or exported. A quarter
+   * whose files are still coming, or failed, leaves the last one loaded in
+   * memory, and that one must never be changed under the other's name.
+   */
+  const termSettled = hydrated && !!term && planTerm === term && termStatus === "ready";
+  // Read when an action runs, not when it was rendered: a toast's Undo or a
+  // late callback can outlive the quarter it was made in.
+  const settledRef = useRef({ settled: termSettled, term });
+  settledRef.current = { settled: termSettled, term };
+  /** Whether a change made for `forTerm` (or the quarter on screen) may run now. */
+  const mayChange = useCallback(
+    (forTerm?: string) => settledRef.current.settled && (forTerm == null || forTerm === settledRef.current.term),
+    [],
+  );
 
   // The quarter on screen, from the plan: its own picks come out and the
   // ones they replace are put away under their term (lib/plan/term.ts), never
@@ -765,18 +800,23 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
 
   // ── Section actions ─────────────────────────────────────────────────────────
 
+  // Every change below checks, when it runs, that the quarter on screen is the
+  // one loaded (mayChange): a click or an Undo left from another quarter does
+  // nothing rather than write that quarter's sections into this one's.
   const setSelection = useCallback((code: string, next: SectionSelection) => {
+    if (!mayChange()) return;
     setSelections((prev) => ({ ...prev, [code]: next }));
-  }, []);
+  }, [mayChange]);
 
   const clearSelection = useCallback((code: string) => {
+    if (!mayChange()) return;
     setSelections((prev) => {
       if (!(code in prev)) return prev;
       const next = { ...prev };
       delete next[code];
       return next;
     });
-  }, []);
+  }, [mayChange]);
 
   /**
    * An option clicked on the calendar. Choosing a lecture keeps nothing from a
@@ -785,6 +825,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
    */
   const chooseOption = useCallback(
     (code: string, choice: NonNullable<CalEvent["choice"]>) => {
+      if (!mayChange()) return;
       setSelections((prev) => {
         const cur = prev[code];
         let base: SectionSelection;
@@ -806,7 +847,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
         return { ...prev, [code]: next };
       });
     },
-    [sectionsByCode],
+    [sectionsByCode, mayChange],
   );
 
   const sectionStatus = useCallback(
@@ -848,6 +889,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
    */
   const autoPickFor = useCallback(
     (code: string) => {
+      if (!mayChange()) return false;
       const sec = sectionsByCode[code];
       if (!sec?.length) return false;
       const busy = busyFrom(events.filter((e) => e.code !== code));
@@ -856,7 +898,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       setSelections((prev) => ({ ...prev, [code]: picked }));
       return true;
     },
-    [sectionsByCode, events, selections],
+    [sectionsByCode, events, selections, mayChange],
   );
 
   /**
@@ -865,6 +907,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
    * it. Courses with no section data keep their catalog time as fixed.
    */
   const autoPickAll = useCallback((): FitReport => {
+    if (!mayChange()) return { changed: [], failed: [], before: {}, term: settledRef.current.term };
     const fixed = busyFrom(events.filter((e) => !sectionsByCode[e.code]?.length));
     const { picks, failed } = fitAll(
       selectedCourses
@@ -882,10 +925,12 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       changed,
       failed,
       before: Object.fromEntries(changed.map((code) => [code, selections[code]])),
+      term,
     };
-  }, [selectedCourses, sectionsByCode, events, selections]);
+  }, [selectedCourses, sectionsByCode, events, selections, term, mayChange]);
 
-  const restoreSelections = useCallback((before: Record<string, SectionSelection | undefined>) => {
+  const restoreSelections = useCallback((before: Record<string, SectionSelection | undefined>, forTerm?: string) => {
+    if (!mayChange(forTerm)) return false;
     setSelections((prev) => {
       const next = { ...prev };
       for (const [code, sel] of Object.entries(before)) {
@@ -894,11 +939,13 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       }
       return next;
     });
-  }, []);
+    return true;
+  }, [mayChange]);
 
   // ── Schedule actions ────────────────────────────────────────────────────────
 
   const addToSchedule = useCallback((course: Course) => {
+    if (!mayChange()) return;
     // Functional update: reading `selectedCourses` from the render closure meant
     // two adds in the same tick silently dropped one.
     setSelectedCourses((prev) => {
@@ -907,51 +954,46 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
       // grid and says so in the rail, rather than appearing at an invented hour.
       return [...prev, { course, id: `${course.id}-${Date.now()}-${prev.length}` }];
     });
-  }, []);
+  }, [mayChange]);
 
   const addCourseByCode = useCallback(
     (code: string) => {
+      if (!mayChange()) return false;
       const row = platByCode.get(code);
       if (!row) return false;
       addToSchedule(platRowToCourse(row, majorSubjectSet));
       return true;
     },
-    [platByCode, majorSubjectSet, addToSchedule],
+    [platByCode, majorSubjectSet, addToSchedule, mayChange],
   );
 
   const removeFromSchedule = useCallback((id: string) => {
+    if (!mayChange()) return;
     setSelectedCourses((prev) => prev.filter((c) => c.id !== id));
-  }, []);
+  }, [mayChange]);
 
-  const clearSchedule = useCallback(() => setSelectedCourses([]), []);
+  const clearSchedule = useCallback(() => {
+    if (!mayChange()) return;
+    setSelectedCourses([]);
+  }, [mayChange]);
 
-  const restoreSchedule = useCallback((snapshot: ScheduleCourse[]) => {
+  /** Undo for a removal or a clear, in the quarter it was made in only. */
+  const restoreSchedule = useCallback((snapshot: ScheduleCourse[], forTerm?: string) => {
+    if (!mayChange(forTerm)) return false;
     setSelectedCourses((prev) => {
       const inSnapshot = new Set(snapshot.map((e) => e.id));
       const codes = new Set(snapshot.map((e) => e.course.code));
       return [...snapshot, ...prev.filter((e) => !inSnapshot.has(e.id) && !codes.has(e.course.code))];
     });
-  }, []);
+    return true;
+  }, [mayChange]);
 
-  /**
-   * Saving a course in the explorer puts it straight onto the schedule. It used
-   * to only populate the sidebar list, so "Save to planner" appeared to do
-   * nothing until you found and pressed a second "+" — the button promised the
-   * planner, so it should deliver the planner.
-   *
-   * The ref makes each code sync at most once, so removing a course from the
-   * schedule sticks instead of being immediately re-added. It is persisted for
-   * the same reason: a reload would otherwise resurrect everything removed.
-   */
-  useEffect(() => {
-    if (!termSettled) return;
-    const pending = savedCourses.filter(({ course }) => !syncedRef.current.has(course.code));
-    if (!pending.length) return;
-    for (const { course } of pending) {
-      syncedRef.current.add(course.code);
-      addToSchedule(course);
-    }
-  }, [termSettled, savedCourses, addToSchedule]);
+  // Saved courses are not scheduled on their own any more. A saved course is
+  // one list for every quarter, and putting each straight onto whichever
+  // quarter the Planner opened on filed a course saved while browsing Fall
+  // into Winter without a word. They wait under "Saved from Courses", where
+  // adding one names the quarter. `synced` (the codes the old behaviour had
+  // added) is still read and saved, so older plans round-trip unchanged.
 
   // ── Plan actions ────────────────────────────────────────────────────────────
 
@@ -1172,7 +1214,7 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     platRows, savedCourses, toggleSaved,
     selectedCourses: shownSchedule, addToSchedule, removeFromSchedule, clearSchedule, restoreSchedule,
     sectionsByCode, tssByCode, selections, setSelection, clearSelection, chooseOption,
-    addCourseByCode, platByCode, termSettled, term, termName, pastTerms, newerPlanTerm, buildings, optionEvents,
+    addCourseByCode, platByCode, termSettled, term, requestedTerm: viewTerm, termStatus, retryTerm, termName, pastTerms, newerPlanTerm, buildings, optionEvents,
     autoPickFor, autoPickAll, restoreSelections, retrySections,
     sectionStatus, events, conflictCodes, totalUnits,
     plannedCourses, addAICourseToPlan, removePlannedCourse, addToPlanner, movePlannedCourse,

@@ -157,8 +157,8 @@ export function usePlanAi(): PlanAiState {
   }), [term, plannedCourses, selectedCourses]);
 
   // The latest of everything, for async work that outlives the render it started in.
-  const live = useRef({ data, vocab, fingerprint, targets, settings, model, proposals, changeLog, selectedCourses, selections, plannedCourses, selectedMajor, selectedCollege, history, termName, term });
-  live.current = { data, vocab, fingerprint, targets, settings, model, proposals, changeLog, selectedCourses, selections, plannedCourses, selectedMajor, selectedCollege, history, termName, term };
+  const live = useRef({ data, vocab, fingerprint, targets, settings, model, proposals, changeLog, selectedCourses, selections, plannedCourses, selectedMajor, selectedCollege, history, termName, term, termSettled });
+  live.current = { data, vocab, fingerprint, targets, settings, model, proposals, changeLog, selectedCourses, selections, plannedCourses, selectedMajor, selectedCollege, history, termName, term, termSettled };
 
   const ready = hydrated && termSettled && platRows.length > 0 && ge != null && settings != null;
 
@@ -398,6 +398,11 @@ export function usePlanAi(): PlanAiState {
   }, []);
 
   const post = useCallback(async (change: { id: string; kind: "apply" | "undo"; undoOf?: string; ops: PlanOp[] }, base: string | null = null) => {
+    // The quarter picked is not the one loaded (still coming, or failed):
+    // nothing is saved under a quarter the suggestion was not checked against.
+    if (!live.current.termSettled) {
+      return { ok: false as const, text: "This quarter's schedule hasn't loaded, so nothing was saved. Try again once it has." };
+    }
     const agreed = await settleAccountPlan();
     if (!agreed) return { ok: false as const, text: syncProblem(accountSyncStatus()) };
     // Checked again now that the account's latest is in: another device may
