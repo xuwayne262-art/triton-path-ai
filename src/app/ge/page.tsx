@@ -21,6 +21,7 @@ import { PLANNER_KEY } from "@/lib/plan/sync";
 import { COLLEGE_SOURCES } from "@/data/collegeSources";
 import { DISCIPLINES, disciplineForSubject, WARREN_RULE } from "@/data/ucsdStructure";
 
+import { resolveTerm, storedTerm } from "@/lib/terms";
 export default function GEPage() {
   return (
     <Suspense fallback={<PlatShell><GELoading /></PlatShell>}>
@@ -51,10 +52,12 @@ function rememberedCollege(): { key: string; from: "here" | "planner" } | null {
 /** Puts a state in the address bar, as a new history entry so Back returns to the last one. */
 function go(state: GeState, filters: ResultFilters, { replace = false } = {}) {
   const qs = geQueryString(state, filters, BASE);
-  // The quarter rides along, so a filter never switches the list to another one.
-  const quarter = new URLSearchParams(window.location.search).get("term");
+  // The quarter rides along, so a filter never switches the list to another
+  // one. It is written even when the page was opened without one: the link a
+  // student copies then shows their quarter, not whichever the reader last chose.
+  const quarter = resolveTerm(new URLSearchParams(window.location.search).get("term"), storedTerm()).term;
   const params = new URLSearchParams(qs.startsWith("?") ? qs.slice(1) : qs);
-  if (quarter) params.set("term", quarter);
+  params.set("term", quarter);
   const s = params.toString();
   const url = `/ge${s ? `?${s}` : ""}`;
   if (replace) window.history.replaceState(null, "", url);
@@ -73,17 +76,21 @@ function GESearch() {
   const search = useSearchParams();
   const [loaded, setLoaded] = useState<{ term: string; index: PlatIndex } | null>(null);
   const [ge, setGE] = useState<GEFile | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [geFailed, setFailed] = useState(false);
+  // A quarter whose index failed, kept with its code, so switching to one
+  // that loads clears the error instead of keeping it for good.
+  const [failedTerm, setFailedTerm] = useState<string | null>(null);
   const [memory, setMemory] = useState<{ key: string; from: "here" | "planner" } | null>(null);
 
   // The chosen quarter's schedule decides "offered"; a late answer for a
   // quarter switched away from is dropped.
   const term = useTerm()?.term ?? null;
   const index = loaded && loaded.term === term ? loaded.index : null;
+  const failed = geFailed || (!index && term != null && failedTerm === term);
   useEffect(() => {
     if (!term) return;
     let live = true;
-    loadIndexFor(term).then((d) => { if (live) setLoaded({ term, index: d }); }).catch(() => { if (live) setFailed(true); });
+    loadIndexFor(term).then((d) => { if (live) setLoaded({ term, index: d }); }).catch(() => { if (live) setFailedTerm(term); });
     return () => { live = false; };
   }, [term]);
   useEffect(() => { loadGE().then(setGE).catch(() => setFailed(true)); }, []);

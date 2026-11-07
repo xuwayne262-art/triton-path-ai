@@ -54,19 +54,24 @@ export function parseAddIntent(params: { get(name: string): string | null }): Ad
   };
 }
 
-/** What the course page keeps in sessionStorage for the Planner to recognise. */
-export function storedIntent(intent: AddIntent, now: number): string {
-  return JSON.stringify({ code: intent.code, nonce: intent.nonce, at: now });
+/**
+ * What the course page keeps in sessionStorage for the Planner to recognise,
+ * with the quarter it was chosen in: a pick is that quarter's sections.
+ */
+export function storedIntent(intent: AddIntent, now: number, term?: string | null): string {
+  return JSON.stringify({ code: intent.code, nonce: intent.nonce, at: now, ...(term ? { term } : {}) });
 }
 
 /**
  * Whether this tab made the intent: its nonce is the one stored here, for the
- * same course, recently enough. Anything unreadable is not a match.
+ * same course, recently enough, and for the quarter now loaded when it says
+ * which. Anything unreadable is not a match, and is asked about instead.
  */
-export function madeHere(stored: string | null, intent: AddIntent, now: number): boolean {
+export function madeHere(stored: string | null, intent: AddIntent, now: number, term?: string | null): boolean {
   if (!stored || !intent.nonce) return false;
   try {
-    const s = JSON.parse(stored) as { code?: unknown; nonce?: unknown; at?: unknown };
+    const s = JSON.parse(stored) as { code?: unknown; nonce?: unknown; at?: unknown; term?: unknown };
+    if (s.term !== undefined && term != null && s.term !== term) return false;
     return s.code === intent.code
       && s.nonce === intent.nonce
       && typeof s.at === "number"

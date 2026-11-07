@@ -4,7 +4,7 @@ import { use, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore 
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BookMarked, ChevronRight, ExternalLink, LogIn, MapPin } from "lucide-react";
+import { BookMarked, ChevronRight, ExternalLink, ListChecks, LogIn, MapPin } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import { PAGE_GAP, PAGE_PAD, PAGE_TITLE, SECTION_TITLE } from "@/components/plat/typeScale";
 import Disclosure from "@/components/plat/Disclosure";
@@ -183,7 +183,7 @@ export default function CourseDetailPage({
       pick: summary?.complete && selection ? encodeChoice(selection) : null,
       nonce: crypto.randomUUID(),
     };
-    try { sessionStorage.setItem(ADD_INTENT_KEY, storedIntent(intent, Date.now())); } catch { /* the Planner will ask instead */ }
+    try { sessionStorage.setItem(ADD_INTENT_KEY, storedIntent(intent, Date.now(), term)); } catch { /* the Planner will ask instead */ }
     // Into this quarter's schedule in the Planner, whichever the Planner last showed.
     const target = withTerm(addIntentHref(intent), term);
     if (signedIn === false) {
@@ -424,6 +424,23 @@ export default function CourseDetailPage({
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {/* On a phone the sections are a long scroll below; this goes straight there. */}
+            {offered && detail && detail.sec.length > 0 && (
+              <a
+                href="#sections"
+                onClick={(e) => {
+                  const target = document.getElementById("sections-title");
+                  if (!target) return;
+                  e.preventDefault();
+                  target.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+                  target.focus({ preventScroll: true });
+                }}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#182B49] px-3 py-2 text-sm font-semibold text-white hover:bg-[#1e3a63] dark:bg-[#FFCD00] dark:text-[#182B49] dark:hover:bg-[#FFD740]"
+              >
+                <ListChecks className="h-4 w-4" aria-hidden />
+                Choose {termLabel} sections
+              </a>
+            )}
             {signedIn === false ? (
               <Link
                 href={signInHref}
@@ -447,6 +464,19 @@ export default function CourseDetailPage({
                 <BookMarked className="h-4 w-4" aria-hidden />
                 {saved ? "Saved" : "Save course"}
               </button>
+            )}
+            {/* A quarter with no exact TSS link still has TSS: its front door, named as such. */}
+            {!detail?.tss && offered && (
+              <a
+                href={TSS_URL}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:border-white/15 dark:hover:bg-white/10"
+              >
+                Open <abbr title="Triton Student System" className="no-underline">TSS</abbr>
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                <span className="sr-only">(opens TSS in a new tab; search for {code} there. It does not enroll you)</span>
+              </a>
             )}
             {/*
               Straight into UCSD's own enrolment system, on this course. The link
@@ -517,9 +547,9 @@ export default function CourseDetailPage({
 
             {/* ── Which sections ──────────────────────────────────────────── */}
             {detail && detail.sec.length > 0 && (
-              <section aria-labelledby="sections-title">
+              <section id="sections" aria-labelledby="sections-title" className="scroll-mt-24">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <h2 id="sections-title" className={SECTION_TITLE}>{termLabel} sections</h2>
+                  <h2 id="sections-title" tabIndex={-1} className={`${SECTION_TITLE} outline-none`}>{termLabel} sections</h2>
                   <span className="text-xs text-gray-600 dark:text-gray-400">
                     {sectionCount} {sectionCount === 1 ? "section" : "sections"}
                   </span>
@@ -540,7 +570,8 @@ export default function CourseDetailPage({
               <section aria-labelledby="where-title">
                 <h2 id="where-title" className={SECTION_TITLE}>Where it meets</h2>
                 <p className="mt-2 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
-                  UCSD&rsquo;s public {termLabel} schedule does not list rooms, so there is no map or walking time here. Check the{" "}
+                  UCSD&rsquo;s public {termLabel} schedule doesn&rsquo;t publish rooms yet, so sections, finals and the summary say
+                  &ldquo;Room not published&rdquo; and there is no map or walking time. Check the{" "}
                   <a href="https://classplanner.apps.ucsd.edu/search" target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2">
                     official schedule<span className="sr-only"> (opens in a new tab)</span>
                   </a>{" "}

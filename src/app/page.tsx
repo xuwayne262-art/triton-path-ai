@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  ArrowRight, BookOpen, CalendarDays, ChevronRight, GraduationCap, Layers, User, X,
+  ArrowRight, CalendarDays, GraduationCap, Layers, RotateCw, User, X,
 } from "lucide-react";
 import PlatShell from "@/components/plat/PlatShell";
 import QuarterClock from "@/components/plat/QuarterClock";
@@ -11,7 +11,7 @@ import { PAGE_PAD, SECTION_TITLE } from "@/components/plat/typeScale";
 import CourseRow from "@/components/plat/CourseRow";
 import QuarterPicker from "@/components/plat/QuarterPicker";
 import TermTimeline from "@/components/plat/TermTimeline";
-import { useTerm } from "@/components/plat/useTerm";
+import { chooseTerm, useTerm } from "@/components/plat/useTerm";
 import ProfessorRow from "@/components/plat/ProfessorShelf";
 import SearchCombobox from "@/components/plat/SearchCombobox";
 import DiscoverLink from "@/components/plat/DiscoverLink";
@@ -23,8 +23,9 @@ import {
   type CourseRow as Row, type GEFile, type PlatIndex, type ProfessorRecord,
 } from "@/lib/plat";
 import { loadIndexFor, loadProfessorsFor } from "@/lib/termData";
-import { termLabelFor, termsServed, withTerm } from "@/lib/terms";
-import { timelineFor } from "@/lib/termTimeline";
+import { defaultTerm, termLabelFor, termPhase, termsServed, withTerm, type TermPhase } from "@/lib/terms";
+import { quarterStage, timelineFor } from "@/lib/termTimeline";
+import { quarterByKey, todayInSanDiego } from "@/lib/housing/terms";
 import { announcementHref, isNewAnnouncement, latestAnnouncement } from "@/lib/announcements";
 import { SHELF_RULE, shelfEligible } from "@/lib/recommend";
 import { agoLabel, type RecentItem } from "@/lib/recent";
@@ -54,31 +55,57 @@ function varied(rows: Row[], count: number): Row[] {
 }
 
 /**
- * The front door leads with what a visit is for: one line on what the site
- * is, and the search, with the quarter as a compact strip under it. Beside
- * them, the three things a student comes to do — browse courses, find a GE,
- * plan a week — in one list, with Housing and the Academic History as the
- * student services they are. Then the latest announcement, whatever this browser looked at last,
- * and shelves of real courses for a student who knows nothing yet.
+ * The quarter's look on the front page: Winter planning in a cool teal with
+ * a calendar, Fall's familiar navy and gold. One layout; only these change.
+ */
+const LOOK = {
+  winter: {
+    eyebrow: "text-teal-800 dark:text-teal-300",
+    button: "bg-teal-700 text-white hover:bg-teal-800 dark:bg-teal-300 dark:text-[#0d1420] dark:hover:bg-teal-200",
+  },
+  standard: {
+    eyebrow: "text-[#1B2C4F] dark:text-[#FFC72C]",
+    button: "bg-[#182B49] text-white hover:bg-[#1e3a63] dark:bg-[#FFCD00] dark:text-[#182B49] dark:hover:bg-[#FFD740]",
+  },
+} as const;
+
+/**
+ * The front door leads with the quarter chosen and what it is for. During
+ * booking, "Plan Winter 2027": the quarter control, the search and the way
+ * into that quarter's planner, with its dates beside them. During a quarter,
+ * its week and its schedule. The other quarter is one switch away in the
+ * quarter control, never a second full-size panel competing with the first.
+ * Then subject shortcuts and one GE entry, courses and professors worth a
+ * look, and last the news and the services that are not about a quarter.
  */
 export default function HomePage() {
   const [loaded, setLoaded] = useState<{ term: string; index: PlatIndex } | null>(null);
+  const [failedTerm, setFailedTerm] = useState<string | null>(null);
   const [ge, setGE] = useState<GEFile | null>(null);
-  const [profs, setProfs] = useState<ProfessorRecord[]>([]);
+  const [people, setPeople] = useState<{ term: string; profs: ProfessorRecord[] | null } | null>(null);
+  const [tick, setTick] = useState(0);
   const [q, setQ] = useState("");
   const resolved = useTerm();
   const term = resolved?.term ?? null;
 
-  // The chosen quarter's courses and professors. A quarter switched away from
-  // mid-request is ignored when it lands, so it can never paint over the new one.
+  // The chosen quarter's courses and professors, each kept with its quarter.
+  // A quarter switched away from mid-request is ignored when it lands, so it
+  // can never paint over the new one, and a failed one says so with a retry.
   const data = loaded && loaded.term === term ? loaded.index : null;
+  const failed = !data && term != null && failedTerm === term;
+  const profs = people && people.term === term ? people.profs : undefined;
   useEffect(() => {
     if (!term) return;
     let live = true;
-    loadIndexFor(term).then((d) => { if (live) setLoaded({ term, index: d }); }).catch(() => {});
-    loadProfessorsFor(term).then((d) => { if (live) setProfs(d.professors); }).catch(() => {});
+    loadIndexFor(term)
+      .then((d) => { if (live) { setLoaded({ term, index: d }); setFailedTerm((f) => (f === term ? null : f)); } })
+      .catch(() => { if (live) setFailedTerm(term); });
+    loadProfessorsFor(term)
+      .then((d) => { if (live) setPeople({ term, profs: d.professors }); })
+      .catch(() => { if (live) setPeople({ term, profs: null }); });
     return () => { live = false; };
-  }, [term]);
+  }, [term, tick]);
+  const retry = () => setTick((n) => n + 1);
   useEffect(() => { loadGE().then(setGE).catch(() => {}); }, []);
   const { items: recent, clear: clearRecent } = useRecent();
 
@@ -92,7 +119,7 @@ export default function HomePage() {
 
   /** Rated 4.0+ with a real sample size, and actually on this term's schedule. */
   const topProfs = useMemo(() => {
-    if (!profs.length) return null;
+    if (!profs) return null;
     return profs
       .filter((p) => p.cur && (p.q ?? 0) >= 4 && (p.nr ?? 0) >= 15)
       .sort((a, b) => (b.q ?? 0) - (a.q ?? 0) || (b.nr ?? 0) - (a.nr ?? 0))
@@ -118,45 +145,48 @@ export default function HomePage() {
   const searches = recent.filter((r) => r.kind === "search");
   const visits = recent.filter((r) => r.kind !== "search");
   const termName = data?.meta.termName ?? (term ? termLabelFor(term) : "this term");
-  // The quarter being booked has its own dates; Fall's clock stays beside them.
-  const booking = termsServed().map((t) => t.code).filter((c) => timelineFor(c)).pop() ?? null;
   const link = (href: string) => withTerm(href, term);
   const news = latestAnnouncement();
   const now = useNow();
+  const today = now ? todayInSanDiego(new Date(now)) : null;
 
   return (
     <PlatShell hideSearch>
       <div className={`mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 ${PAGE_PAD}`}>
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-12 lg:gap-12">
-          {/* ── What this is, and the way in ──────────────────────────────── */}
-          <div className="min-w-0 lg:col-span-7">
-            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">
-              Grades, professors and seats for every UCSD course
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-gray-700 dark:text-gray-300">
-              See how a course has graded since 2015, who teaches it in {termName}, and which sections fit your week.
-              {data && (
-                <span className="text-gray-600 dark:text-gray-400">
-                  {" "}{data.meta.gradeRecords.toLocaleString()} published grade distributions ·{" "}
-                  {data.meta.offered.toLocaleString()} courses on the {data.meta.termName} schedule.
-                </span>
-              )}
+        {/* Phones read these in order: the quarter and search, its dates, then shortcuts. */}
+        {/* The second row takes any height the dates add, so the shortcuts sit right under the search. */}
+        <div className="grid grid-cols-1 gap-x-12 gap-y-6 lg:grid-cols-12 lg:grid-rows-[auto_1fr]">
+          {/* ── The quarter chosen, the search and its planner ───────────── */}
+          <div className="min-w-0 lg:col-span-7 lg:row-start-1">
+            <QuarterLead term={term} today={today} />
+            {/* Static on purpose: counts that arrived with the data added a line here and moved everything below it. */}
+            <p className="mt-1 max-w-2xl text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+              Grades, professors and seats for every UCSD course.
             </p>
+
+            {/* Which quarter the search, the lists and the planner show. */}
+            <QuarterPicker className="mt-4 max-w-2xl" />
 
             <SearchCombobox
               variant="hero"
-              className="mt-5 max-w-2xl"
+              className="mt-3 max-w-2xl"
               value={q}
               onValueChange={setQ}
               placeholder="CSE 11, organic chemistry, Joe Politz…"
             />
 
-            {/* Which quarter the search, the lists and the planner show. */}
-            <QuarterPicker className="mt-3 max-w-2xl" />
+            <QuarterActions term={term} today={today} />
+          </div>
 
-            {/* Recent searches first, then department shortcuts. */}
+          {/* ── The quarter's dates, or its week ─────────────────────────── */}
+          <div className="min-w-0 lg:col-span-5 lg:col-start-8 lg:row-span-2 lg:row-start-1">
+            <QuarterPanel term={term} today={today} />
+          </div>
+
+          {/* ── Shortcuts: subjects, one GE entry, and Plan with AI ───────── */}
+          <div className="min-w-0 lg:col-span-7 lg:row-start-2">
             {searches.length > 0 && (
-              <div className="mt-4 flex max-w-2xl flex-wrap items-center gap-2">
+              <div className="flex max-w-2xl flex-wrap items-center gap-2">
                 <span className="mr-0.5 text-xs text-gray-600 dark:text-gray-400">Recent searches</span>
                 {searches.map((s) => (
                   <button
@@ -173,7 +203,7 @@ export default function HomePage() {
                 ))}
               </div>
             )}
-            <nav aria-label="Departments" className="mt-4 flex max-w-2xl flex-wrap items-center gap-2">
+            <nav aria-label="Departments" className={`flex max-w-2xl flex-wrap items-center gap-2 ${searches.length ? "mt-4" : ""}`}>
               {QUICK_DEPTS.map((d) => (
                 <Link
                   key={d}
@@ -187,73 +217,16 @@ export default function HomePage() {
                 all {DEPARTMENTS.length} departments →
               </Link>
             </nav>
-
-            <DiscoverLink className="mt-4 inline-flex min-h-10 items-center text-sm font-semibold text-[#1B2C4F] underline underline-offset-4 dark:text-[#FFC72C]" />
-
-            {/* The quarter being booked, then the one under way: context, under the search it must not outrank. */}
-            {booking && <TermTimeline term={booking} className="mt-6 max-w-2xl" />}
-            <QuarterClock className="mt-6 max-w-2xl" />
-          </div>
-
-          {/* ── What to do ────────────────────────────────────────────────── */}
-          <div className="flex min-w-0 flex-col gap-5 lg:col-span-5">
-            <nav aria-label="Start here" className="overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10">
-              <EntryRow
-                href={link("/courses")}
-                icon={<BookOpen className="h-4 w-4" />}
-                title="Browse courses"
-                detail="Every course's grades, professors and seats, by department"
-              />
-              <EntryRow
-                href={link("/ge")}
-                icon={<GraduationCap className="h-4 w-4" />}
-                title="Find a GE"
-                count={geCounts ? `${geCounts.college.toLocaleString()} on college lists` : undefined}
-                detail={geCounts ? `By college, with past grades, plus ${geCounts.dei} for DEI and the AHI list` : "By college, with past grades"}
-              />
-              <EntryRow
-                href={link("/planner")}
-                icon={<CalendarDays className="h-4 w-4" />}
-                title="Plan your week"
-                detail="Sections on a calendar and a map, and all four years against your major · sign in with @ucsd.edu"
-                filled
-              />
-            </nav>
-
-            <p className="text-xs leading-relaxed text-gray-600 dark:text-gray-400">
-              Also for UCSD students:{" "}
-              <Link href="/housing" className="font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]">Housing</Link>
-              {" "}for sublets from @ucsd.edu students, and{" "}
-              <Link href="/import" className="font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]">Academic History</Link>
-              {" "}to import your completed courses.
-            </p>
+            <div className="mt-4 flex max-w-2xl flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-6">
+              <Link href={link("/ge")} className="inline-flex min-h-10 items-center gap-1.5 text-sm font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]">
+                <GraduationCap aria-hidden className="h-4 w-4" />
+                Find a GE by college
+                {geCounts && <span className="font-normal text-gray-600 dark:text-gray-400">· {geCounts.college.toLocaleString()} courses</span>}
+              </Link>
+              <DiscoverLink className="inline-flex min-h-10 items-center text-sm font-medium text-gray-700 underline underline-offset-4 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white" />
+            </div>
           </div>
         </div>
-
-        {/* ── What changed lately: the newest announcement, one click from all of them ── */}
-        {news && (
-          <section className="mt-16" aria-labelledby="news-title">
-            <h2 id="news-title" className={SECTION_TITLE}>Announcements</h2>
-            <Link
-              href={announcementHref(news)}
-              className="group mt-4 flex flex-col gap-3 rounded-2xl border border-gray-200 px-5 py-4 transition hover:border-[#1B2C4F]/40 hover:bg-gray-50 sm:flex-row sm:items-center sm:gap-8 dark:border-white/10 dark:hover:border-[#FFC72C]/40 dark:hover:bg-white/5"
-            >
-              <span className="min-w-0 flex-1">
-                <span className="flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-                  <time dateTime={news.date}>{dayLabel(news.date)}</time>
-                  {now && isNewAnnouncement(news, now) && (
-                    <span className="rounded-full bg-[#FFCD00] px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-[#182B49]">New</span>
-                  )}
-                </span>
-                <span className="mt-1 block text-sm font-semibold group-hover:underline">{news.title}</span>
-                <span className="mt-1 block max-w-3xl text-xs leading-relaxed text-gray-700 dark:text-gray-300">{news.summary}</span>
-              </span>
-              <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-[#1B2C4F] dark:text-[#FFC72C]">
-                Read more
-              </span>
-            </Link>
-          </section>
-        )}
 
         {/* ── Pick up where you left off ─────────────────────────────────── */}
         {visits.length > 0 && (
@@ -266,7 +239,7 @@ export default function HomePage() {
             </div>
             <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">Kept in this browser only.</p>
             <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {visits.map((v) => <RecentCard key={`${v.kind}:${v.key}`} item={v} index={data} />)}
+              {visits.map((v) => <RecentCard key={`${v.kind}:${v.key}`} item={v} index={data} term={term} />)}
             </ul>
           </section>
         )}
@@ -299,7 +272,7 @@ export default function HomePage() {
                       </span>
                     </Link>
                   ))
-                : <p className="py-10 text-center text-xs text-gray-600 dark:text-gray-400">Loading…</p>}
+                : <ShelfState failed={failed} termName={termName} onRetry={retry} />}
             </div>
 
             <Link
@@ -326,7 +299,7 @@ export default function HomePage() {
               <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10">
                 {highest
                   ? highest.map((c) => <CourseRow key={c.k} row={c} />)
-                  : <p className="py-12 text-center text-sm text-gray-600 dark:text-gray-400">Loading…</p>}
+                  : <ShelfState failed={failed} termName={termName} onRetry={retry} tall />}
               </div>
             </section>
 
@@ -340,66 +313,167 @@ export default function HomePage() {
               </div>
               <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
                 RateMyProfessors overall rating 4.0 or better from at least 15 reviews, across all their courses, and on the{" "}
-                {data?.meta.termName ?? "current"} schedule.
+                {termName} schedule.
               </p>
               <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200 dark:border-white/10">
                 {topProfs
                   ? topProfs.map((p) => <ProfessorRow key={p.n} prof={p} />)
-                  : <p className="py-12 text-center text-sm text-gray-600 dark:text-gray-400">Loading…</p>}
+                  : <ShelfState failed={profs === null} termName={termName} onRetry={retry} tall what="professors" />}
               </div>
             </section>
           </div>
         </div>
+
+        {/* ── What changed lately, and the services that are not about a quarter ── */}
+        <section className="mt-16" aria-labelledby="news-title">
+          <h2 id="news-title" className={SECTION_TITLE}>Announcements and student services</h2>
+          {news && (
+            <Link
+              href={announcementHref(news)}
+              className="group mt-4 flex flex-col gap-3 rounded-2xl border border-gray-200 px-5 py-4 transition hover:border-[#1B2C4F]/40 hover:bg-gray-50 sm:flex-row sm:items-center sm:gap-8 dark:border-white/10 dark:hover:border-[#FFC72C]/40 dark:hover:bg-white/5"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                  <time dateTime={news.date}>{dayLabel(news.date)}</time>
+                  {now && isNewAnnouncement(news, now) && (
+                    <span className="rounded-full bg-[#FFCD00] px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-[#182B49]">New</span>
+                  )}
+                </span>
+                <span className="mt-1 block text-sm font-semibold group-hover:underline">{news.title}</span>
+                <span className="mt-1 block max-w-3xl text-xs leading-relaxed text-gray-700 dark:text-gray-300">{news.summary}</span>
+              </span>
+              <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-[#1B2C4F] dark:text-[#FFC72C]">
+                Read more
+              </span>
+            </Link>
+          )}
+          <p className="mt-4 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
+            Also for UCSD students:{" "}
+            <Link href="/housing" className="font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]">Housing</Link>
+            {" "}for sublets from @ucsd.edu students, and{" "}
+            <Link href="/import" className="font-semibold text-[#1B2C4F] hover:underline dark:text-[#FFC72C]">Academic History</Link>
+            {" "}to import your completed courses.
+          </p>
+        </section>
       </div>
     </PlatShell>
   );
 }
 
-/** One of the things a student comes to do: what it is, and where it goes. */
-function EntryRow({
-  href, icon, title, count, detail, filled = false,
-}: {
-  href: string;
-  icon: React.ReactNode;
-  title: string;
-  count?: string;
-  detail: string;
-  filled?: boolean;
-}) {
+/** Where the chosen quarter is in its year, from San Diego's date; null until both are known. */
+function phaseOf(term: string | null, today: string | null): TermPhase | null {
+  return term && today ? termPhase(term, today) : null;
+}
+
+const lookOf = (term: string | null) => (term?.startsWith("WI") ? LOOK.winter : LOOK.standard);
+
+/** "Plan Winter 2027" while it is ahead; the quarter and its week while it runs; "ended" after. */
+function QuarterLead({ term, today }: { term: string | null; today: string | null }) {
+  const phase = phaseOf(term, today);
+  // The heading's room is held while the browser decides the quarter, so nothing below moves.
+  if (!term || !phase) return <div aria-hidden className="h-7 w-56 animate-pulse rounded bg-gray-100 motion-reduce:animate-none dark:bg-white/5 sm:h-8" />;
+  const name = termLabelFor(term);
+  const q = quarterByKey(term);
+  const stage = q && today ? quarterStage(q, today) : null;
   return (
-    <Link
-      href={href}
-      className="group flex items-center gap-4 border-b border-gray-100 px-5 py-3.5 transition last:border-b-0 hover:bg-gray-50 dark:border-white/5 dark:hover:bg-white/5"
-    >
-      <span
-        aria-hidden
-        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
-          filled
-            ? "bg-[#1B2C4F] text-[#FFC72C] dark:bg-[#FFC72C] dark:text-[#1B2C4F]"
-            : "bg-[#1B2C4F]/[0.06] text-[#1B2C4F] dark:bg-[#FFC72C]/10 dark:text-[#FFC72C]"
-        }`}
-      >
-        {icon}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="text-sm font-semibold">{title}</span>
-          {count && <span className="text-xs text-gray-600 dark:text-gray-400">{count}</span>}
+    <h1 className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xl font-semibold tracking-tight sm:text-2xl">
+      {phase === "upcoming" ? <>Plan {name}</> : name}
+      {stage && phase !== "upcoming" && (
+        <span className={`text-sm font-semibold ${lookOf(term).eyebrow}`}>
+          {stage.kind === "teaching" ? `Week ${stage.week} of ${stage.of}`
+            : stage.kind === "finals" ? "Finals week"
+            : stage.kind === "ended" ? `Ended ${dayLabel(stage.end, { year: true })}`
+            : `Classes start ${dayLabel(stage.classes)}`}
         </span>
-        <span className="mt-0.5 block text-xs leading-relaxed text-gray-700 dark:text-gray-300">{detail}</span>
-      </span>
-      <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-gray-400 transition group-hover:translate-x-0.5 group-hover:text-gray-600 motion-reduce:transition-none dark:text-gray-500 dark:group-hover:text-gray-300" />
-    </Link>
+      )}
+    </h1>
+  );
+}
+
+/** The quarter's labelled way into the Planner, and a switch to the other quarter when it is the one to plan. */
+function QuarterActions({ term, today }: { term: string | null; today: string | null }) {
+  const phase = phaseOf(term, today);
+  if (!term || !phase) return <div aria-hidden className="mt-4 h-10" />;
+  const season = termLabelFor(term).split(" ")[0];
+  // The quarter still to come, offered from one that is under way or over.
+  const ahead = phase === "upcoming" ? null : termsServed().find((t) => t.code !== term && phaseOf(t.code, today) === "upcoming") ?? null;
+  return (
+    <div className="mt-4 flex max-w-2xl flex-wrap items-center gap-x-4 gap-y-2">
+      <Link
+        href={withTerm("/planner", term)}
+        className={`inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3.5 text-sm font-semibold shadow-sm transition motion-reduce:transition-none ${lookOf(term).button}`}
+      >
+        <CalendarDays aria-hidden className="h-4 w-4" />
+        {phase === "upcoming" ? `Open ${season} planner` : `Open ${season} schedule`}
+      </Link>
+      {ahead && (
+        <button
+          type="button"
+          onClick={() => chooseTerm(ahead.code)}
+          className="inline-flex min-h-10 items-center gap-1 text-sm font-semibold text-teal-800 hover:underline dark:text-teal-300"
+        >
+          Plan {ahead.name} <ArrowRight aria-hidden className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Beside the search: a quarter's dates while it is being booked, its week
+ * once it runs (with the dates still there for add and drop deadlines), and
+ * after it ends, what is left of its calendar. Nothing for the other quarter.
+ */
+function QuarterPanel({ term, today }: { term: string | null; today: string | null }) {
+  const phase = phaseOf(term, today);
+  // Held at the size of what most first visits get (the newest quarter's dates), so nothing below jumps when it arrives.
+  if (!term || !phase) return <div aria-hidden className={`${timelineFor(defaultTerm()) ? "h-[27.5rem]" : "h-40"} rounded-2xl border border-gray-100 dark:border-white/5`} />;
+  const dates = timelineFor(term) ? <TermTimeline term={term} /> : null;
+  if (phase === "in-progress") {
+    return (
+      <div className="flex flex-col gap-4">
+        <QuarterClock term={term} />
+        {dates}
+      </div>
+    );
+  }
+  if (dates) return dates;
+  const q = quarterByKey(term);
+  return (
+    <section className="rounded-2xl border border-gray-200 px-4 py-4 text-sm dark:border-white/10">
+      <h2 className="font-semibold">{termLabelFor(term)}</h2>
+      <p className="mt-1 text-gray-700 dark:text-gray-300">
+        {phase === "ended"
+          ? `Ended ${q ? dayLabel(q.end, { year: true }) : ""}. Its schedule, sections and finals stay in the Planner.`
+          : `Begins ${q ? dayLabel(q.begins, { year: true }) : "soon"}.`}
+      </p>
+    </section>
+  );
+}
+
+/** A shelf whose quarter is still loading, or failed to: never an empty list that looks like an answer. */
+function ShelfState({ failed, termName, onRetry, tall = false, what = "courses" }: {
+  failed: boolean; termName: string; onRetry: () => void; tall?: boolean; what?: string;
+}) {
+  return failed ? (
+    <div role="alert" className={`flex flex-col items-center justify-center gap-2 px-4 text-center text-sm text-gray-700 dark:text-gray-300 ${tall ? "py-12" : "py-10"}`}>
+      <p>{termName} {what} didn&rsquo;t load.</p>
+      <button type="button" onClick={onRetry} className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1 text-xs font-semibold hover:bg-gray-50 dark:border-white/15 dark:hover:bg-white/10">
+        <RotateCw aria-hidden className="h-3.5 w-3.5" /> Try again
+      </button>
+    </div>
+  ) : (
+    <p className={`text-center text-sm text-gray-600 dark:text-gray-400 ${tall ? "py-12" : "py-10"}`}>Loading {termName}…</p>
   );
 }
 
 /** One thing this browser looked at, with how long ago. */
-function RecentCard({ item, index }: { item: RecentItem; index: PlatIndex | null }) {
+function RecentCard({ item, index, term }: { item: RecentItem; index: PlatIndex | null; term: string | null }) {
   const row = item.kind === "course" ? index?.courses.find((c) => c.k === item.key) : undefined;
   return (
     <li>
       <Link
-        href={item.href}
+        href={withTerm(item.href, term)}
         className="flex h-full items-center gap-3 rounded-xl border border-gray-200 px-3 py-2.5 transition hover:border-[#1B2C4F]/40 hover:bg-gray-50 dark:border-white/10 dark:hover:border-[#FFC72C]/40 dark:hover:bg-white/5"
       >
         {item.kind === "course" ? (

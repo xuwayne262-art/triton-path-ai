@@ -38,8 +38,11 @@ export default function SearchResults({
   onHover,
   onPick,
   idPrefix,
+  termName,
 }: {
   results: Combined;
+  /** "Winter 2027": the quarter "offered" and "teaching" are about. */
+  termName: string;
   query: string;
   /** Index into the flattened professor-then-course list. */
   active: number;
@@ -89,7 +92,7 @@ export default function SearchResults({
           {profs.map(({ prof }, i) => option(
             i,
             professorHref(prof.n),
-            `${prof.n}, professor${prof.cur === 1 ? ", teaching this term" : ""}${prof.q ? `, RateMyProfessors ${prof.q.toFixed(1)}` : ""}`,
+            `${prof.n}, professor${prof.cur === 1 ? `, teaching in ${termName}` : ""}${prof.q ? `, RateMyProfessors ${prof.q.toFixed(1)}` : ""}`,
             <>
               <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 dark:bg-white/10">
                 <User className="h-4 w-4 text-gray-600 dark:text-gray-300" />
@@ -99,7 +102,7 @@ export default function SearchResults({
                 <span className="flex flex-wrap items-center gap-x-2 text-xs text-gray-600 dark:text-gray-400">
                   <span>{prof.c.length} {prof.c.length === 1 ? "course" : "courses"}</span>
                   {prof.a?.length ? <span>also {prof.a.slice(0, 2).join(", ")}</span> : null}
-                  {prof.cur === 1 && <span className="font-medium text-emerald-700 dark:text-emerald-400">teaching now</span>}
+                  {prof.cur === 1 && <span className="font-medium text-emerald-700 dark:text-emerald-400">teaching in {termName}</span>}
                   {prof.q != null && prof.q > 0 && (
                     <span className={`inline-flex items-center gap-0.5 font-semibold ${ratingTone(prof.q)}`}>
                       <Star aria-hidden className="h-3 w-3 fill-current" />
@@ -124,7 +127,7 @@ export default function SearchResults({
             return option(
               i,
               courseLink(row),
-              `${row.k}, ${row.t}${viaProf ? `, taught by ${viaProf}` : ""}`,
+              `${row.k}, ${row.t}${viaProf ? `, taught by ${viaProf}` : ""}${row.o ? "" : `, not offered in ${termName}`}`,
               <>
                 <GradeBadge gpa={row.g} terms={row.r} size="sm" />
                 <span className="min-w-0 flex-1">
@@ -132,7 +135,7 @@ export default function SearchResults({
                   <span className="flex flex-wrap items-center gap-x-2 text-xs text-gray-600 dark:text-gray-400">
                     <span className="font-mono">{row.k}</span>
                     {viaProf && <span className="text-indigo-700 dark:text-indigo-400">taught by {viaProf}</span>}
-                    {!row.o && <span>not offered this term</span>}
+                    {!row.o && <span>not offered in {termName}</span>}
                   </span>
                 </span>
               </>,

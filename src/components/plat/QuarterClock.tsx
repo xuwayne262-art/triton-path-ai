@@ -64,12 +64,17 @@ const FRAME =
   "relative isolate overflow-hidden rounded-2xl px-5 py-4 text-white ring-1 ring-white/10 " +
   "bg-[linear-gradient(135deg,#0a1630_0%,#10224a_52%,#182B49_100%)] dark:ring-[#FFCD00]/15";
 
-export default function QuarterClock({ className = "" }: { className?: string }) {
+/**
+ * `term`: show the strip only while that quarter is the one on the clock, so
+ * a page about Fall never shows Winter's weeks (or the reverse) because the
+ * calendar moved on. Without it, the strip follows the calendar.
+ */
+export default function QuarterClock({ className = "", term }: { className?: string; term?: string }) {
   const t = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   if (!t) return <Placeholder className={className} />;
   const reading = readClock(t);
   // Past the last quarter the calendar lists, there is nothing true to show.
-  if (!reading) return null;
+  if (!reading || (term && reading.quarter.key !== term)) return null;
   return <Strip r={reading} className={className} />;
 }
 

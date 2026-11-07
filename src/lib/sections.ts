@@ -148,7 +148,7 @@ export const sectionWhere = (s: SectionTuple) => sectionRoom(s) || s[BUILDING] |
  * publishes no rooms at all (Winter 2027 onward), which is not the same as a
  * room still to be assigned.
  */
-export const ROOM_UNAVAILABLE = "Room unavailable · Check UCSD";
+export const ROOM_UNAVAILABLE = "Room not published";
 
 /**
  * Where a meeting is, in words: its room; else, for a meeting with a time,

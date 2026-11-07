@@ -28,6 +28,7 @@ import {
 } from "@/lib/housing/listing";
 import { parseAddressQuery, type Place } from "@/lib/housing/geocode";
 
+import { withTerm } from "@/lib/terms";
 const HousingMap = dynamic(() => import("@/components/housing/HousingMap"), {
   ssr: false,
   loading: () => (
@@ -403,7 +404,7 @@ function ScheduleBanner({
               {schedule.undecided.length > 0 && ` · no section yet for ${schedule.undecided.join(", ")}`}
               {schedule.passedOver && ` · ${schedule.passedOver} lists no rooms yet`}
               {" · "}
-              <Link href="/planner" className="font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]">Change</Link>
+              <Link href={withTerm("/planner", schedule.term)} className="font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]">Change</Link>
             </p>
           </div>
         ) : (
@@ -415,7 +416,7 @@ function ScheduleBanner({
                 : schedule.undecided.length
                   ? `Pick sections for ${schedule.undecided.join(", ")} and every place is measured to your own classrooms instead. `
                   : "Add your classes in the planner and every place is measured to your own classrooms instead. "}
-              <Link href="/planner" className="font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]">Open the planner →</Link>
+              <Link href={withTerm("/planner", schedule.term)} className="font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]">Open the planner →</Link>
             </p>
           </div>
         )}

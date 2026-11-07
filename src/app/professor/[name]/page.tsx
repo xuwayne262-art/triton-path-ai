@@ -30,21 +30,32 @@ interface TermRow {
 
 export default function ProfessorPage({ params }: { params: Promise<{ name: string }> }) {
   const { name: slug } = use(params);
-  const [profs, setProfs] = useState<ProfessorRecord[] | null>(null);
-  const [index, setIndex] = useState<PlatIndex | null>(null);
   const [files, setFiles] = useState<Record<string, SubjectFile>>({});
   const [allTerms, setAllTerms] = useState(false);
 
   // Who teaches what in the chosen quarter; their grade history is the same in any.
   const term = useTerm()?.term ?? null;
   const termLabel = term ? termLabelFor(term) : "this term";
+  // Each answer is kept with its quarter and read only for it, so a switch
+  // never shows one quarter's "teaching" under the other's name. A list that
+  // failed to load is not an empty one: it says so, rather than "No
+  // instructor by that name" for someone who exists.
+  const [people, setPeople] = useState<{ term: string; profs: ProfessorRecord[] | null }>({ term: "", profs: null });
+  const [loaded, setLoaded] = useState<{ term: string; index: PlatIndex } | null>(null);
+  const [tick, setTick] = useState(0);
   useEffect(() => {
     if (!term) return;
     let live = true;
-    loadProfessorsFor(term).then((f) => { if (live) setProfs(f.professors); }).catch(() => { if (live) setProfs([]); });
-    loadIndexFor(term).then((d) => { if (live) setIndex(d); }).catch(() => {});
+    loadProfessorsFor(term)
+      .then((f) => { if (live) setPeople({ term, profs: f.professors }); })
+      .catch(() => { if (live) setPeople({ term, profs: null }); });
+    loadIndexFor(term).then((d) => { if (live) setLoaded({ term, index: d }); }).catch(() => {});
     return () => { live = false; };
-  }, [term]);
+  }, [term, tick]);
+  const peopleNow = term && people.term === term ? people : null;
+  const profs = peopleNow?.profs ?? null;
+  const failed = peopleNow != null && peopleNow.profs === null;
+  const index = loaded && loaded.term === term ? loaded.index : null;
 
   // A link built from another spelling of their name ("joe-politz") still
   // finds them; their own name wins when both answer.
@@ -99,6 +110,26 @@ export default function ProfessorPage({ params }: { params: Promise<{ name: stri
 
   const teachingNow = useMemo(() => prof?.c.filter((c) => c[3] === 1) ?? [], [prof]);
   const previously = useMemo(() => prof?.c.filter((c) => c[3] !== 1) ?? [], [prof]);
+
+  if (failed) {
+    return (
+      <PlatShell>
+        <div role="alert" className="mx-auto max-w-2xl px-4 py-24 text-center">
+          <h1 className={PAGE_TITLE}>Instructors didn&rsquo;t load</h1>
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+            {termLabel}&rsquo;s instructor list couldn&rsquo;t be fetched. Check your connection and try again.
+          </p>
+          <button
+            type="button"
+            onClick={() => setTick((n) => n + 1)}
+            className="mt-6 rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold hover:bg-gray-50 dark:border-white/15 dark:hover:bg-white/10"
+          >
+            Try again
+          </button>
+        </div>
+      </PlatShell>
+    );
+  }
 
   if (profs && !prof) {
     return (

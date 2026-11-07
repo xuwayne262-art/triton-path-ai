@@ -2,8 +2,35 @@
   "term": "WI27",
   "label": "Winter 2027",
   "timezone": "America/Los_Angeles",
-  "as_of": "2026-11-06",
+  "as_of": "2026-11-07",
+  "enrollment_ends": "2027-01-15",
   "deadline_note": "The registration calendar gives 11:59 p.m. PT for deadlines and 4:30 p.m. PT for transactions needing in-person assistance. Booking opens on individual appointments. Opening dates are calendar dates, without an inferred time.",
+  "sources": [
+    {
+      "url": "https://students.ucsd.edu/academics/enroll/calendar26-27.html",
+      "title": "Enrollment and registration calendar, 2026–27",
+      "updated": "2026-07-13",
+      "checked": "2026-11-07"
+    },
+    {
+      "url": "https://blink.ucsd.edu/instructors/resources/academic/calendars/2026.html",
+      "title": "Academic calendar, 2026–27",
+      "updated": "2026-10-07",
+      "checked": "2026-11-07"
+    },
+    {
+      "url": "https://students.ucsd.edu/finances/fees/registration/2026-27/index.html",
+      "title": "Undergraduate registration fees, 2026–27",
+      "updated": "2026-09-20",
+      "checked": "2026-11-07"
+    },
+    {
+      "url": "https://students.ucsd.edu/finances/fees/registration/2026-27/graduate.html",
+      "title": "Graduate registration fees, 2026–27",
+      "updated": "2026-09-20",
+      "checked": "2026-11-07"
+    }
+  ],
   "events": [
     {
       "id": "WI27-01",
@@ -21,6 +48,9 @@
       "term": "WI27",
       "label": "Apply to return to UCSD",
       "audience": "Returning undergraduates",
+      "groups": [
+        "undergraduate"
+      ],
       "category": "registration",
       "date": "2026-11-01",
       "end_date": null,
@@ -43,6 +73,10 @@
       "term": "WI27",
       "label": "Winter schedule and booking appointments available",
       "audience": "All students",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "booking",
       "date": "2026-11-05",
       "end_date": null,
@@ -54,6 +88,10 @@
       "term": "WI27",
       "label": "Booking holds take effect",
       "audience": "Students with a hold",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "registration",
       "date": "2026-11-07",
       "end_date": null,
@@ -65,6 +103,10 @@
       "term": "WI27",
       "label": "Continuing-student booking begins",
       "audience": "Continuing students; new graduate students check with their program",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "booking",
       "date": "2026-11-09",
       "end_date": null,
@@ -76,6 +118,10 @@
       "term": "WI27",
       "label": "Waitlists open",
       "audience": "Students eligible to waitlist",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "booking",
       "date": "2026-11-16",
       "end_date": null,
@@ -87,6 +133,10 @@
       "term": "WI27",
       "label": "Billing statement available",
       "audience": "Continuing students",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "fees",
       "date": "2026-12-04",
       "end_date": null,
@@ -98,6 +148,10 @@
       "term": "WI27",
       "label": "Notify UCSD of nonattendance",
       "audience": "Nonattending students with aid, full-fee waivers or graduate awards",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "fees",
       "date": "2026-12-11",
       "end_date": null,
@@ -109,6 +163,10 @@
       "term": "WI27",
       "label": "Regular health insurance waiver deadline",
       "audience": "Students seeking a waiver",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "fees",
       "date": "2026-12-14",
       "end_date": null,
@@ -120,6 +178,10 @@
       "term": "WI27",
       "label": "Late health insurance waiver deadline",
       "audience": "Students seeking a waiver",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "fees",
       "date": "2026-12-20",
       "end_date": null,
@@ -131,6 +193,10 @@
       "term": "WI27",
       "label": "Quarter and instruction begin",
       "audience": "All students",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "academic",
       "date": "2027-01-04",
       "end_date": null,
@@ -142,6 +208,10 @@
       "term": "WI27",
       "label": "Automatic waitlists close",
       "audience": "Students on waitlists",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "booking",
       "date": "2027-01-15",
       "end_date": null,
@@ -151,8 +221,12 @@
     {
       "id": "WI27-14",
       "term": "WI27",
-      "label": "Last day to add or rebook a class after cancellation for nonpayment",
-      "audience": "All students",
+      "label": "Last day to add a class, or rebook one dropped for nonpayment",
+      "audience": "Undergraduate and graduate students",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "registration",
       "date": "2027-01-15",
       "end_date": null,
@@ -164,6 +238,10 @@
       "term": "WI27",
       "label": "Financial aid freeze and commencement of academic activity deadline",
       "audience": "Financial aid recipients",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "fees",
       "date": "2027-01-15",
       "end_date": null,
@@ -175,6 +253,9 @@
       "term": "WI27",
       "label": "Request part-time status",
       "audience": "Undergraduates",
+      "groups": [
+        "undergraduate"
+      ],
       "category": "registration",
       "date": "2027-01-15",
       "end_date": null,
@@ -186,6 +267,9 @@
       "term": "WI27",
       "label": "Request leave, in absentia status or half-time study",
       "audience": "Graduate students",
+      "groups": [
+        "graduate"
+      ],
       "category": "registration",
       "date": "2027-01-15",
       "end_date": null,
@@ -197,6 +281,10 @@
       "term": "WI27",
       "label": "Martin Luther King Jr. Day holiday",
       "audience": "All students",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "academic",
       "date": "2027-01-18",
       "end_date": null,
@@ -207,7 +295,10 @@
       "id": "WI27-19",
       "term": "WI27",
       "label": "File advancement to candidacy",
-      "audience": "Master\u2019s students",
+      "audience": "Master’s students",
+      "groups": [
+        "graduate"
+      ],
       "category": "registration",
       "date": "2027-01-22",
       "end_date": null,
@@ -219,6 +310,10 @@
       "term": "WI27",
       "label": "Fifteenth instructional day",
       "audience": "All students",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "academic",
       "date": "2027-01-25",
       "end_date": null,
@@ -230,6 +325,10 @@
       "term": "WI27",
       "label": "Last day to drop or withdraw without a W",
       "audience": "Undergraduate and graduate students",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "registration",
       "date": "2027-01-29",
       "end_date": null,
@@ -241,6 +340,9 @@
       "term": "WI27",
       "label": "Last day to change units",
       "audience": "Undergraduates",
+      "groups": [
+        "undergraduate"
+      ],
       "category": "registration",
       "date": "2027-02-12",
       "end_date": null,
@@ -252,6 +354,10 @@
       "term": "WI27",
       "label": "Last day to change grading option",
       "audience": "Undergraduate and graduate students",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "registration",
       "date": "2027-02-12",
       "end_date": null,
@@ -263,6 +369,9 @@
       "term": "WI27",
       "label": "Last day to drop or withdraw with a W",
       "audience": "Undergraduates",
+      "groups": [
+        "undergraduate"
+      ],
       "category": "registration",
       "date": "2027-02-12",
       "end_date": null,
@@ -272,8 +381,12 @@
     {
       "id": "WI27-25",
       "term": "WI27",
-      "label": "Presidents\u2019 Day holiday",
+      "label": "Presidents’ Day holiday",
       "audience": "All students",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "academic",
       "date": "2027-02-15",
       "end_date": null,
@@ -285,6 +398,9 @@
       "term": "WI27",
       "label": "Last day to drop or withdraw with a W",
       "audience": "Graduate students",
+      "groups": [
+        "graduate"
+      ],
       "category": "registration",
       "date": "2027-03-05",
       "end_date": null,
@@ -296,6 +412,10 @@
       "term": "WI27",
       "label": "Instruction ends",
       "audience": "All students",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "academic",
       "date": "2027-03-12",
       "end_date": null,
@@ -307,6 +427,9 @@
       "term": "WI27",
       "label": "Last day to change units",
       "audience": "Graduate students",
+      "groups": [
+        "graduate"
+      ],
       "category": "registration",
       "date": "2027-03-12",
       "end_date": null,
@@ -318,6 +441,10 @@
       "term": "WI27",
       "label": "Final exams",
       "audience": "All students; individual exams follow section schedules",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "academic",
       "date": "2027-03-13",
       "end_date": "2027-03-20",
@@ -340,6 +467,10 @@
       "term": "WI27",
       "label": "Quarter ends and Winter diploma date",
       "audience": "All students",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "academic",
       "date": "2027-03-20",
       "end_date": null,
@@ -351,6 +482,10 @@
       "term": "WI27",
       "label": "Resolve a previous-quarter incomplete",
       "audience": "Students clearing an incomplete",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "registration",
       "date": "2027-03-20",
       "end_date": null,
@@ -362,6 +497,10 @@
       "term": "WI27",
       "label": "Submit Winter incomplete grade request",
       "audience": "Students requesting an incomplete",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "registration",
       "date": "2027-03-22",
       "end_date": null,
@@ -373,6 +512,10 @@
       "term": "WI27",
       "label": "Fee payment holds take effect",
       "audience": "Students subject to fee holds",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "fees",
       "date": null,
       "end_date": null,
@@ -383,18 +526,47 @@
       "id": "WI27-35",
       "term": "WI27",
       "label": "Registration fee payment deadline",
-      "audience": "All students",
+      "audience": "Undergraduates and graduate students on UCSD's standard fee tables",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "fees",
-      "date": null,
+      "date": "2026-12-18",
       "end_date": null,
-      "status": "unpublished",
-      "source_url": "https://students.ucsd.edu/academics/enroll/calendar26-27.html"
+      "status": "published",
+      "source_url": "https://students.ucsd.edu/finances/fees/registration/2026-27/index.html",
+      "sources": [
+        {
+          "url": "https://students.ucsd.edu/finances/fees/registration/2026-27/index.html",
+          "title": "Undergraduate registration fees, 2026–27",
+          "says": "12/18/2026",
+          "checked": "2026-11-07"
+        },
+        {
+          "url": "https://students.ucsd.edu/finances/fees/registration/2026-27/graduate.html",
+          "title": "Graduate registration fees, 2026–27",
+          "says": "12/18/2026",
+          "checked": "2026-11-07"
+        },
+        {
+          "url": "https://students.ucsd.edu/academics/enroll/calendar26-27.html",
+          "title": "Enrollment and registration calendar, 2026–27",
+          "says": "TBD",
+          "checked": "2026-11-07"
+        }
+      ],
+      "note": "UCSD's fee pages give Dec 18 with no time; the enrollment calendar still says TBD. Self-supporting, Rady and School of Global Policy and Strategy programs list their own fees, so check yours."
     },
     {
       "id": "WI27-36",
       "term": "WI27",
       "label": "Late registration fee payment deadline",
       "audience": "All students",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "fees",
       "date": null,
       "end_date": null,
@@ -406,6 +578,10 @@
       "term": "WI27",
       "label": "Grades posted on TritonLink",
       "audience": "All students",
+      "groups": [
+        "undergraduate",
+        "graduate"
+      ],
       "category": "registration",
       "date": null,
       "end_date": null,
