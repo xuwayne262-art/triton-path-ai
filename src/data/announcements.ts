@@ -41,8 +41,8 @@ export interface Announcement {
 
 export const ANNOUNCEMENTS: readonly Announcement[] = [
   {
-    id: "2026-11-07-each-quarter",
-    date: "2026-11-07",
+    id: "2026-11-06-each-quarter",
+    date: "2026-11-06",
     title: "Each quarter, its own page",
     summary: "The home page now leads with the quarter you pick, and Winter dates show what is next for you.",
     groups: [
