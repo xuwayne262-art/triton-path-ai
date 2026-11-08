@@ -25,6 +25,7 @@ import { formatStay } from "@/lib/housing/terms";
 import {
   KINDS, KIND_HINT, PHOTO_LABELS, dollars, headline, listedUntil, type Laundry, type PhotoLabel, type PublicListing,
 } from "@/lib/housing/listing";
+import { pageTitle } from "@/lib/siteTitle";
 
 const LAUNDRY_SHORT: Record<Laundry, string> = { unit: "In unit", building: "On site", none: "None" };
 
@@ -56,9 +57,10 @@ export default function ListingPage() {
   const [error, setError] = useState<string | null>(null);
   const boardHref = useBoardHref();
 
-  // A tab or a bookmark should say which place this is, not just the site.
+  // A tab or a bookmark should say which place this is, not just the site:
+  // "Studio | Housing | UCSDPlans". document.title skips the template, so pageTitle adds the site.
   useEffect(() => {
-    if (listing) document.title = `${headline(listing)} · UCSDPlans housing`;
+    if (listing) document.title = pageTitle(`${headline(listing)} | Housing`);
   }, [listing]);
 
   const load = useCallback(async () => {

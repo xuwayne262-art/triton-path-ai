@@ -9,7 +9,7 @@ import { browseBackHref, destinationFor, destinationFromCookie } from "@/lib/aut
 import LoginView from "@/components/auth/LoginView";
 
 export const metadata: Metadata = {
-  title: "Sign in · UCSDPlans",
+  title: "Sign in",
   description: "Sign in with your @ucsd.edu Google account to use the Planner, Academic History and Housing.",
 };
 
