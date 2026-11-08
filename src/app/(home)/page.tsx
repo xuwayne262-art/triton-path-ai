@@ -159,9 +159,11 @@ export default function HomePage() {
           {/* ── The quarter chosen, the search and its planner ───────────── */}
           <div className="min-w-0 lg:col-span-6 lg:row-start-1">
             <QuarterLead term={term} today={today} />
-            {/* Static on purpose: counts that arrived with the data added a line here and moved everything below it. */}
+            {/* Static on purpose: counts that arrived with the data added a line here and moved everything below it.
+                It says on screen what the search result's description promises (HOME_DESCRIPTION, src/lib/siteTitle.ts). */}
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-gray-700 dark:text-gray-300">
-              Grades, professors and seats for every UCSD course.
+              Explore UCSD courses with their historical grades, professor ratings and seats. Find GEs by college and
+              build your quarter&rsquo;s schedule.
             </p>
 
             {/* Which quarter the search, the lists and the planner show. */}
