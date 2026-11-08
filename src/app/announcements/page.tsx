@@ -7,7 +7,7 @@ import { ANNOUNCEMENTS } from "@/data/announcements";
 import { dayLabel } from "@/lib/plat";
 
 export const metadata: Metadata = {
-  title: "Announcements · UCSDPlans",
+  title: "Announcements",
   description: "What’s new on UCSDPlans.",
 };
 

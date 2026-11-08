@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider, THEME_BOOTSTRAP } from "@/components/plat/theme";
 import { TermAddressSync } from "@/components/plat/useTerm";
+import { HOME_TITLE, TITLE_TEMPLATE } from "@/lib/siteTitle";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -16,12 +17,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "UCSDPlans · UCSD course radar & planner",
+  // The home page gets the default; a page that names itself gets "<name> | UCSDPlans".
+  title: { default: HOME_TITLE, template: TITLE_TEMPLATE },
   description:
     "Grade distributions, professor ratings and this quarter's seats for every UCSD course, plus a planner for this term and all four years.",
   // "Add to Home Screen" on an iPhone opens it like an app, titled briefly.
   appleWebApp: { capable: true, title: "UCSDPlans", statusBarStyle: "default" },
   // A public path (see src/lib/auth/routes.ts): iOS fetches it for the icon.
+  // The tab icon is src/app/favicon.ico, the same logo, which Next.js links itself.
   icons: { apple: "/apple-touch-icon.png" },
 };
 

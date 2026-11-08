@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { courseForMeta, laterTermCourses } from "@/lib/seo";
 import { tidyTitle, typicalGrade } from "@/lib/plat";
+import { pageTitle, SITE_NAME } from "@/lib/siteTitle";
 
 /**
  * The course page is drawn in the browser; this names it on the server, so a
- * shared link previews as the course instead of the site's name.
+ * shared link previews as the course instead of the site's name. The root
+ * layout's template adds " | UCSDPlans" to the tab; og:title gets it here.
  */
 export async function generateMetadata({
   params,
@@ -18,7 +20,7 @@ export async function generateMetadata({
   if (!detail) {
     // A course new in a later quarter is named from that quarter's schedule.
     const title = (await laterTermCourses()).get(code);
-    return { title: title ? `${code} ${tidyTitle(title)} · UCSDPlans` : `${code} · UCSDPlans` };
+    return { title: title ? `${code} ${tidyTitle(title)}` : code };
   }
 
   const letter = typicalGrade(detail.gpa, detail.terms)?.letter;
@@ -29,11 +31,11 @@ export async function generateMetadata({
     detail.desc ? detail.desc.slice(0, 180) + (detail.desc.length > 180 ? "…" : "") : null,
   ].filter(Boolean).join(" ");
 
-  const title = `${code} ${tidyTitle(detail.t)} · UCSDPlans`;
+  const title = `${code} ${tidyTitle(detail.t)}`;
   return {
     title,
     description,
-    openGraph: { title, description, siteName: "UCSDPlans", type: "website" },
+    openGraph: { title: pageTitle(title), description, siteName: SITE_NAME, type: "website" },
   };
 }
 

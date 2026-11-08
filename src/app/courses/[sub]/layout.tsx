@@ -8,7 +8,7 @@ export async function generateMetadata({ params }: { params: Promise<{ sub: stri
     ?? collegeById(param) ?? collegeForSubject(param.toUpperCase());
   const name = unit?.name ?? param.toUpperCase();
   return {
-    title: `${name} courses · UCSDPlans`,
+    title: `${name} courses`,
     description: `Every ${name} course at UC San Diego with its grade history, this term's professors and sections.`,
   };
 }
