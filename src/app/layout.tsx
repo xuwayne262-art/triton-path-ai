@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider, THEME_BOOTSTRAP } from "@/components/plat/theme";
 import { TermAddressSync } from "@/components/plat/useTerm";
-import { HOME_TITLE, TITLE_TEMPLATE } from "@/lib/siteTitle";
+import { HOME_DESCRIPTION, HOME_TITLE, SITE_NAME, TITLE_TEMPLATE } from "@/lib/siteTitle";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -19,13 +19,23 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   // The home page gets the default; a page that names itself gets "<name> | UCSDPlans".
   title: { default: HOME_TITLE, template: TITLE_TEMPLATE },
-  description:
-    "Grade distributions, professor ratings and this quarter's seats for every UCSD course, plus a planner for this term and all four years.",
+  // The home page's search snippet; pages that describe themselves keep their own.
+  description: HOME_DESCRIPTION,
+  // og:site_name on every page. Next.js fills each page's og:title and
+  // og:description from its own title and description, so nothing here may
+  // name a single page. Course and professor pages set theirs in full.
+  openGraph: { siteName: SITE_NAME, type: "website" },
   // "Add to Home Screen" on an iPhone opens it like an app, titled briefly.
-  appleWebApp: { capable: true, title: "UCSDPlans", statusBarStyle: "default" },
-  // A public path (see src/lib/auth/routes.ts): iOS fetches it for the icon.
-  // The tab icon is src/app/favicon.ico, the same logo, which Next.js links itself.
-  icons: { apple: "/apple-touch-icon.png" },
+  appleWebApp: { capable: true, title: SITE_NAME, statusBarStyle: "default" },
+  // Public paths (see src/lib/auth/routes.ts). The tab icon is
+  // src/app/favicon.ico, which Next.js links first by itself. The 96 px PNG
+  // is the same logo for search results (Google wants a multiple of 48 px); it
+  // sits in public/ at a stable address, because declaring `icons` here makes
+  // Next.js skip an app/icon.png. iOS fetches the apple icon for the Home Screen.
+  icons: {
+    icon: [{ url: "/favicon-96x96.png", type: "image/png", sizes: "96x96" }],
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 /**

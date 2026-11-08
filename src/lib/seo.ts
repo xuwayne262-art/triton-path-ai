@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import type { CourseDetail, PlatIndex, ProfessorFile } from "./plat";
+import { SITE_NAME } from "./siteTitle";
 import { termsServed } from "./terms";
 
 /**
@@ -62,5 +63,21 @@ export function laterTermCourses(): Promise<Map<string, string>> {
   return later;
 }
 
-/** Where the site lives, for absolute links in the sitemap. */
+/** Where the site lives, for absolute links in the sitemap, robots.txt and structured data. */
 export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://ucsdplans.com").replace(/\/+$/, "");
+
+/**
+ * The home page's WebSite structured data: Google reads it for the site name
+ * it shows above a result. Only the home page carries it, and only once.
+ */
+export function websiteJsonLd(siteUrl: string = SITE_URL) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: SITE_NAME,
+    url: `${siteUrl}/`,
+  };
+}
+
+/** JSON for a `<script type="application/ld+json">`, with "<" escaped so no value can end the tag early. */
+export const jsonLdHtml = (data: unknown): string => JSON.stringify(data).replace(/</g, "\\u003c");

@@ -1,10 +1,19 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { HOME_TITLE, TITLE_TEMPLATE, pageTitle } from "./siteTitle";
+import { HOME_DESCRIPTION, HOME_TITLE, TITLE_TEMPLATE, pageTitle } from "./siteTitle";
 
 describe("site titles", () => {
   test("names the home page in full", () => {
-    assert.equal(HOME_TITLE, "UCSDPlans — UCSD Course Planner");
+    assert.equal(HOME_TITLE, "UCSDPlans — UCSD Course Planner, Grades & Professor Ratings");
+  });
+
+  test("describes the home page in a snippet search results show whole", () => {
+    assert.equal(
+      HOME_DESCRIPTION,
+      "Explore UCSD courses, compare historical grades and professor ratings, find GEs by college, and build your quarterly schedule with UCSDPlans.",
+    );
+    // Google cuts snippets at about 155-160 characters.
+    assert.ok(HOME_DESCRIPTION.length <= 155, `${HOME_DESCRIPTION.length} characters`);
   });
 
   test("puts a page's own name before the site's", () => {

@@ -17,7 +17,7 @@ describe("isPublicPath", () => {
   });
 
   test("lets the login page's own assets through", () => {
-    for (const path of ["/brand/ucsdplans-logo.png", "/favicon.ico", "/_next/static/x.js"]) {
+    for (const path of ["/brand/ucsdplans-logo.png", "/favicon.ico", "/favicon-96x96.png", "/_next/static/x.js"]) {
       assert.equal(isPublicPath(path), true, path);
     }
   });

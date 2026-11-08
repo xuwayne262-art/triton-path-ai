@@ -33,6 +33,7 @@ const PUBLIC_PREFIXES = [
 /** Exact paths reachable without a session. */
 const PUBLIC_FILES = new Set([
   "/favicon.ico",
+  "/favicon-96x96.png", // the icon Google shows beside a search result
   "/robots.txt",
   "/sitemap.xml",
   "/manifest.webmanifest",
