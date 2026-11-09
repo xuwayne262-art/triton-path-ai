@@ -773,7 +773,7 @@ function Review({
         {summary.map((s, i) => <p key={i}>{s}</p>)}
         {(preview.reviewRows > 0 || draft.unplaced.length > 0) && (
           <p className="text-amber-900 dark:text-amber-200">
-            {preview.reviewRows > 0 && `${preview.reviewRows} ${preview.reviewRows === 1 ? "row needs" : "rows need"} a look. ${preview.reviewRows === 1 ? "It's" : "They're"} saved marked Needs review and count toward nothing until fixed. `}
+            {preview.reviewRows > 0 && `${preview.reviewRows} ${preview.reviewRows === 1 ? "row needs" : "rows need"} a look. ${preview.reviewRows === 1 ? "It's saved marked Needs review and counts" : "They're saved marked Needs review and count"} toward nothing until fixed. `}
             {draft.unplaced.length > 0 && `${draft.unplaced.length} ${draft.unplaced.length === 1 ? "course has" : "courses have"} no quarter and won't be saved until placed.`}
           </p>
         )}

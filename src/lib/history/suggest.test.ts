@@ -82,6 +82,14 @@ describe("suggestions", () => {
     assert.equal(bucketOf("ECON 125", list), "review");
   });
 
+  test("a prerequisite sentence with standing words is called a manual check, not a restriction", () => {
+    const pre: Record<string, string | null> = { ...PRE, "ECON 150": "ECON 1 or ECON 3; restricted to undergraduates." };
+    const r = buildSuggestions(candidates(input({ rows: [...ROWS, row("ECON 150")] })), (c) => (c in pre ? { pre: pre[c], res: null } : undefined), record).items;
+    const s = r.find((x) => x.row.k === "ECON 150")!;
+    assert.equal(s.bucket, "review");
+    assert.match(s.prereqText, /^Prerequisites need a manual check/);
+  });
+
   test("a prerequisite that can't be read but names only courses the record lacks is left out", () => {
     // ECON 130 names ECON 109 and MATH 18; the record shows neither.
     assert.equal(bucketOf("ECON 130", list), "left out");

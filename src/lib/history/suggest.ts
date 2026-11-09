@@ -159,7 +159,10 @@ export function buildSuggestions(
         remaining: g.remaining,
         also: item.also,
         prereq: shown,
-        prereqText: checkText(shown),
+        // A "restriction" read out of the prerequisite sentence itself is a prerequisite to check by hand.
+        prereqText: shown.code === "RESTRICTED" && d?.pre && String(shown.detail?.text ?? "") === d.pre.trim().slice(0, 240)
+          ? checkText({ ...shown, code: "PREREQ_UNREADABLE" })
+          : checkText(shown),
         condition,
         notes,
       });

@@ -238,7 +238,9 @@ export default function FourYearPlanPage() {
                         (p) => p.year === year && p.quarter === quarter && !historyLayer.matched.has(p.courseId),
                       );
                       const taken = historyLayer.bySlot.get(slotKey(year, quarter)) ?? [];
-                      const units = coursesUnitsText(courses.map((p) => p.course));
+                      // A flagged entry (already passed, or a past quarter without it) is not counted as planned.
+                      const counted = courses.filter((p) => !flagFor.has(p.courseId));
+                      const units = coursesUnitsText(counted.map((p) => p.course));
                       const droppableId = `${year}-${quarter}`;
                       return (
                         <Droppable droppableId={droppableId} key={droppableId}>
@@ -258,7 +260,7 @@ export default function FourYearPlanPage() {
                             >
                               <div className="flex items-baseline justify-between mb-1">
                                 <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400">{quarter}</p>
-                                {courses.length > 0 && (
+                                {counted.length > 0 && (
                                   <p className="text-[10px] tabular-nums text-gray-500 dark:text-gray-400">{units}u planned</p>
                                 )}
                               </div>
