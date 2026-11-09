@@ -41,6 +41,65 @@ export interface Announcement {
 
 export const ANNOUNCEMENTS: readonly Announcement[] = [
   {
+    id: "2026-11-09-academic-history",
+    date: "2026-11-09",
+    title: "Academic History works with TSS",
+    summary: "Paste your Academic History from TSS, and your 4-year plan shows what you took and what to take next.",
+    groups: [
+      {
+        label: "Academic History",
+        items: [
+          {
+            title: "Paste from TSS",
+            text: "Copy My Academic History from TSS (Triton Student System) and paste it into Academic History.",
+          },
+          {
+            title: "Check before you save",
+            text: "Fix a grade or units, remove a course, or add one by hand before saving.",
+          },
+          {
+            title: "Paste again any time",
+            text: "A new paste adds courses and updates grades without deleting the quarters it leaves out.",
+          },
+          {
+            title: "Only your courses are saved",
+            text: "Only the course list is saved to your account, never your name or ID.",
+          },
+        ],
+      },
+      {
+        label: "4-year plan",
+        items: [
+          {
+            title: "Your courses in their quarters",
+            text: "Pick your current plan year, and each course you took shows in its quarter as Completed or In progress.",
+          },
+          {
+            title: "Already passed? We flag it",
+            text: "A planned course you already passed is marked, with a button to remove it.",
+          },
+          {
+            title: "What to take next",
+            text: "Courses suggested for next quarter say Ready, Conditional or Needs a check, based on UCSD’s prerequisites.",
+          },
+        ],
+      },
+      {
+        label: "Fixes",
+        items: [
+          {
+            title: "TSS links work again",
+            text: "TSS buttons open TSS again instead of an error page.",
+          },
+          {
+            title: "Recommendations skip your courses",
+            text: "Recommended for you on This term leaves out courses you passed or are taking.",
+          },
+        ],
+      },
+    ],
+  },
+  {
     id: "2026-11-06-each-quarter",
     date: "2026-11-06",
     title: "Each quarter, its own page",
