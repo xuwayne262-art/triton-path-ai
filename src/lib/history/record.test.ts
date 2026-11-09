@@ -1,6 +1,8 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { sanitizeHistory } from "./record";
+import { HISTORY_VERSION, readSaveBody, sanitizeHistory, savedAtOf } from "./record";
+import { readAcademicHistory } from "./parse";
+import { TSS_FIXTURE, TSS_IDENTITY } from "./fixtures";
 import { storageKey } from "./store";
 
 const oneTerm = (courses: unknown[]) => ({
@@ -66,12 +68,17 @@ describe("sanitizeHistory", () => {
     assert.equal(r?.totals.gpa, null, "no graded units means no GPA, not 0.00");
   });
 
-  test("rejects an unknown status rather than trusting the label", () => {
+  test("works a status out from the grade, never from the label it was sent", () => {
     const r = sanitizeHistory(oneTerm([
       { subject: "CSE", number: "11", title: "x", units: 4, grade: "A", status: "definitely-earned" },
-    ]));
-    assert.equal(r?.terms[0].courses[0].status, "other");
-    assert.equal(r?.totals.unitsEarned, 0, "an unrecognised status earns nothing");
+      { subject: "CSE", number: "12", title: "x", units: 4, grade: "F", status: "graded" },
+      { subject: "CSE", number: "15L", title: "x", units: 2, grade: "ZZ", status: "pass" },
+    ]), "2026-11-08");
+    const [a, f, zz] = r!.terms[0].courses;
+    assert.equal(a.status, "graded");
+    assert.equal(f.status, "fail", "an F labelled graded earns nothing");
+    assert.equal(zz.status, "other", "an unknown mark is never a pass");
+    assert.equal(r?.totals.unitsEarned, 4);
   });
 
   test("truncates long text instead of storing it", () => {
@@ -102,7 +109,84 @@ describe("sanitizeHistory", () => {
       v: 99,
     });
     assert.notEqual(r?.savedAt, "1999-01-01T00:00:00.000Z");
-    assert.equal(r?.v, 1);
+    assert.equal(r?.v, HISTORY_VERSION);
+  });
+
+  test("keeps what a TSS import adds: source code, grading option, CNV, review flags, dates", () => {
+    const parsed = readAcademicHistory(TSS_FIXTURE, { today: "2026-11-08", has: (c) => c !== "MGT 162R" }).history;
+    const r = sanitizeHistory({ ...parsed, planStart: 2024 }, "2026-11-08")!;
+    const summer = r.terms.find((t) => t.code === "S226")!;
+    assert.equal(summer.courses[0].cnv, true);
+    assert.equal(summer.courses[0].option, "Letter Grade");
+    assert.equal(summer.courses[0].points, 9.2);
+    assert.equal(summer.courses[1].src, "WCWP-010B");
+    const fall = r.terms.find((t) => t.code === "FA26")!;
+    assert.equal(fall.start, "2026-09-21");
+    assert.equal(fall.courses.find((c) => c.code === "MGT 162R")?.unmatched, true);
+    assert.equal(r.source, "tss");
+    assert.equal(r.planStart, 2024);
+    assert.equal(r.totals.unitsEarned, 8);
+    assert.equal(r.totals.unitsInProgress, 16);
+    assert.equal(r.totals.gpa, null, "no GPA for a TSS import");
+  });
+
+  test("judges a blank grade by the server's date, not the status it was sent", () => {
+    const body = { terms: [{ code: "SP26", label: "t", courses: [{ subject: "CSE", number: "12", title: "x", units: 4, grade: null, status: "progress" }] }] };
+    assert.equal(sanitizeHistory(body, "2026-05-01")?.terms[0].courses[0].status, "progress");
+    assert.equal(sanitizeHistory(body, "2026-11-08")?.terms[0].courses[0].status, "missing");
+  });
+
+  test("drops review reasons it does not know, terms it cannot place, and a second copy of an attempt", () => {
+    const r = sanitizeHistory({
+      terms: [
+        { code: "FA26", courses: [
+          { subject: "CSE", number: "11", units: 4, grade: "A", review: ["no-units", "make-it-count", 7] },
+          { subject: "CSE", number: "11", units: 4, grade: "F" },
+        ] },
+        { code: "NOQTR", courses: [{ subject: "CSE", number: "12", units: 4, grade: "A" }] },
+        { code: "2026", courses: [{ subject: "CSE", number: "13", units: 4, grade: "A" }] },
+      ],
+    }, "2026-11-08")!;
+    assert.equal(r.terms.length, 1);
+    assert.equal(r.terms[0].courses.length, 1);
+    assert.deepEqual(r.terms[0].courses[0].review, ["no-units"]);
+    assert.equal(r.totals.unitsEarned, 0, "a row under review earns nothing");
+  });
+
+  test("never stores the paste's own lines, or anything from the identity block", () => {
+    const parsed = readAcademicHistory(`${TSS_IDENTITY}
+${TSS_FIXTURE}`, { today: "2026-11-08" }).history;
+    const r = sanitizeHistory({ ...parsed, warnings: ["Last Name McFixture PID A99999999"] }, "2026-11-08")!;
+    const json = JSON.stringify(r);
+    assert.deepEqual(r.warnings, []);
+    for (const secret of ["McFixture", "A99999999", "tmcfixture"]) assert.ok(!json.includes(secret), secret);
+  });
+
+  test("refuses a plan year outside any student's lifetime", () => {
+    const base = oneTerm([{ subject: "CSE", number: "11", title: "x", units: 4, grade: "A" }]);
+    assert.equal(sanitizeHistory({ ...base, planStart: 1066 })?.planStart, undefined);
+    assert.equal(sanitizeHistory({ ...base, planStart: 2025.5 })?.planStart, undefined);
+    assert.equal(sanitizeHistory({ ...base, planStart: 2025 })?.planStart, 2025);
+  });
+});
+
+describe("save requests", () => {
+  test("the current page's body carries the copy it merged into", () => {
+    assert.deepEqual(readSaveBody({ history: { terms: [] }, base: "2026-11-01T00:00:00.000Z" }), {
+      history: { terms: [] }, base: "2026-11-01T00:00:00.000Z", checked: true,
+    });
+    assert.equal(readSaveBody({ history: {}, base: null }).base, null);
+  });
+
+  test("an older page's bare record still saves, as a replacement", () => {
+    const old = { terms: [{ code: "FA25", courses: [] }] };
+    assert.deepEqual(readSaveBody(old), { history: old, base: null, checked: false });
+  });
+
+  test("reads the saved time off a stored record", () => {
+    assert.equal(savedAtOf(null), null);
+    assert.equal(savedAtOf(JSON.stringify({ savedAt: "2026-11-01T00:00:00.000Z" })), "2026-11-01T00:00:00.000Z");
+    assert.equal(savedAtOf("not json"), "", "an unreadable record never matches a base");
   });
 });
 

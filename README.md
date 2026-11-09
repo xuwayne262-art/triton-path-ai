@@ -247,26 +247,86 @@ equivalent or show on coarse pointers. Adding the site to the Home Screen uses
 
 ## Importing an Academic History
 
-`/import` takes a **paste**, not a file. The record is already on screen on
-TritonLink; downloading a PDF, finding it and dragging it back are three steps
-that exist only to move that text, and each is a place a student gives up.
+`/import` takes a **paste**, not a file. Since Fall 2026 the record lives in
+TSS (Triton Student System): log in at <https://sis.ucsd.edu/>, open My
+Academic History, choose Undergraduate and By Quarter, open the quarters,
+then select all and copy. TSS's bare root (`tss.ucsd.edu/`) answers 503, so
+every "Open TSS" link uses the address UCSD publishes (`src/lib/links.ts`).
+A copy of the old TritonLink page still reads.
 
-The parse runs in the browser (`src/lib/history/parse.ts`). Only the structured
-result is sent to `/api/history` — never the raw paste, which carries the
-student's name and PID. The parser keeps neither.
+**Reading it** (`src/lib/history/tss.ts`, `parse.ts`). The paste is read in
+the browser as a stream of cells, so tab-separated rows, one cell per line,
+spaces for tabs, CRLF, non-breaking spaces, repeated headers, wrapped titles
+and codes wrapped as `ECON-` / `110B` all give the same courses. Rules it
+keeps:
 
-The server rebuilds every record field by field and **recomputes all totals**
-(`src/lib/history/record.ts`) — a caller cannot put a GPA of its choosing on a
-student's dashboard. A line the parser cannot read is surfaced to the student
-rather than dropped, because a silently short transcript reads as a complete
-one.
+- `2026/2027 Fall Quarter` is Fall 2026; Winter, Spring and the summer
+  sessions of that heading are 2027. Summer Session I, II and the Special
+  Session stay apart (`src/lib/history/terms.ts`, one conversion everywhere).
+- A row is filed only under the heading it was printed under. Rows after
+  Academic Events or External Work, or before any heading, are kept for the
+  student to place, never guessed into a quarter.
+- Units, grading option, grade and grade points are separate columns:
+  `9.2000` is grade points, `CNV - Letter Grade` is a grading option marker.
+- A blank grade stays blank. It reads as **in progress** while its term runs
+  and **grade missing** after (`src/lib/history/attempts.ts`), never as
+  passed. "Active" on a quarter card means nothing about its courses.
+- `WCWP-010B` becomes `WCWP 10B` only because the catalog has that key; the
+  catalog really has `MAE 02`, so zeros are never stripped on reflex. A code
+  the catalog lacks is kept as printed and still counts its units.
+- The same attempt copied twice (Current Bookings and Academic History) is
+  kept once; a course taken in two quarters keeps both attempts and earns
+  its units once. Unknown marks, mismatched grade points and conflicting
+  copies are saved marked "Needs review" and count toward nothing.
+- External Work (transfer and test credit) is not read from TSS yet, because
+  no real copy of it has been seen; students can add rows by hand, and a
+  UCSD equivalent is kept only when they type the one TSS names.
+- No GPA is computed for a TSS import.
 
-**Degree progress counts it.** The 4-year plan's progress panel adds every
-course the saved history shows completed — a passing grade or a P, each course
-once, at the units earned (`completedCourses` in `src/lib/plannerBridge.ts`) —
-to the plan and this term's schedule. Transfer and AP credit is not counted: a
-row can grant several UCSD courses at once, and splitting its units would be a
-guess. With every bar at zero and nothing saved, the panel links to `/import`.
+**Reviewing and saving** (`src/lib/history/importFlow.ts`, `merge.ts`). Each
+paste is read and dropped; only its courses enter the review. A paste merges
+into the saved record by default: an attempt is a course in a term, so a
+re-paste updates grades in place, a blank never erases a saved grade, and
+quarters the paste leaves out are kept. Replacing is a checkbox that lists
+every removal first. Rows can be corrected, removed, added by hand or placed
+in a quarter. The save sends `{ history, base }`, where `base` is the saved
+copy's `savedAt`; if another device saved since, `/api/history` answers 409
+with the current copy and the review is rebuilt on it.
+
+Only the structured result reaches `/api/history`: never the paste, the
+student's name, PID or contact details, nor the lines the reader could not
+read. The server rebuilds every field (`src/lib/history/record.ts`), works
+each status out again from the grade and the term's dates, and recomputes
+all totals. Records are version 2; version 1 records read unchanged and no
+migration is needed (the `record` column is JSON).
+
+**The planner uses it.** After a save the planner reads the history again
+(`src/lib/history/events.ts`), in this tab and others:
+
+- The 4-year plan shows each attempt in its real quarter, once the student
+  says which plan year the current academic year is (saved with the history
+  as `planStart`; never guessed). Summer courses show under their year;
+  quarters outside Years 1 to 4 are listed below the grid. A planned course
+  in the same quarter is the same attempt and shows once; one planned after
+  it was passed, or left in a finished quarter the history covers without
+  it, is flagged with a Remove button and no longer counts as planned.
+  Nothing in the plan is moved or deleted automatically.
+- Degree progress keeps completed, in-progress and planned units apart.
+  Only completed units fill a bar solid or mark a requirement met.
+- **Suggested for <quarter>** (`src/lib/history/suggest.ts`) ranks courses on
+  that quarter's published schedule by the simplified unit targets, then
+  checks UCSD's prerequisite text against the history
+  (`src/lib/planAi/eligibility.ts`): **Ready** when a passed course meets it
+  or UCSD lists none, **Conditional** when it rests on a course in progress
+  or planned earlier, **Needs a check** when the prerequisite cannot be read,
+  a grade is missing or a restriction applies. A course whose prerequisite is
+  missing, or that is already passed, under way or planned, is not
+  suggested. A major without modelled requirements gets "exploration", not
+  requirements. "Recommended for you" on This term skips courses the history
+  shows passed or under way.
+
+None of this is a degree audit, and the pages say so with a link to UCSD's.
+There is no degree-audit import.
 
 ### Storing them
 

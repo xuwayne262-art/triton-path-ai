@@ -24,7 +24,7 @@ import { useShortlist } from "@/components/plat/useShortlist";
 import { useTheme } from "@/components/plat/theme";
 import { useTerm } from "@/components/plat/useTerm";
 import {
-  completedCourses, courseRole, majorSubjects, platRowToCourse, rowToTimes, ROLE_STYLES,
+  completedCourses, courseRole, currentCourses, majorSubjects, platRowToCourse, rowToTimes, ROLE_STYLES,
   type CourseRole, type RoleContext,
 } from "@/lib/plannerBridge";
 import {
@@ -44,7 +44,11 @@ import {
 } from "@/lib/plan/sync";
 import { currentPlanSlot } from "@/lib/planSlot";
 import { programLabel } from "@/data/ucsdMajorsMinors";
-import type { ParsedHistory } from "@/lib/history/parse";
+import { resolveHistoryCodes, type ParsedHistory } from "@/lib/history/parse";
+import { historyTotals, type HistoryTotals } from "@/lib/history/attempts";
+import { buildPlanLayer, stillPlanned, type PlanLayer } from "@/lib/history/planLayer";
+import { announceHistoryChange, onHistoryChange } from "@/lib/history/events";
+import { todayInSanDiego } from "@/lib/housing/terms";
 
 /**
  * The planner's own `CourseTime` uses 24-hour "09:30"; the schedule snapshot
@@ -126,10 +130,12 @@ export interface DegreeProgressGroup {
     category: string;
     label: string;
     targetUnits: number;
-    /** Units counted toward it: completed, planned and on this term's schedule. */
+    /** Units counted toward it: completed, in progress, planned and on this term's schedule. */
     current: number;
     /** Of those, the units the saved Academic History shows completed. */
     done: number;
+    /** Of those, the units the saved Academic History shows in progress now. Not earned. */
+    inProgress: number;
   }>;
 }
 
@@ -288,6 +294,28 @@ interface PlannerValue {
   retryHistory: () => void;
   /** The saved Academic History itself, for checks that stay in this browser (Plan with AI's prerequisites). */
   history: ParsedHistory | null;
+  /** Courses the history shows in progress now, counted apart from completed ones. */
+  inProgressCount: number;
+  /** The history's totals as of today: earned, in progress, missing grades, needing review. */
+  historyTotals: HistoryTotals | null;
+  /** The history laid over the 4-year plan (see lib/history/planLayer.ts). */
+  historyLayer: PlanLayer;
+  /** Today in San Diego, YYYY-MM-DD: what blank grades are judged against. */
+  today: string;
+  /** Says which academic year is Year 1 of the plan, saved with the history. Resolves to an error message, or null. */
+  savePlanStart: (planStart: number) => Promise<string | null>;
+  /** Puts a course in one 4-year plan quarter, and nowhere else. */
+  addToPlanSlot: (course: Course, year: Year, quarter: Quarter) => void;
+  /** Units per requirement already covered: completed, in progress, planned and scheduled. */
+  coveredUnits: Record<string, number>;
+  /** Subject codes the chosen major is taught in. */
+  majorSubjectSet: Set<string>;
+  /** Codes passed or under way on the saved Academic History, so nothing suggests them again. */
+  historyCodes: Set<string>;
+  /** Units per requirement the history alone covers: passed or under way. */
+  historyTally: Record<string, number>;
+  /** Completed, in-progress and planned units, apart. */
+  unitBreakdown: { earned: number; inProgress: number; planned: number };
   /** Recent changes Plan with AI saved to this plan, oldest first, for its Undo. */
   changeLog: PlanChange[];
   /** Whether the stored plan has been read into this page yet. */
@@ -382,7 +410,9 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   // ── The saved Academic History ──────────────────────────────────────────────
   // Its completed courses count toward degree progress, which otherwise showed
   // zeros to a student three years in, however much they had imported on
-  // /import. Read once per visit to the planner; saved and changed on /import.
+  // /import. Read when the planner opens, and again whenever it may have
+  // changed: a save or delete on /import (this tab or another), or the tab
+  // coming back into view.
   const [history, setHistory] = useState<ParsedHistory | null>(null);
   const [historyStatus, setHistoryStatus] = useState<HistoryStatus>("loading");
   const [historyTick, setHistoryTick] = useState(0);
@@ -404,14 +434,18 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
         setHistoryStatus("saved");
       })
       // One that could not be read is not one that does not exist: progress
-      // says it is missing rather than inviting a second import.
-      .catch(() => { if (live) setHistoryStatus("failed"); });
+      // says it is missing rather than inviting a second import. A copy
+      // already on screen stays there when a later re-read fails.
+      .catch(() => { if (live) setHistoryStatus((s) => (s === "saved" ? s : "failed")); });
     return () => { live = false; };
   }, [historyTick]);
   const retryHistory = useCallback(() => {
     setHistoryStatus("loading");
     setHistoryTick((n) => n + 1);
   }, []);
+  useEffect(() => onHistoryChange(() => setHistoryTick((n) => n + 1)), []);
+  /** Today in San Diego: blank grades are judged against it. */
+  const today = useMemo(() => todayInSanDiego(), []);
 
   // ── Rehydrate ───────────────────────────────────────────────────────────────
   // Read after mount, not in useState, so the server and first client render
@@ -1032,6 +1066,14 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     });
   }, [selectedCourses, plannerYear, plannerQuarter]);
 
+  const addToPlanSlot = useCallback((course: Course, year: Year, quarter: Quarter) => {
+    setPlannedCourses((prev) => (
+      prev.some((pc) => pc.course.code === course.code && pc.year === year && pc.quarter === quarter)
+        ? prev
+        : [...prev, { courseId: `${course.id}-${Date.now()}`, course, year, quarter }]
+    ));
+  }, []);
+
   const movePlannedCourse = useCallback((result: DropResult) => {
     const { source, destination, draggableId } = result;
     if (!destination || destination.droppableId === source.droppableId) return;
@@ -1135,15 +1177,43 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     return { ...majorReqs, ...minorReqs, ...collegeReqs };
   }, [selectedMajor, selectedMinor, selectedCollege]);
 
+  /** The saved record with its codes matched to the catalog ("WCWP 010B" is "WCWP 10B"). */
+  const resolvedHistory = useMemo(
+    () => (history && platByCode.size ? resolveHistoryCodes(history, (c) => platByCode.has(c)) : history),
+    [history, platByCode],
+  );
+
   /** What the saved Academic History shows completed (see completedCourses). */
   const doneCourses = useMemo(
-    () => completedCourses(history, (code) => platByCode.get(code), majorSubjectSet),
-    [history, platByCode, majorSubjectSet],
+    () => completedCourses(resolvedHistory, (code) => platByCode.get(code), majorSubjectSet, today),
+    [resolvedHistory, platByCode, majorSubjectSet, today],
+  );
+  /** What it shows in progress now: counted, but never as earned. */
+  const nowCourses = useMemo(
+    () => currentCourses(resolvedHistory, (code) => platByCode.get(code), majorSubjectSet, today),
+    [resolvedHistory, platByCode, majorSubjectSet, today],
+  );
+  const historyTotalsNow = useMemo(
+    () => (resolvedHistory ? historyTotals(resolvedHistory, today) : null),
+    [resolvedHistory, today],
+  );
+  const historyLayer = useMemo(
+    () => buildPlanLayer(resolvedHistory, plannedCourses, today),
+    [resolvedHistory, plannedCourses, today],
+  );
+  /**
+   * Planned courses that still count as planned: not the same attempt as a
+   * history row, not already passed, not left in a quarter that is over.
+   */
+  const livePlanned = useMemo(() => stillPlanned(plannedCourses, historyLayer), [plannedCourses, historyLayer]);
+  const historyCodes = useMemo(
+    () => new Set([...doneCourses, ...nowCourses].map((c) => c.code)),
+    [doneCourses, nowCourses],
   );
 
   /**
    * The courses degree progress counts, each once: what the saved Academic
-   * History shows completed, everything in the four-year plan, and this term's
+   * History shows completed or in progress, the 4-year plan, and this term's
    * schedule. Completed courses go first, so one both taken and planned counts
    * with the units it earned. Progress used to count this term's schedule
    * alone, so a full four-year plan beside it showed almost nothing done.
@@ -1151,42 +1221,63 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
   const progressCourses = useMemo((): Course[] => {
     const byCode = new Map<string, Course>();
     for (const course of doneCourses) byCode.set(course.code, course);
-    for (const { course } of plannedCourses) if (!byCode.has(course.code)) byCode.set(course.code, course);
+    for (const course of nowCourses) if (!byCode.has(course.code)) byCode.set(course.code, course);
+    for (const { course } of livePlanned) if (!byCode.has(course.code)) byCode.set(course.code, course);
     for (const { course } of selectedCourses) if (!byCode.has(course.code)) byCode.set(course.code, course);
     return [...byCode.values()];
-  }, [doneCourses, plannedCourses, selectedCourses]);
+  }, [doneCourses, nowCourses, livePlanned, selectedCourses]);
+
+  const tallyOf = useCallback((courses: Course[]) => {
+    const t: Record<string, number> = {};
+    for (const course of courses) {
+      currentCategories(course)?.forEach((cat) => {
+        if (cat in activeRequirements) t[cat] = (t[cat] ?? 0) + course.units;
+      });
+    }
+    return t;
+  }, [currentCategories, activeRequirements]);
+
+  /** Units per requirement covered by everything progress counts. */
+  const coveredUnits = useMemo(() => tallyOf(progressCourses), [tallyOf, progressCourses]);
+  /** Units per requirement the history alone covers: passed or under way. */
+  const historyTally = useMemo(() => tallyOf([...doneCourses, ...nowCourses]), [tallyOf, doneCourses, nowCourses]);
+
+  /** Completed, in-progress and planned units, never added into one number. */
+  const unitBreakdown = useMemo(() => {
+    const sum = (cs: Course[]) => Math.round(cs.reduce((n, c) => n + c.units, 0) * 100) / 100;
+    const fromHistory = new Set([...doneCourses, ...nowCourses].map((c) => c.code));
+    return {
+      earned: sum(doneCourses),
+      inProgress: sum(nowCourses),
+      planned: sum(progressCourses.filter((c) => !fromHistory.has(c.code))),
+    };
+  }, [doneCourses, nowCourses, progressCourses]);
 
   const degreeProgress = useMemo((): DegreeProgressGroup[] => {
-    const tally: Record<string, number> = {};
-    for (const course of progressCourses) {
-      currentCategories(course)?.forEach((cat) => {
-        if (cat in activeRequirements) tally[cat] = (tally[cat] ?? 0) + course.units;
-      });
-    }
-    // Completed units apart from planned ones: a plan is not credit, and a bar
-    // filled by plans alone used to turn green as if the requirement were met.
-    const doneTally: Record<string, number> = {};
-    for (const course of doneCourses) {
-      currentCategories(course)?.forEach((cat) => {
-        if (cat in activeRequirements) doneTally[cat] = (doneTally[cat] ?? 0) + course.units;
-      });
-    }
+    const tally = coveredUnits;
+    // Completed and in-progress units apart from planned ones: a plan is not
+    // credit, and a bar filled by plans alone used to turn green as if the
+    // requirement were met. A course under way is not credit yet either.
+    const doneTally = tallyOf(doneCourses);
+    const nowTally = tallyOf(nowCourses);
+    const entry = (cat: string, label: string, target: number) => ({
+      category: cat, label, targetUnits: target,
+      current: tally[cat] ?? 0, done: doneTally[cat] ?? 0, inProgress: nowTally[cat] ?? 0,
+    });
 
     const majorReqs = MAJOR_REQUIREMENTS[selectedMajor] ?? {};
     const groups: DegreeProgressGroup[] = [{
       id: "major",
       groupLabel: `Major: ${programLabel(selectedMajor)}`,
       color: "bg-blue-500",
-      requirements: Object.entries(majorReqs).map(([cat, target]) => ({
-        category: cat, label: cat, targetUnits: target, current: tally[cat] ?? 0, done: doneTally[cat] ?? 0,
-      })),
+      requirements: Object.entries(majorReqs).map(([cat, target]) => entry(cat, cat, target)),
     }];
 
     if (selectedCollege) {
       const cg = COLLEGE_REQUIREMENTS[selectedCollege];
       groups.push({
         ...cg,
-        requirements: cg.requirements.map((req) => ({ ...req, current: tally[req.category] ?? 0, done: doneTally[req.category] ?? 0 })),
+        requirements: cg.requirements.map((req) => entry(req.category, req.label, req.targetUnits)),
       });
     }
 
@@ -1196,14 +1287,41 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
         id: "minor",
         groupLabel: `Minor: ${programLabel(selectedMinor)}`,
         color: "bg-teal-500",
-        requirements: Object.entries(minorReqs).map(([cat, target]) => ({
-          category: cat, label: cat, targetUnits: target, current: tally[cat] ?? 0, done: doneTally[cat] ?? 0,
-        })),
+        requirements: Object.entries(minorReqs).map(([cat, target]) => entry(cat, cat, target)),
       });
     }
 
     return groups;
-  }, [progressCourses, doneCourses, currentCategories, selectedCollege, selectedMajor, selectedMinor, activeRequirements]);
+  }, [coveredUnits, tallyOf, doneCourses, nowCourses, selectedCollege, selectedMajor, selectedMinor]);
+
+  /**
+   * Saves which academic year is Year 1, with the history. The copy this
+   * page holds is the base, so a newer one saved elsewhere is never
+   * overwritten: it is loaded instead, and the student chooses again.
+   */
+  const savePlanStart = useCallback(async (planStart: number): Promise<string | null> => {
+    if (!history) return "There is no saved Academic History to place yet.";
+    try {
+      const res = await fetch("/api/history", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ history: { ...history, planStart }, base: (history as { savedAt?: string }).savedAt ?? null }),
+      });
+      if (res.status === 409) {
+        const body = (await res.json().catch(() => ({}))) as { current?: ParsedHistory | null };
+        if (body.current) setHistory(body.current);
+        return "Your Academic History changed on another device, so it was reloaded. Choose again.";
+      }
+      if (res.status === 401) return "You're signed out. Sign in again, then choose again.";
+      if (!res.ok) return "That didn't save. Try again.";
+      setHistory((await res.json()) as ParsedHistory);
+      setHistoryStatus("saved");
+      announceHistoryChange();
+      return null;
+    } catch {
+      return "That didn't save. Check your connection and try again.";
+    }
+  }, [history]);
 
   const value: PlannerValue = {
     darkMode, toggleDarkMode, syncStatus,
@@ -1222,7 +1340,9 @@ export function PlannerProvider({ children }: { children: React.ReactNode }) {
     isGeneratingPlan, planError, generateFourYearPlan,
     roleOf, getColorForCourse, activeRequirements, degreeProgress, progressCourses,
     historyStatus, completedCount: doneCourses.length, retryHistory,
-    history, changeLog, hydrated,
+    history: resolvedHistory, changeLog, hydrated,
+    inProgressCount: nowCourses.length, historyTotals: historyTotalsNow, historyLayer, today, savePlanStart,
+    addToPlanSlot, coveredUnits, majorSubjectSet, historyCodes, historyTally, unitBreakdown,
   };
 
   return <PlannerCtx.Provider value={value}>{children}</PlannerCtx.Provider>;

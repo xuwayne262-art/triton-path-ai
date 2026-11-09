@@ -1,14 +1,18 @@
 "use client";
 
-import { Loader2, Plus, Sparkles, X } from "lucide-react";
+import { AlertTriangle, Loader2, Plus, Sparkles, X } from "lucide-react";
 import { DragDropContext, Draggable, Droppable } from "@hello-pangea/dnd";
 import { Button } from "@/components/ui/button";
 import { COLLEGE_REQUIREMENTS } from "@/data/requirements";
 import RightSidebar from "@/components/triton/RightSidebar";
 import { collegeGEs } from "@/lib/plat";
-import { scheduleYear } from "@/lib/planSlot";
+import { currentPlanSlot, scheduleYear } from "@/lib/planSlot";
 import { usePlanner, type Quarter, type Year } from "../PlannerProvider";
 import { courseUnitsText, coursesUnitsText } from "@/lib/units";
+import HistoryChip, { HistoryLegend } from "@/components/planner/HistoryChip";
+import PlanAnchor from "@/components/planner/PlanAnchor";
+import NextSuggestions from "@/components/planner/NextSuggestions";
+import { academicYearLabel, slotKey, type Flag } from "@/lib/history/planLayer";
 
 const YEARS: Year[] = [1, 2, 3, 4];
 const QUARTERS: Quarter[] = ["Fall", "Winter", "Spring"];
@@ -38,9 +42,15 @@ export default function FourYearPlanPage() {
     plannedCourses, removePlannedCourse, addToPlanner, movePlannedCourse,
     plannerYear, setPlannerYear, plannerQuarter, setPlannerQuarter,
     isGeneratingPlan, planError, generateFourYearPlan,
-    selectedCourses, selectedCollege, degreeProgress, progressCourses, getColorForCourse,
-    termName, historyStatus, completedCount, retryHistory,
+    selectedCourses, selectedCollege, degreeProgress, getColorForCourse,
+    termName, historyStatus, retryHistory,
+    term, history, historyLayer, historyTotals, today, savePlanStart, unitBreakdown,
   } = usePlanner();
+  const planStart = history?.planStart ?? null;
+  const flagFor = new Map<string, Flag>(historyLayer.flags.map((f) => [f.courseId, f]));
+  // The year the plan already puts this term in, offered when asking for the anchor.
+  const planSlot = currentPlanSlot(term, plannedCourses, selectedCourses.map((sc) => sc.course.code));
+  const suggestedYear = planSlot?.basis === "schedule" ? planSlot.year : null;
 
   // What the add button will actually move: this term's courses not already
   // somewhere in the plan. It used to promise every course on the schedule and
@@ -163,6 +173,20 @@ export default function FourYearPlanPage() {
             whether they&rsquo;re offered then, and whether you get a seat, isn&rsquo;t known yet.
           </p>
 
+          {/* The saved Academic History: where it sits in the plan, and its key. */}
+          {historyStatus === "saved" && history && (
+            <div className="mb-6 space-y-3">
+              <PlanAnchor
+                planStart={planStart}
+                suggested={suggestedYear}
+                today={today}
+                onSave={savePlanStart}
+                darkMode={darkMode}
+              />
+              <HistoryLegend />
+            </div>
+          )}
+
           {/* The college's GE requirements, for a phone only: from a tablet up
               the Degree Progress rail beside the plan lists the same ones, each
               with its progress, and this tile pushed the plan 220px down. */}
@@ -205,13 +229,15 @@ export default function FourYearPlanPage() {
                         Year {year}
                       </p>
                       <p className={`text-xs ${darkMode ? "text-gray-300" : "text-gray-500"}`}>
-                        {YEAR_LABELS[year]}
+                        {YEAR_LABELS[year]}{planStart != null ? ` · ${academicYearLabel(year, planStart)}` : ""}
                       </p>
                     </div>
                     {QUARTERS.map((quarter) => {
+                      // A planned course that is the same attempt as a history row is shown once, as history.
                       const courses = plannedCourses.filter(
-                        (p) => p.year === year && p.quarter === quarter,
+                        (p) => p.year === year && p.quarter === quarter && !historyLayer.matched.has(p.courseId),
                       );
+                      const taken = historyLayer.bySlot.get(slotKey(year, quarter)) ?? [];
                       const units = coursesUnitsText(courses.map((p) => p.course));
                       const droppableId = `${year}-${quarter}`;
                       return (
@@ -233,10 +259,15 @@ export default function FourYearPlanPage() {
                               <div className="flex items-baseline justify-between mb-1">
                                 <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400">{quarter}</p>
                                 {courses.length > 0 && (
-                                  <p className="text-[10px] tabular-nums text-gray-500 dark:text-gray-400">{units}u</p>
+                                  <p className="text-[10px] tabular-nums text-gray-500 dark:text-gray-400">{units}u planned</p>
                                 )}
                               </div>
-                              {courses.length === 0 && !snapshot.isDraggingOver && (
+                              {taken.length > 0 && (
+                                <div role="list" aria-label={`Academic History, Year ${year} ${quarter}`} className="mb-1 space-y-1">
+                                  {taken.map((chip) => <HistoryChip key={chip.key} chip={chip} />)}
+                                </div>
+                              )}
+                              {courses.length === 0 && taken.length === 0 && !snapshot.isDraggingOver && (
                                 <p
                                   className={`text-[10px] ${
                                     darkMode ? "text-gray-400" : "text-gray-500"
@@ -267,6 +298,23 @@ export default function FourYearPlanPage() {
                                         >
                                           <span className="font-semibold">{pc.course.code}</span>
                                           <span className="opacity-70 ml-1">· {courseUnitsText(pc.course)}u</span>
+                                          {flagFor.has(pc.courseId) && (
+                                            <span className="mt-0.5 flex items-start gap-1 font-medium text-amber-900 dark:text-amber-200">
+                                              <AlertTriangle aria-hidden className="mt-px h-2.5 w-2.5 shrink-0" />
+                                              <span>
+                                                {flagFor.get(pc.courseId)!.kind === "already-completed"
+                                                  ? `Already completed, ${flagFor.get(pc.courseId)!.doneIn}. Not counted as planned.`
+                                                  : "Not on your Academic History for this quarter. Not counted."}{" "}
+                                                <button
+                                                  type="button"
+                                                  onClick={() => removePlannedCourse(pc.courseId)}
+                                                  className="font-semibold underline underline-offset-2"
+                                                >
+                                                  Remove from plan<span className="sr-only">: {pc.course.code}</span>
+                                                </button>
+                                              </span>
+                                            </span>
+                                          )}
                                           {/* Dragging a course out of the grid was
                                               previously the only way to drop it. */}
                                           <button
@@ -288,11 +336,47 @@ export default function FourYearPlanPage() {
                         </Droppable>
                       );
                     })}
+                    {(historyLayer.summer.get(year)?.length ?? 0) > 0 && (
+                      <div className={`p-2 rounded-lg ${darkMode ? "bg-gray-700/30" : "bg-gray-50/50"}`}>
+                        <p className="mb-1 text-[10px] font-medium text-gray-500 dark:text-gray-400">Summer</p>
+                        <div role="list" aria-label={`Academic History, Year ${year} summer`} className="space-y-1">
+                          {historyLayer.summer.get(year)!.map((chip) => <HistoryChip key={chip.key} chip={chip} />)}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             </div>
           </DragDropContext>
+
+          {/* Quarters the grid cannot hold: before Year 1, after Year 4, or all of them until the plan is placed. */}
+          {historyStatus === "saved" && historyLayer.outside.length > 0 && (
+            <section aria-labelledby="outside-title" className={`mt-6 p-4 ${panelCls}`}>
+              <h2 id="outside-title" className={`text-sm font-semibold ${darkMode ? "text-white" : "text-gray-900"}`}>
+                {historyLayer.anchored ? "Academic History outside these four years" : "Your Academic History by quarter"}
+              </h2>
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {historyLayer.outside.map((t) => (
+                  <div key={t.term}>
+                    <p className="mb-1 text-[10px] font-medium text-gray-500 dark:text-gray-400">{t.termName}</p>
+                    <div role="list" aria-label={`Academic History, ${t.termName}`} className="space-y-1">
+                      {t.chips.map((chip) => <HistoryChip key={chip.key} chip={chip} />)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {(history?.transfer.length ?? 0) > 0 && (
+            <p className={`mt-3 text-xs ${darkMode ? "text-gray-300" : "text-gray-600"}`}>
+              Transfer and test credit ({historyTotals?.transferUnits ?? 0} units) is kept on your Academic History and
+              isn&rsquo;t placed in a quarter here.
+            </p>
+          )}
+
+          <NextSuggestions />
         </div>
       </main>
 
@@ -300,11 +384,11 @@ export default function FourYearPlanPage() {
       <RightSidebar
         darkMode={darkMode}
         degreeProgress={degreeProgress}
-        courses={progressCourses}
+        units={unitBreakdown}
         selectedCollege={selectedCollege}
         termName={termName}
         historyStatus={historyStatus}
-        completedCount={completedCount}
+        historyTotals={historyTotals}
         onRetryHistory={retryHistory}
       />
     </div>

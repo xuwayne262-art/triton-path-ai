@@ -1,17 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, GraduationCap } from "lucide-react";
+import { ArrowRight, ExternalLink, GraduationCap } from "lucide-react";
 import type { HistoryStatus } from "@/app/planner/PlannerProvider";
+import type { HistoryTotals } from "@/lib/history/attempts";
+import { DEGREE_AUDIT_URL } from "@/lib/links";
 
 interface Requirement {
   category: string;
   label: string;
   targetUnits: number;
-  /** Completed, planned and scheduled units together. */
+  /** Completed, in-progress, planned and scheduled units together. */
   current: number;
   /** Of those, completed on the saved Academic History. */
   done: number;
+  /** Of those, in progress now on the saved Academic History. Not earned. */
+  inProgress: number;
 }
 
 interface DegreeProgressGroup {
@@ -21,39 +25,45 @@ interface DegreeProgressGroup {
   requirements: Requirement[];
 }
 
+/** Units in each standing, kept apart so a projection never adds to what is earned. */
+export interface UnitBreakdown {
+  earned: number;
+  inProgress: number;
+  planned: number;
+}
+
 interface RightSidebarProps {
   darkMode: boolean;
   degreeProgress: DegreeProgressGroup[];
-  /**
-   * The courses the progress counts, once each: those the saved Academic
-   * History shows completed, the four-year plan, and this term's schedule.
-   */
-  courses: { units: number }[];
+  units: UnitBreakdown;
   selectedCollege: string | null;
   /** "Fall 2026", or "" before the dataset loads. */
   termName: string;
-  /** Whether a saved Academic History is counted — its completed courses are in `courses`. */
+  /** Whether a saved Academic History is counted. */
   historyStatus: HistoryStatus;
-  /** How many completed courses it added. */
-  completedCount: number;
+  /** Its totals as of today, when one is saved. */
+  historyTotals: HistoryTotals | null;
   onRetryHistory: () => void;
 }
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 export default function RightSidebar({
   darkMode,
   degreeProgress,
-  courses,
+  units,
   selectedCollege,
   termName,
   historyStatus,
-  completedCount,
+  historyTotals,
   onRetryHistory,
 }: RightSidebarProps) {
-  const totalUnits = courses.reduce((sum, c) => sum + c.units, 0);
   // Every bar at zero used to be a dead end: nothing said what would fill them.
   const nothingCounts =
     degreeProgress.some((g) => g.requirements.length > 0) &&
     degreeProgress.every((g) => g.requirements.every((r) => r.current === 0));
+  const uncounted = historyTotals ? historyTotals.missingGrade + historyTotals.needsReview : 0;
+  const quiet = darkMode ? "text-gray-400" : "text-gray-600";
 
   return (
     <aside
@@ -79,16 +89,23 @@ export default function RightSidebar({
           </span>
         </div>
         {/* A unit count against simplified targets — said here, where it is read. */}
-        <p className={`mt-1 text-[10px] leading-snug ${darkMode ? "text-gray-400" : "text-gray-600"}`}>
-          An estimate from simplified unit targets, not a degree audit. Planned courses aren&rsquo;t credit until
-          you pass them; check your degree audit for what counts.
+        <p className={`mt-1 text-[10px] leading-snug ${quiet}`}>
+          An estimate from simplified unit targets, not a degree audit. Only completed courses count as done.
+          Check your{" "}
+          <a
+            href={DEGREE_AUDIT_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-0.5 font-semibold underline underline-offset-2 hover:no-underline"
+          >
+            degree audit
+            <ExternalLink aria-hidden className="h-2.5 w-2.5" />
+            <span className="sr-only"> (opens UCSD&rsquo;s page in a new tab)</span>
+          </a>{" "}
+          for what counts.
         </p>
         {!selectedCollege && (
-          <p
-            className={`text-[10px] mt-1 ${
-              darkMode ? "text-gray-400" : "text-gray-600"
-            }`}
-          >
+          <p className={`text-[10px] mt-1 ${quiet}`}>
             Choose your college (top right) to see GE progress
           </p>
         )}
@@ -107,7 +124,7 @@ export default function RightSidebar({
         )}
         {nothingCounts && historyStatus === "saved" && (
           <p className={`rounded-lg px-3 py-2.5 text-[11px] leading-snug ${darkMode ? "bg-white/5 text-gray-300" : "bg-slate-50 text-gray-600"}`}>
-            None of your completed or planned courses count toward these requirements yet. Check that your
+            None of your completed, current or planned courses count toward these requirements yet. Check that your
             major and college (top right) are right.
           </p>
         )}
@@ -118,6 +135,15 @@ export default function RightSidebar({
             <button type="button" onClick={onRetryHistory} className="font-semibold underline underline-offset-2 hover:no-underline">
               Retry
             </button>
+          </p>
+        )}
+        {uncounted > 0 && historyTotals && (
+          <p className="rounded-lg bg-amber-50 px-3 py-2.5 text-[11px] leading-snug text-amber-900 dark:bg-amber-500/10 dark:text-amber-200">
+            {plural(uncounted, "course")} on your Academic History {uncounted === 1 ? "isn’t" : "aren’t"} counted:
+            {historyTotals.missingGrade > 0 && ` ${historyTotals.missingGrade} with no grade shown yet`}
+            {historyTotals.missingGrade > 0 && historyTotals.needsReview > 0 && " and"}
+            {historyTotals.needsReview > 0 && ` ${historyTotals.needsReview} that ${historyTotals.needsReview === 1 ? "needs" : "need"} a look`}.{" "}
+            <Link href="/import" className="font-semibold underline underline-offset-2 hover:no-underline">Review them</Link>
           </p>
         )}
 
@@ -145,10 +171,16 @@ export default function RightSidebar({
                   req.targetUnits > 0 ? Math.min(100, Math.round((n / req.targetUnits) * 100)) : 0;
                 const pct = share(req.current);
                 const donePct = share(req.done);
-                const planned = Math.max(0, req.current - req.done);
+                const nowPct = share(req.done + req.inProgress);
+                const planned = Math.max(0, req.current - req.done - req.inProgress);
                 // Met only on completed units; met on paper is "covered by plan".
                 const complete = req.done >= req.targetUnits;
                 const covered = !complete && req.current >= req.targetUnits;
+                const parts = [
+                  `${req.done} done`,
+                  req.inProgress ? `${req.inProgress} in progress` : null,
+                  planned ? `${planned} planned` : null,
+                ].filter(Boolean);
                 return (
                   <div key={req.category}>
                     <div className="flex items-start justify-between mb-0.5">
@@ -163,9 +195,7 @@ export default function RightSidebar({
                         className={`text-[10px] tabular-nums ml-2 flex-shrink-0 ${
                           complete
                             ? "text-green-700 font-semibold dark:text-green-400"
-                            : darkMode
-                            ? "text-gray-400"
-                            : "text-gray-600"
+                            : quiet
                         }`}
                       >
                         {req.current}/{req.targetUnits}u
@@ -176,21 +206,25 @@ export default function RightSidebar({
                         darkMode ? "bg-gray-700" : "bg-slate-200"
                       }`}
                       role="img"
-                      aria-label={`${req.label}: ${req.done} units completed${planned ? `, ${planned} planned` : ""}, of ${req.targetUnits}`}
+                      aria-label={`${req.label}: ${parts.join(", ")}, of ${req.targetUnits} units`}
                     >
-                      {/* Planned units, pale; completed ones, solid, over them. */}
+                      {/* Planned units, pale; in progress, half; completed, solid, over them. */}
                       <div
-                        className={`absolute inset-y-0 left-0 rounded-full opacity-35 transition-all duration-500 ease-out motion-reduce:transition-none ${group.color}`}
+                        className={`absolute inset-y-0 left-0 rounded-full opacity-25 transition-all duration-500 ease-out motion-reduce:transition-none ${group.color}`}
                         style={{ width: `${pct}%` }}
+                      />
+                      <div
+                        className={`absolute inset-y-0 left-0 rounded-full opacity-60 transition-all duration-500 ease-out motion-reduce:transition-none ${group.color}`}
+                        style={{ width: `${nowPct}%` }}
                       />
                       <div
                         className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ease-out motion-reduce:transition-none ${group.color}`}
                         style={{ width: `${donePct}%` }}
                       />
                     </div>
-                    {(planned > 0 || covered) && (
-                      <p className={`mt-0.5 text-[10px] leading-snug ${darkMode ? "text-gray-400" : "text-gray-600"}`}>
-                        {req.done} done · {planned} planned{covered ? " · covered by your plan, not yet earned" : ""}
+                    {(planned > 0 || req.inProgress > 0 || covered) && (
+                      <p className={`mt-0.5 text-[10px] leading-snug ${quiet}`}>
+                        {parts.join(" · ")}{covered ? " · covered on paper, not yet earned" : ""}
                       </p>
                     )}
                   </div>
@@ -211,7 +245,7 @@ export default function RightSidebar({
         )}
       </div>
 
-      {/* Footer stats */}
+      {/* Footer: the three kinds of units, never added together */}
       <div
         className={`px-4 py-3 border-t flex-shrink-0 text-xs ${
           darkMode
@@ -219,19 +253,25 @@ export default function RightSidebar({
             : "border-gray-200 text-gray-500"
         }`}
       >
-        <div className="flex justify-between mb-1">
-          <span>Courses counted</span>
-          <span className="font-semibold">{courses.length}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Units counted</span>
-          <span className="font-semibold">{totalUnits}</span>
-        </div>
-        {/* Says exactly what the two numbers above count, and what they leave out. */}
+        <dl className="space-y-1">
+          <div className="flex justify-between">
+            <dt>Completed</dt>
+            <dd className="font-semibold tabular-nums">{units.earned} units</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt>In progress</dt>
+            <dd className="font-semibold tabular-nums">{units.inProgress} units</dd>
+          </div>
+          <div className="flex justify-between">
+            <dt>Planned</dt>
+            <dd className="font-semibold tabular-nums">{units.planned} units</dd>
+          </div>
+        </dl>
+        {/* Says exactly what the numbers above count, and what they leave out. */}
         <p className={`mt-1.5 text-[10px] leading-snug ${darkMode ? "text-gray-400" : "text-gray-500"}`}>
           {historyStatus === "saved"
-            ? `Counted: the ${completedCount} ${completedCount === 1 ? "course" : "courses"} you’ve completed on your saved Academic History, every course in your 4-year plan, and every course on your ${termName ? `${termName} schedule` : "schedule for this term"}. A course in more than one counts once. Transfer and AP credit isn’t counted.`
-            : `Counted: every course in your 4-year plan and every course on your ${termName ? `${termName} schedule` : "schedule for this term"}. A course in both counts once.${historyStatus === "none" ? " Courses you’ve already taken count once you import your Academic History." : ""}`}
+            ? `Completed and in progress come from your saved Academic History. Planned is your 4-year plan and your ${termName ? `${termName} schedule` : "schedule for this term"}, each course once.${historyTotals?.transferUnits ? ` Transfer and test credit (${historyTotals.transferUnits} units) isn’t counted here.` : ""}${historyTotals?.repeated.length ? " A course taken twice counts once." : ""}`
+            : `Planned is your 4-year plan and your ${termName ? `${termName} schedule` : "schedule for this term"}, each course once.${historyStatus === "none" ? " Courses you’ve taken count once you import your Academic History." : ""}`}
         </p>
       </div>
     </aside>

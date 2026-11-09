@@ -23,6 +23,7 @@
 import WI27 from "@/data/calendar/WI27.json" with { type: "json" };
 import { dayValue, type Quarter } from "@/lib/housing/terms";
 import { sanDiegoMidnight, stageOn } from "@/lib/quarterClock";
+import { TSS_PORTAL_URL } from "@/lib/links";
 
 export type EventCategory = "booking" | "registration" | "academic" | "fees";
 
@@ -84,8 +85,11 @@ const TIMELINES: Record<string, TermTimeline> = { WI27: WI27 as TermTimeline };
 
 export const timelineFor = (term: string | null | undefined): TermTimeline | null => (term ? TIMELINES[term] ?? null : null);
 
-/** Where a student's own booking appointment is: UCSD's enrollment system. */
-export const TSS_URL = "https://tss.ucsd.edu";
+/**
+ * Where a student's own booking appointment is: UCSD's enrollment system, by
+ * the login address UCSD publishes. TSS's bare root answers 503.
+ */
+export const TSS_URL = TSS_PORTAL_URL;
 
 /** Dates for offices and programs, not something a student acts on. */
 export const forStudents = (e: TimelineEvent) => !/^(office|graduate programs)$/i.test(e.audience.trim());

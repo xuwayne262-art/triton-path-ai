@@ -22,61 +22,22 @@
  */
 
 // ── Wire types ───────────────────────────────────────────────────────────────
+// Defined in types.ts and re-exported here, where they have always been imported from.
 
-export type GradeStatus = "graded" | "pass" | "fail" | "withdrawn" | "progress" | "other";
+import { type HistoryCourse, type HistoryTerm, type ParsedHistory, type TransferCourse } from "./types";
+import { gradeStatus } from "./grades";
+import { termOrder } from "./terms";
+import { computeTotals, withStatuses } from "./attempts";
+import { resolveCode } from "./codes";
+import { NO_QUARTER, TSS_PARSER, looksLikeAudit, looksLikeTss, readTss, type ReadMessage } from "./tss";
+import { QUARTERS, todayInSanDiego } from "@/lib/housing/terms";
 
-export interface HistoryCourse {
-  /** "CSE 11" */
-  code: string;
-  subject: string;
-  number: string;
-  title: string;
-  units: number;
-  /** As printed: "A-", "P", "IP", "W". null when the term is still open. */
-  grade: string | null;
-  /** Grade points UCSD printed for the row, when it printed any. */
-  points: number | null;
-  status: GradeStatus;
-}
-
-export interface HistoryTerm {
-  /** "FA25" */
-  code: string;
-  /** "Fall Quarter 2025", as printed. */
-  label: string;
-  courses: HistoryCourse[];
-}
-
-export interface TransferCourse {
-  /** The UCSD course this was granted as, when one is named. */
-  code: string | null;
-  title: string;
-  units: number;
-  /** "Grossmont College", "AP", "IB". */
-  from: string;
-  /** "LD" / "UD", when printed. */
-  level: string | null;
-  /** UCSD equivalents beyond the first, for rows that list several. */
-  equivalents: string[];
-}
-
-export interface ParsedHistory {
-  college: string | null;
-  majors: string[];
-  minors: string[];
-  terms: HistoryTerm[];
-  transfer: TransferCourse[];
-  /** Lines that looked like data and did not parse. Shown, never swallowed. */
-  warnings: string[];
-  /** Totals the parser computed itself — not read off the page. */
-  totals: {
-    courses: number;
-    unitsEarned: number;
-    unitsInProgress: number;
-    transferUnits: number;
-    gpa: number | null;
-  };
-}
+export type {
+  GradeStatus, HistoryCourse, HistoryTerm, HistorySource, ParsedHistory, ReviewReason, TransferCourse,
+} from "./types";
+export { earnsUnits, gradeStatus, isGraded } from "./grades";
+export { termOrder } from "./terms";
+export { computeTotals } from "./attempts";
 
 // ── Term codes ───────────────────────────────────────────────────────────────
 
@@ -104,42 +65,6 @@ export function termCode(label: string): string | null {
 
   return null;
 }
-
-/** Chronological key, so terms sort by real time rather than alphabetically. */
-const SEASON_ORDER: Record<string, number> = { WI: 0, SP: 1, S1: 2, S2: 3, S3: 4, FA: 5 };
-export function termOrder(code: string): number {
-  const m = /^([A-Z][A-Z0-9])(\d{2})$/.exec(String(code || "").toUpperCase());
-  if (!m || SEASON_ORDER[m[1]] == null) return Number.MAX_SAFE_INTEGER;
-  return (2000 + Number(m[2])) * 10 + SEASON_ORDER[m[1]];
-}
-
-// ── Grades ───────────────────────────────────────────────────────────────────
-
-const POINTS: Record<string, number> = {
-  "A+": 4, A: 4, "A-": 3.7,
-  "B+": 3.3, B: 3, "B-": 2.7,
-  "C+": 2.3, C: 2, "C-": 1.7,
-  "D+": 1.3, D: 1, "D-": 0.7,
-  F: 0,
-};
-
-/** Grades that count toward GPA. P/NP, W and IP deliberately do not. */
-export const isGraded = (grade: string | null): boolean =>
-  grade != null && Object.prototype.hasOwnProperty.call(POINTS, grade);
-
-export function gradeStatus(grade: string | null): GradeStatus {
-  if (!grade) return "progress";
-  const g = grade.toUpperCase();
-  if (isGraded(g)) return g === "F" ? "fail" : "graded";
-  if (g === "P" || g === "S") return "pass";
-  if (g === "NP" || g === "U") return "fail";
-  if (g === "W") return "withdrawn";
-  if (g === "IP" || g === "I") return "progress";
-  return "other";
-}
-
-/** Units a course actually contributes to a degree. Degree progress counts the same courses. */
-export const earnsUnits = (s: GradeStatus) => s === "graded" || s === "pass";
 
 // ── Line shapes ──────────────────────────────────────────────────────────────
 
@@ -226,7 +151,8 @@ const num = (s: string | undefined) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-export function parseAcademicHistory(raw: string): ParsedHistory {
+/** The TritonLink (pre-Fall 2026) Academic History reader, unchanged in what it accepts. */
+export function parseLegacyHistory(raw: string): ParsedHistory {
   const lines = String(raw || "")
     .replace(/\r\n?/g, "\n")
     // A PDF extractor pads columns with runs of spaces and non-breaking spaces;
@@ -352,25 +278,7 @@ export function parseAcademicHistory(raw: string): ParsedHistory {
   // The page prints its own GPA, but a student who pastes a partial page would
   // carry a total that does not match the rows beneath it. Deriving it from the
   // rows we actually parsed keeps the number and the list telling one story.
-  let qualityPoints = 0;
-  let gpaUnits = 0;
-  for (const t of out.terms) {
-    for (const c of t.courses) {
-      out.totals.courses++;
-      if (earnsUnits(c.status)) out.totals.unitsEarned += c.units;
-      if (c.status === "progress") out.totals.unitsInProgress += c.units;
-      if (isGraded(c.grade)) {
-        qualityPoints += (POINTS[c.grade as string] ?? 0) * c.units;
-        gpaUnits += c.units;
-      }
-    }
-  }
-  for (const t of out.transfer) out.totals.transferUnits += t.units;
-
-  out.totals.unitsEarned = round2(out.totals.unitsEarned);
-  out.totals.unitsInProgress = round2(out.totals.unitsInProgress);
-  out.totals.transferUnits = round2(out.totals.transferUnits);
-  out.totals.gpa = gpaUnits > 0 ? round2(qualityPoints / gpaUnits) : null;
+  out.totals = computeTotals(out);
 
   out.majors = dedupe(out.majors);
   out.minors = dedupe(out.minors);
@@ -378,7 +286,6 @@ export function parseAcademicHistory(raw: string): ParsedHistory {
   return out;
 }
 
-const round2 = (n: number) => Math.round(n * 100) / 100;
 const dedupe = (xs: string[]) => [...new Set(xs.map((x) => x.trim()).filter(Boolean))];
 
 /**
@@ -388,3 +295,164 @@ const dedupe = (xs: string[]) => [...new Set(xs.map((x) => x.trim()).filter(Bool
  */
 export const isEmpty = (h: ParsedHistory): boolean =>
   h.terms.length === 0 && h.transfer.length === 0;
+
+// ── Reading any Academic History ─────────────────────────────────────────────
+
+export const LEGACY_PARSER = "legacy-1";
+
+export interface ReadOptions {
+  /** Today in San Diego, YYYY-MM-DD; decides whether a blank grade is in progress or missing. */
+  today?: string;
+  /** Whether the catalog has a course code, to match "WCWP-010B" to "WCWP 10B". Null skips matching. */
+  has?: ((code: string) => boolean) | null;
+}
+
+export interface ReadReport {
+  source: "tss" | "legacy" | "unknown";
+  parser: string;
+  /** What the student should know, worst first. Never the paste's own text. */
+  messages: ReadMessage[];
+  terms: number;
+  rows: number;
+  review: number;
+  duplicates: number;
+  /**
+   * The quarter under way, offered (never applied) for rows the paste printed
+   * under no quarter, such as Current Bookings copied without its heading.
+   */
+  suggestedTerm: string | null;
+}
+
+export interface ReadResult {
+  history: ParsedHistory;
+  /** Rows with no quarter, for the student to place. Not part of `history` until they are. */
+  unplaced: HistoryCourse[];
+  report: ReadReport;
+}
+
+/** TSS's own steps, said the same way everywhere the importer explains them. */
+export const TSS_STEPS =
+  "In TSS, open My Academic History, then Academic History, Undergraduate and By Quarter. Open each quarter so its courses show, then copy again.";
+
+const LEVEL_ORDER: Record<ReadMessage["level"], number> = { error: 0, warn: 1, info: 2 };
+
+/** The quarter running on `today`, or the next to start. */
+function quarterOn(today: string): string | null {
+  const q = QUARTERS.find((x) => x.begins <= today && today <= x.end) ?? QUARTERS.find((x) => x.begins > today);
+  return q && /^(FA|WI|SP)\d\d$/.test(q.key) ? q.key : null;
+}
+
+/** Codes matched against the catalog: "WCWP-010B" becomes "WCWP 10B" only when the catalog has it. */
+function resolveAll(courses: HistoryCourse[], has: ReadOptions["has"]): HistoryCourse[] {
+  if (!has) return courses;
+  return courses.map((c) => {
+    const r = resolveCode({ subject: c.subject, number: c.number }, has);
+    const out: HistoryCourse = { ...c, code: r.code, number: r.number };
+    if (r.matched) delete out.unmatched;
+    else out.unmatched = true;
+    return out;
+  });
+}
+
+/**
+ * A saved record's codes matched to the catalog, for records saved before
+ * matching existed or while the catalog could not load. Rows already matched
+ * are left alone; a code is only ever changed to one the catalog has.
+ */
+export function resolveHistoryCodes<T extends Pick<ParsedHistory, "terms">>(history: T, has: (code: string) => boolean): T {
+  return {
+    ...history,
+    terms: history.terms.map((t) => ({
+      ...t,
+      courses: t.courses.map((c) => {
+        if (has(c.code)) return c.unmatched ? { ...c, unmatched: undefined } : c;
+        const r = resolveCode({ subject: c.subject, number: c.number }, has);
+        return r.matched ? { ...c, code: r.code, number: r.number, src: c.src ?? c.code, unmatched: undefined } : c;
+      }),
+    })),
+  };
+}
+
+/**
+ * Reads a pasted Academic History, from TSS or from the old TritonLink page,
+ * and says what it found. Nothing here touches the network.
+ */
+export function readAcademicHistory(raw: string, opts: ReadOptions = {}): ReadResult {
+  const today = opts.today ?? todayInSanDiego();
+  const text = String(raw ?? "");
+  const empty: ParsedHistory = {
+    college: null, majors: [], minors: [], terms: [], transfer: [], warnings: [],
+    totals: { courses: 0, unitsEarned: 0, unitsInProgress: 0, transferUnits: 0, gpa: null },
+  };
+
+  if (looksLikeTss(text)) {
+    const r = readTss(text);
+    const terms = r.terms
+      .map((t) => ({ ...t, courses: resolveAll(t.courses, opts.has) }))
+      .sort((a, b) => termOrder(a.code) - termOrder(b.code));
+    const unplaced = resolveAll(r.unplaced, opts.has);
+    const history = withStatuses({ ...empty, terms, source: "tss" as const }, today);
+    // No GPA: TSS does not show one yet, and a partial paste would make one up.
+    history.totals = { ...computeTotals(history, today), gpa: null };
+    const messages = [...r.messages];
+    const rows = terms.reduce((n, t) => n + t.courses.length, 0) + unplaced.length;
+    if (!rows) {
+      messages.unshift({
+        level: "error", code: "NO_ROWS_TSS",
+        text: `This looks like TSS, but no course rows came through. ${TSS_STEPS}`,
+      });
+    }
+    messages.sort((a, b) => LEVEL_ORDER[a.level] - LEVEL_ORDER[b.level]);
+    return {
+      history,
+      unplaced,
+      report: {
+        source: "tss", parser: TSS_PARSER, messages,
+        terms: terms.length, rows,
+        review: [...terms.flatMap((t) => t.courses), ...unplaced].filter((c) => c.review?.length).length,
+        duplicates: r.duplicates,
+        suggestedTerm: unplaced.length ? quarterOn(today) : null,
+      },
+    };
+  }
+
+  const legacy = parseLegacyHistory(text);
+  const terms = legacy.terms.map((t) => ({ ...t, courses: resolveAll(t.courses, opts.has) }));
+  const history = withStatuses({ ...legacy, terms, source: "legacy" as const }, today);
+  history.totals = computeTotals(history, today);
+  const messages: ReadMessage[] = [];
+  const rows = terms.reduce((n, t) => n + t.courses.length, 0);
+  if (isEmpty(history)) {
+    messages.push(looksLikeAudit(text)
+      ? {
+          level: "error", code: "AUDIT_TEXT",
+          text: `This looks like a degree audit. UCSDPlans reads your Academic History, not a degree audit. ${TSS_STEPS}`,
+        }
+      : {
+          level: "error", code: "NOT_HISTORY",
+          text: `No courses came through, so nothing was changed. ${TSS_STEPS}`,
+        });
+  }
+  if (legacy.warnings.length) {
+    messages.push({
+      level: "warn", code: "LEGACY_LINES",
+      text: `${legacy.warnings.length} ${legacy.warnings.length === 1 ? "line" : "lines"} could not be read. They are listed below and are not saved.`,
+    });
+  }
+  return {
+    history,
+    unplaced: [],
+    report: {
+      source: isEmpty(history) ? "unknown" : "legacy",
+      parser: LEGACY_PARSER, messages,
+      terms: terms.length, rows, review: 0, duplicates: 0, suggestedTerm: null,
+    },
+  };
+}
+
+/** The structured record from any paste; rows printed under no quarter are left out. */
+export function parseAcademicHistory(raw: string, opts: ReadOptions = {}): ParsedHistory {
+  return readAcademicHistory(raw, opts).history;
+}
+
+export { NO_QUARTER };
