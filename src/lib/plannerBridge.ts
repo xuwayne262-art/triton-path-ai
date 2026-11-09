@@ -11,7 +11,8 @@
 import { parseUnits } from "./units";
 import type { Course, CourseCategory, CourseTime, DayOfWeek } from "@/components/triton/types";
 import { splitDays, type CourseRow } from "@/lib/plat";
-import { earnsUnits, type ParsedHistory } from "@/lib/history/parse";
+import type { ParsedHistory } from "@/lib/history/parse";
+import { listAttempts, type Standing } from "@/lib/history/attempts";
 
 /** "CSE 11" -> "cse11", matching the id shape the planner already generates. */
 export const codeToId = (code: string) => code.toLowerCase().replace(/\s+/g, "");
@@ -77,34 +78,56 @@ export function platRowToCourse(row: CourseRow, majorSubs?: Set<string>): Course
 }
 
 /**
- * The courses an Academic History shows completed, for degree progress: a
- * passing grade or a P — the same courses it counts as units earned — each
- * once, with the units actually earned. A course the catalog knows takes its
- * requirement categories from the catalog row, like any planned course; one it
- * does not still counts toward the totals.
+ * The courses an Academic History shows in one standing, for degree progress:
+ * each course once, with its units. A course the catalog knows takes its
+ * requirement categories from the catalog row, like any planned course; one
+ * it does not still counts toward the totals.
  *
- * Transfer and exam credit is left out: a row can grant several UCSD courses at
- * once, and splitting its units between them would be a guess.
+ * Statuses are judged on `today`: a blank grade is in progress while its term
+ * runs and "grade missing" after, never completed. A row that needs review is
+ * neither. Transfer and exam credit is left out: a row can grant several UCSD
+ * courses at once, and splitting its units between them would be a guess.
  */
-export function completedCourses(
+function coursesIn(
+  standing: Standing,
   history: Pick<ParsedHistory, "terms"> | null,
   rowFor: (code: string) => CourseRow | undefined,
   majorSubs?: Set<string>,
+  today?: string,
 ): Course[] {
   const byCode = new Map<string, Course>();
-  for (const term of history?.terms ?? []) {
-    for (const c of term.courses) {
-      if (!earnsUnits(c.status)) continue;
-      const row = rowFor(c.code);
-      const base: Course = row
-        ? platRowToCourse(row, majorSubs)
-        : { id: codeToId(c.code), code: c.code, title: c.title, units: c.units, departments: [c.subject] };
-      // A repeated course counts once, as UCSD counts it.
-      byCode.set(c.code, { ...base, units: c.units });
-    }
+  for (const a of listAttempts(history, today)) {
+    if (a.standing !== standing) continue;
+    const c = a.course;
+    const row = rowFor(c.code);
+    const base: Course = row
+      ? platRowToCourse(row, majorSubs)
+      : { id: codeToId(c.code), code: c.code, title: c.title, units: c.units, departments: [c.subject] };
+    // A repeated course counts once, as UCSD counts it.
+    byCode.set(c.code, { ...base, title: base.title || c.title, units: Math.max(c.units, byCode.get(c.code)?.units ?? 0) });
   }
   return [...byCode.values()];
 }
+
+/** What the history shows passed: a letter grade D- or better, a P or an S. */
+export const completedCourses = (
+  history: Pick<ParsedHistory, "terms"> | null,
+  rowFor: (code: string) => CourseRow | undefined,
+  majorSubs?: Set<string>,
+  today?: string,
+): Course[] => coursesIn("completed", history, rowFor, majorSubs, today);
+
+/** What the history shows under way now. Not credit until it is passed. */
+export const currentCourses = (
+  history: Pick<ParsedHistory, "terms"> | null,
+  rowFor: (code: string) => CourseRow | undefined,
+  majorSubs?: Set<string>,
+  today?: string,
+): Course[] => {
+  const done = new Set(completedCourses(history, rowFor, majorSubs, today).map((c) => c.code));
+  // A retake of a course already passed adds no new progress.
+  return coursesIn("in-progress", history, rowFor, majorSubs, today).filter((c) => !done.has(c.code));
+};
 
 // ── Colour meaning ───────────────────────────────────────────────────────────
 // Colour used to be `COURSE_COLORS[index % 10]` — decorative and meaningless, so

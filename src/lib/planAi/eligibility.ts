@@ -1,4 +1,5 @@
-import { earnsUnits, type ParsedHistory } from "@/lib/history/parse";
+import type { ParsedHistory } from "@/lib/history/parse";
+import { listAttempts } from "@/lib/history/attempts";
 import { prereqKnown, type CourseRow } from "@/lib/plat";
 import { prereqSegments } from "@/lib/prereqs";
 import type { Check } from "./types";
@@ -22,21 +23,39 @@ export interface StudentRecord {
   completed: Map<string, { grade: string | null; via: "ucsd" | "transfer" }>;
   /** Courses in progress now. */
   inProgress: Set<string>;
+  /**
+   * Courses taken whose result cannot be read: no grade after the term
+   * ended, an incomplete, or a row that needs review. None of them confirms
+   * a prerequisite, and none is treated as missing either.
+   */
+  unclear: Set<string>;
   /** Courses the plan puts before the quarter being planned. */
   plannedBefore: Set<string>;
   /** Whether a saved Academic History exists at all. */
   hasHistory: boolean;
 }
 
-/** What the saved record and the plan say a student has done, or will have by the quarter in question. */
-export function studentRecord(history: ParsedHistory | null, plannedBefore: Iterable<string> = []): StudentRecord {
+/**
+ * What the saved record and the plan say a student has done, or will have by
+ * the quarter in question. Statuses are judged on `today`, so a blank grade
+ * is in progress only while its term runs.
+ */
+export function studentRecord(history: ParsedHistory | null, plannedBefore: Iterable<string> = [], today?: string): StudentRecord {
   const completed: StudentRecord["completed"] = new Map();
   const inProgress = new Set<string>();
-  for (const term of history?.terms ?? []) {
-    for (const c of term.courses) {
-      if (earnsUnits(c.status)) completed.set(c.code, { grade: c.grade, via: "ucsd" });
-      else if (c.status === "progress") inProgress.add(c.code);
-    }
+  const unclear = new Set<string>();
+  for (const a of listAttempts(history, today)) {
+    const code = a.course.code;
+    if (a.standing === "completed") {
+      // A repeat keeps its best letter, so a later pass outranks an earlier D.
+      const prior = completed.get(code);
+      if (!prior || betterGrade(a.course.grade, prior.grade)) completed.set(code, { grade: a.course.grade, via: "ucsd" });
+    } else if (a.standing === "in-progress") inProgress.add(code);
+    else if (a.standing === "missing-grade" || a.standing === "needs-review" || a.standing === "incomplete") unclear.add(code);
+  }
+  for (const code of completed.keys()) {
+    inProgress.delete(code);
+    unclear.delete(code);
   }
   for (const t of history?.transfer ?? []) {
     for (const code of [t.code, ...t.equivalents]) {
@@ -44,10 +63,15 @@ export function studentRecord(history: ParsedHistory | null, plannedBefore: Iter
     }
   }
   const planned = new Set([...plannedBefore].filter((c) => !completed.has(c)));
-  return { completed, inProgress, plannedBefore: planned, hasHistory: Boolean(history) };
+  return { completed, inProgress, unclear, plannedBefore: planned, hasHistory: Boolean(history) };
 }
 
 const GRADE_ORDER = ["F", "D-", "D", "D+", "C-", "C", "C+", "B-", "B", "B+", "A-", "A", "A+"];
+
+/** Whether letter `a` is higher than `b`; P and other marks never outrank a letter. */
+function betterGrade(a: string | null, b: string | null): boolean {
+  return GRADE_ORDER.indexOf((a ?? "").toUpperCase()) > GRADE_ORDER.indexOf((b ?? "").toUpperCase());
+}
 
 /** Whether a grade meets a minimum. P meets a minimum of C- or lower, as UCSD defines P. Null when it cannot be told. */
 function meets(grade: string | null, minimum: string | null): boolean | null {
@@ -189,6 +213,8 @@ export function checkPrerequisites(
   const missing: string[] = [];
   const conditional: string[] = [];
   const met: string[] = [];
+  /** Taken, with no grade the record can confirm (missing, incomplete, under review). */
+  const noGrade: string[] = [];
   let unclearGrade = false;
   for (const line of parsed.lines) {
     const done = line.map((o) => ({ o, hit: record.completed.get(o.code) })).filter((x) => x.hit);
@@ -197,12 +223,16 @@ export function checkPrerequisites(
     if (done.some((x) => meets(x.hit!.grade, x.o.minimum) === null)) { unclearGrade = true; continue; }
     const coming = line.find((o) => record.inProgress.has(o.code) || record.plannedBefore.has(o.code));
     if (coming) { conditional.push(coming.code); continue; }
+    const taken = line.find((o) => record.unclear?.has(o.code));
+    if (taken) { noGrade.push(taken.code); continue; }
     missing.push(line.map((o) => o.code).join(" or "));
   }
   if (missing.length) {
     checks.push(parsed.consent
       ? { status: "unknown", code: "PREREQ_CONSENT", basis: "record", course: code, detail: { missing: missing.join("; "), text } }
       : { status: "fail", code: "PREREQ_MISSING", basis: "record", course: code, detail: { missing: missing.join("; ") } });
+  } else if (noGrade.length) {
+    checks.push({ status: "unknown", code: "PREREQ_GRADE_UNKNOWN", basis: "record", course: code, detail: { courses: noGrade.join(", ") } });
   } else if (unclearGrade) {
     checks.push({ status: "unknown", code: "PREREQ_UNREADABLE", basis: "record", course: code, detail: { text } });
   } else if (conditional.length) {

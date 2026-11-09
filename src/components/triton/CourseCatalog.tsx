@@ -59,6 +59,10 @@ interface CourseCatalogProps {
   removePlannedCourse: (courseId: string) => void;
   /** The shared UCSDPlans dataset — same courses the explorer shows. */
   platRows: PlatRow[];
+  /** Courses the saved Academic History shows passed or under way: never recommended again. */
+  takenCodes?: Set<string>;
+  /** Units per requirement those courses already cover. */
+  takenUnits?: Record<string, number>;
   /** Rendered above the catalog so saved courses are the first thing you see. */
   savedPanel?: React.ReactNode;
   legend?: React.ReactNode;
@@ -92,6 +96,8 @@ export default function CourseCatalog({
   addAICourseToPlan,
   removePlannedCourse,
   platRows,
+  takenCodes,
+  takenUnits,
   savedPanel,
   legend,
 }: CourseCatalogProps) {
@@ -115,18 +121,21 @@ export default function CourseCatalog({
   // ── Recommended for you ───────────────────────────────────────────────────
   const collegeSlug = selectedCollege ? selectedCollege.toLowerCase() : null;
   const groups = useMemo(() => {
-    // Units the schedule already covers, counted the same way as the offers.
-    const earned: Record<string, number> = {};
+    // Units the schedule and the Academic History already cover, counted the
+    // same way as the offers. A course passed or under way is never offered
+    // again: it used to be, since only this term's schedule was checked.
+    const earned: Record<string, number> = { ...(takenUnits ?? {}) };
     for (const { course } of selectedCourses) {
       const row = byCode.get(course.code);
-      if (!row) continue;
+      if (!row || takenCodes?.has(course.code)) continue;
       for (const cat of requirementCategories(row, myDepts, collegeSlug)) earned[cat] = (earned[cat] ?? 0) + course.units;
     }
+    const skip = new Set([...scheduledCodes, ...(takenCodes ?? [])]);
     return recommend(
-      platRows, activeRequirements, earned, scheduledCodes, myDepts, collegeSlug,
+      platRows, activeRequirements, earned, skip, myDepts, collegeSlug,
       Boolean(MAJOR_REQUIREMENTS[selectedMajor]),
     );
-  }, [platRows, activeRequirements, selectedCourses, scheduledCodes, byCode, myDepts, collegeSlug, selectedMajor]);
+  }, [platRows, activeRequirements, selectedCourses, scheduledCodes, byCode, myDepts, collegeSlug, selectedMajor, takenCodes, takenUnits]);
   const recCount = groups.reduce((n, g) => n + g.items.length, 0);
 
   // ── Search ────────────────────────────────────────────────────────────────

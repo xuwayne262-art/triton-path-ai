@@ -1,13 +1,16 @@
 import { auth } from "@/auth";
 import { isEligibleEmail, normalizeEmail } from "@/lib/auth/eligibility";
-import { MAX_BODY_BYTES, sanitizeHistory } from "@/lib/history/record";
+import { MAX_BODY_BYTES, readSaveBody, sanitizeHistory, savedAtOf } from "@/lib/history/record";
 import { historyStore, STORE_UNAVAILABLE, storageKey, storeDiagnosis } from "@/lib/history/store";
 
 /**
  * `/api/history` — one student's imported Academic History.
  *
  * GET    their saved record, or 204 when they have none
- * PUT    replace it with a parsed record from the import page
+ * PUT    save the record the import page shows. It sends the savedAt of the
+ *        copy it merged into (`base`); if the saved copy has changed since,
+ *        on another device or tab, the save is refused with 409 and the
+ *        current copy, so nothing newer is overwritten unseen
  * DELETE remove it entirely
  *
  * The owner is taken from the server-verified session and nothing else. There
@@ -61,6 +64,16 @@ function failed(op: "read" | "write" | "delete", err: unknown): Response {
   return json({ error: `Could not ${op} your record.`, code }, 502);
 }
 
+/** A stored record's text as an object, or null when there is none or it does not parse. */
+function parsed(raw: string | null): unknown {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
 /** The signed-in, eligible address, or null. */
 async function owner(): Promise<string | null> {
   const session = await auth();
@@ -110,7 +123,8 @@ export async function PUT(request: Request): Promise<Response> {
     return json({ error: "Could not read that record.", code: "HISTORY_BAD_JSON" }, 400);
   }
 
-  const record = sanitizeHistory(body);
+  const { history, base, checked } = readSaveBody(body);
+  const record = sanitizeHistory(history);
   if (!record) {
     return json(
       { error: "That did not contain any coursework.", code: "HISTORY_EMPTY" },
@@ -120,9 +134,31 @@ export async function PUT(request: Request): Promise<Response> {
 
   const store = historyStore();
   if (!store) return unavailable();
+  const key = storageKey(email);
+
+  if (checked) {
+    // Not atomic with the write below, but a student saving from two devices
+    // within the same instant is the only case it misses.
+    let current: string | null;
+    try {
+      current = await store.get(key);
+    } catch (err) {
+      return failed("read", err);
+    }
+    if (savedAtOf(current) !== base) {
+      return new Response(
+        JSON.stringify({
+          error: "Your saved Academic History changed since this page loaded.",
+          code: "HISTORY_CHANGED",
+          current: parsed(current),
+        }),
+        { status: 409, headers: { ...NO_STORE, "content-type": "application/json" } },
+      );
+    }
+  }
 
   try {
-    await store.set(storageKey(email), JSON.stringify(record));
+    await store.set(key, JSON.stringify(record));
   } catch (err) {
     return failed("write", err);
   }

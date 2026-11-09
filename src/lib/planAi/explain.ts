@@ -57,6 +57,7 @@ export function checkText(c: Check): string {
     case "PREREQ_MISSING": return `Not in your Academic History: ${s(d.missing)}.`;
     case "PREREQ_UNREADABLE": return d.text ? `Prerequisites need a manual check: "${s(d.text)}"` : "Prerequisites need a manual check.";
     case "PREREQ_NO_RECORD": return "Prerequisites not checked: no saved Academic History.";
+    case "PREREQ_GRADE_UNKNOWN": return `Your Academic History shows no confirmed grade for ${s(d.courses)}, so this can't be confirmed yet.`;
     case "PREREQ_NOT_IN_CATALOG": return "Not in the current catalog, so its prerequisites are unknown.";
     case "PREREQ_CONSENT": return d.missing ? `Needs consent unless you've taken ${s(d.missing)}.` : "Needs instructor or department consent.";
     case "RESTRICTED": return `Restrictions apply: "${s(d.text)}"`;

@@ -201,9 +201,10 @@ describe("the bounded search", () => {
 // ── Prerequisites ────────────────────────────────────────────────────────────
 
 describe("prerequisites against the saved Academic History", () => {
-  const history = (courses: [string, string | null][], transfer: string[] = []): ParsedHistory => ({
+  // Fall 2026, judged on Nov 8, 2026: a blank grade is a course under way.
+  const history = (courses: [string, string | null][], transfer: string[] = [], term = "FA26"): ParsedHistory => ({
     college: null, majors: [], minors: [], warnings: [],
-    terms: [{ code: "FA25", label: "Fall Quarter 2025", courses: courses.map(([code, grade]) => ({
+    terms: [{ code: term, label: term, courses: courses.map(([code, grade]) => ({
       code, subject: code.split(" ")[0], number: code.split(" ")[1], title: code, units: 4, grade, points: null,
       status: grade === null ? "progress" : grade === "F" ? "fail" : grade === "P" ? "pass" : "graded",
     })) }],
@@ -212,7 +213,7 @@ describe("prerequisites against the saved Academic History", () => {
   });
   const r = row("BIMM 101", { pr: 1 });
   const check = (pre: string | null, h: ParsedHistory | null, planned: string[] = []) =>
-    checkPrerequisites(r, pre, null, studentRecord(h, planned)).find((c) => c.code.startsWith("PREREQ_") || c.code === "RESTRICTED")!;
+    checkPrerequisites(r, pre, null, studentRecord(h, planned, "2026-11-08")).find((c) => c.code.startsWith("PREREQ_") || c.code === "RESTRICTED")!;
 
   test("only unambiguous shapes are evaluated", () => {
     assert.equal(parsePrereq("CSE 12 and CSE 20 or MATH 109"), null);
@@ -227,6 +228,13 @@ describe("prerequisites against the saved Academic History", () => {
     assert.equal(missing.code, "PREREQ_MISSING");
     assert.equal(missing.detail?.missing, "BILD 4");
     assert.equal(check("BILD 1 and BILD 4.", history([["BILD 1", "A"], ["BILD 4", null]])).code, "PREREQ_PLANNED");
+    // The same blank grade a year on is missing: it confirms nothing, and it is not "not taken" either.
+    const stale = check("BILD 1 and BILD 4.", history([["BILD 1", "A"], ["BILD 4", null]], [], "FA25"));
+    assert.equal(stale.code, "PREREQ_GRADE_UNKNOWN");
+    assert.equal(stale.status, "unknown");
+    // An incomplete or an unreadable mark is no pass either.
+    assert.equal(check("BILD 4.", history([["BILD 4", "I"]])).code, "PREREQ_GRADE_UNKNOWN");
+    assert.equal(check("BILD 4.", history([["BILD 4", "XQ"]])).code, "PREREQ_GRADE_UNKNOWN");
     assert.equal(check("BILD 1 and BILD 4.", history([["BILD 1", "A"]]), ["BILD 4"]).code, "PREREQ_PLANNED");
     assert.equal(check("BILD 1 and BILD 4.", null).code, "PREREQ_NO_RECORD");
     assert.equal(check("CSE 12 and CSE 20 or MATH 109", history([["CSE 12", "A"]])).status, "unknown");

@@ -111,7 +111,7 @@ export default function TermWorkspacePage() {
     plannedCourses, addAICourseToPlan, removePlannedCourse,
     platRows, platByCode, savedCourses, toggleSaved, addCourseByCode, termSettled,
     selectedMajor, selectedMinor, selectedCollege,
-    roleOf, getColorForCourse, activeRequirements,
+    roleOf, getColorForCourse, activeRequirements, historyCodes, historyTally,
     term, termName, pastTerms, buildings, requestedTerm, termStatus, retryTerm,
   } = usePlanner();
   // What this quarter's schedule publishes. UCSD's public Winter schedule
@@ -690,6 +690,8 @@ export default function TermWorkspacePage() {
               addAICourseToPlan={addAICourseToPlan}
               removePlannedCourse={removePlannedCourse}
               platRows={platRows}
+              takenCodes={historyCodes}
+              takenUnits={historyTally}
               legend={<ColorLegend />}
               savedPanel={
                 <SavedCourses
