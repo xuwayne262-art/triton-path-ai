@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CalendarDays, LogIn, Moon, Sun } from "lucide-react";
 import ContactMenu from "./ContactMenu";
+import { LegalNotice } from "./LegalFooter";
 import SearchBox from "./SearchBox";
 import TridentMark from "./TridentMark";
 import { useTheme } from "./theme";
@@ -187,18 +188,19 @@ export default function PlatShell({
 
       <main>{children}</main>
 
-      <footer className="mt-20 border-t border-gray-200 py-8 dark:border-white/10">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 text-xs leading-relaxed text-gray-500 dark:text-gray-400 sm:px-6 lg:flex-row lg:items-start lg:justify-between lg:px-8">
-          <p className="max-w-3xl">
-            {entry
-              ? `${meta ? `${meta.gradeRecords.toLocaleString()} course–instructor grade distributions (${meta.years})` : "Course–instructor grade distributions"} from the UCSD Associated Students Instructor Grade Archive; descriptions and prerequisites from the UCSD General Catalog; ${entry.name} sections and seats from UCSD’s Class Planner${schedule}. ${seats} Seats are not live, so check TSS before you enroll. `
-              : ""}
-            Historical grades describe the past, not your quarter. Confirm requirements with your college advisor.
-          </p>
-          <nav aria-label="About" className="flex shrink-0 flex-wrap gap-x-4 gap-y-1 font-semibold">
-            <Link href="/about" className="hover:text-gray-900 hover:underline dark:hover:text-white">About &amp; data sources</Link>
-            <Link href="/about#letter" className="hover:text-gray-900 hover:underline dark:hover:text-white">How the letter grade works</Link>
-          </nav>
+      <footer className="mt-20 border-t border-gray-200 dark:border-white/10">
+        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+          <LegalNotice
+            before={
+              <p>
+                {entry
+                  ? `${meta ? `${meta.gradeRecords.toLocaleString()} course–instructor grade distributions (${meta.years})` : "Course–instructor grade distributions"} from the UCSD Associated Students Instructor Grade Archive; descriptions and prerequisites from the UCSD General Catalog; ${entry.name} sections and seats from UCSD’s Class Planner${schedule}. ${seats} Seats are not live, so check TSS before you enroll. `
+                  : ""}
+                Historical grades describe the past, not your quarter.
+              </p>
+            }
+            extra={[{ href: "/about#letter", label: "How the letter grade works" }]}
+          />
         </div>
       </footer>
     </div>

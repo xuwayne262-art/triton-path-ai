@@ -48,6 +48,10 @@ const PUBLIC_PAGES = new Set([
   "/ge",
   "/about",
   "/announcements",
+  // The legal pages, readable before signing in (the sign-in page links them).
+  "/privacy",
+  "/terms",
+  "/disclaimer",
   // Seat counts over time, read by the public course page.
   "/api/seats",
 ]);
