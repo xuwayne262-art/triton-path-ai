@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import TridentMark from "@/components/plat/TridentMark";
 import type { Destination } from "@/lib/auth/destination";
+import { LEGAL_LINKS } from "@/lib/legal";
 import GoogleIcon from "./GoogleIcon";
 import { signInWithGoogle } from "@/app/login/actions";
 
@@ -142,6 +143,11 @@ export default function LoginView({
               addresses, including department ones like name@eng.ucsd.edu, are turned away. Signing in only
               confirms that you hold a @ucsd.edu address; it does not verify anything else about you.
             </p>
+            <p className="mt-3 text-[13px] leading-relaxed text-[#4A5670]">
+              What you save, who can see it and how to delete it:{" "}
+              <Link href="/privacy" className={LOGIN_LINK}>Privacy Policy</Link>. The rules for using the site:{" "}
+              <Link href="/terms" className={LOGIN_LINK}>Terms of Use</Link>.
+            </p>
           </>
         ) : (
           <SetupNotice
@@ -150,10 +156,22 @@ export default function LoginView({
             isLocalHost={isLocalHost}
           />
         )}
+
+        <footer className="mt-12 border-t border-[#E8E2D4] pt-5 text-[12px] leading-relaxed text-[#4A5670]">
+          <p>UCSDPlans is an independent student project, not affiliated with or endorsed by UC San Diego.</p>
+          <nav aria-label="Legal" className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+            {LEGAL_LINKS.map((l) => (
+              <Link key={l.href} href={l.href} className={LOGIN_LINK}>{l.label}</Link>
+            ))}
+          </nav>
+        </footer>
       </div>
     </main>
   );
 }
+
+const LOGIN_LINK =
+  "rounded-sm font-semibold text-[#182B49] underline underline-offset-2 hover:decoration-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#182B49] focus-visible:ring-offset-2 focus-visible:ring-offset-[#FCFBF9]";
 
 /**
  * Shown instead of the button when credentials are absent. Sign-in genuinely

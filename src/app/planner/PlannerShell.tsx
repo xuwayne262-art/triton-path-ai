@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowLeft, Calendar, LayoutGrid, MessagesSquare, Moon, Sun } from "lucide-react";
 import ContactMenu from "@/components/plat/ContactMenu";
+import { LegalStrip } from "@/components/plat/LegalFooter";
 import TridentMark from "@/components/plat/TridentMark";
 import ProgramPicker from "@/components/planner/ProgramPicker";
 import SyncBadge from "@/components/planner/SyncBadge";
@@ -137,6 +138,9 @@ function PlannerChrome({ children }: { children: React.ReactNode }) {
 
       {/* Each page supplies its own panes. */}
       <div className="flex min-h-0 flex-1 overflow-hidden">{children}</div>
+
+      {/* Below the panes, in the layout rather than over it, so it covers no control. */}
+      <LegalStrip />
     </div>
   );
 }

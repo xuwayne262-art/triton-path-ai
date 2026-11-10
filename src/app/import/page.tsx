@@ -21,6 +21,7 @@ import type { ReadMessage } from "@/lib/history/tss";
 import type { ReviewReason } from "@/lib/history/types";
 import { todayInSanDiego } from "@/lib/housing/terms";
 import { ACADEMIC_HISTORY_HELP_URL, TSS_PORTAL_URL } from "@/lib/links";
+import { LEGAL_LINK } from "@/lib/legal";
 
 /**
  * Import an Academic History by pasting it from TSS (Triton Student System).
@@ -220,7 +221,14 @@ export default function ImportPage() {
       <div className={`mx-auto max-w-3xl px-4 sm:px-6 ${PAGE_PAD}`}>
         <PageHeader
           title="Your Academic History"
-          description="Paste it from TSS. It's read in this browser, and only the course list is saved to your account, with no name or ID."
+          description={
+            <>
+              Paste it from TSS. It&rsquo;s read in this browser, and only the course list is saved to your account,
+              with no name or ID. The{" "}
+              <Link href="/privacy#academic-history" className={LEGAL_LINK}>Privacy Policy</Link> says what is kept
+              and how to delete it.
+            </>
+          }
         />
 
         {savedState === "loading" && (

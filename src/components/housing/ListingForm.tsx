@@ -21,6 +21,7 @@ import {
   type Laundry, type ListingKind, type PhotoLabel, type PublicListing, type Share,
 } from "@/lib/housing/listing";
 import { isIsoDate, todayInSanDiego } from "@/lib/housing/terms";
+import { LEGAL_LINK } from "@/lib/legal";
 
 const HousingMap = dynamic(() => import("./HousingMap"), { ssr: false });
 
@@ -666,6 +667,10 @@ export default function ListingForm({ email, editId }: { email: string; editId: 
             </button>
             <p className="text-[11px] text-gray-500 dark:text-gray-400">
               It stays up for 30 days at a time. One click from you keeps it there.
+            </p>
+            <p className="w-full text-xs leading-relaxed text-gray-600 dark:text-gray-300">
+              Listings must follow the <Link href="/terms#housing" className={LEGAL_LINK}>Terms of Use</Link>. The{" "}
+              <Link href="/privacy#housing" className={LEGAL_LINK}>Privacy Policy</Link> says who can see yours and how to delete it.
             </p>
             {error?.field === "form" && (
               <p role="alert" className="w-full text-sm font-medium text-rose-600 dark:text-rose-400">{error.text}</p>

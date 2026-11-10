@@ -4,10 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { Popover } from "radix-ui";
 import { ArrowUpRight, Check, Copy, Instagram, Mail } from "lucide-react";
 
-/** Who made UCSDPlans, and how to reach them. */
-export const INSTAGRAM_HANDLE = "hereswaynex";
-export const INSTAGRAM_URL = `https://www.instagram.com/${INSTAGRAM_HANDLE}/`;
-export const CONTACT_EMAIL = "xuwayne262@gmail.com";
+import { CONTACT_EMAIL, INSTAGRAM_HANDLE, INSTAGRAM_URL } from "@/lib/contact";
+
+/** Who made UCSDPlans, and how to reach them (kept in @/lib/contact for server pages). */
+export { CONTACT_EMAIL, INSTAGRAM_HANDLE, INSTAGRAM_URL };
 
 /**
  * "Contact" in the top bar: Instagram and email behind one quiet button.

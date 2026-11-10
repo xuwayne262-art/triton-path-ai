@@ -602,6 +602,43 @@ provider. No route wires it up; wiring it up is step 4, after the three above.
 `GET /api/chat` is a read-only availability probe (`{"available": false, ...}`)
 so the UI can show an honest state instead of guessing.
 
+## Legal pages and privacy requests
+
+`/privacy`, `/terms` and `/disclaimer` are public (`PUBLIC_PAGES` in
+`src/lib/auth/routes.ts`) and linked from the footer of every page, the
+Planner's bottom row, the sign-in page, Academic History and the housing form.
+Their shared text and the effective date live in `src/lib/legal.ts`; move
+`LEGAL_EFFECTIVE_DATE` to the San Diego day a revision goes live.
+
+The Privacy Policy describes what the code does: sign-in in `src/auth.ts`, the
+stores in `src/lib/{plan,history,housing}/store.ts` and `supabase/*.sql`, Plan
+with AI's payload in `src/lib/planAi/privacy.ts`, and the browser storage keys.
+Change any of those, and update the policy in the same change.
+`src/lib/legal.test.ts` catches placeholders and broken anchors, not untrue
+sentences.
+
+**A student asks for a copy of their data, or to delete it.** Every table
+files a student's rows under a different keyed hash of their email, so they
+can only be found by deriving those keys. `scripts/student-data.ts` does that
+with the app's own functions:
+
+1. Run `supabase/007_privacy_requests.sql` once (lets the service role delete
+   a saved plan; drops the retired AI search's counters).
+2. Put the production `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and
+   `AUTH_SECRET` from Vercel into a file outside the repository.
+3. Reply to the student's @ucsd.edu address first, so you know the request is
+   theirs. Then:
+
+```bash
+node --import ./test/register.mjs --env-file=../privacy.env scripts/student-data.ts student@ucsd.edu
+node --import ./test/register.mjs --env-file=../privacy.env scripts/student-data.ts student@ucsd.edu --export ../student.json
+node --import ./test/register.mjs --env-file=../privacy.env scripts/student-data.ts student@ucsd.edu --delete --yes
+```
+
+The first only reads. `--export` writes everything found (send it to the
+student, then delete the file). `--delete` without `--yes` only lists what
+would go. Delete the env file when done.
+
 ## Checks
 
 ```bash

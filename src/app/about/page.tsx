@@ -57,7 +57,7 @@ export default function AboutPage() {
           four years), your Academic History, and student housing.
         </p>
 
-        <section className="mt-12">
+        <section id="contact" className="mt-12 scroll-mt-32 xl:scroll-mt-24">
           <h2 className={SECTION_TITLE}>Who makes it</h2>
           <p className="mt-3 text-sm leading-relaxed text-gray-700 dark:text-gray-200">
             UCSDPlans is built and run by <span className="font-semibold">@{INSTAGRAM_HANDLE}</span>. Found a
@@ -229,7 +229,9 @@ export default function AboutPage() {
             Browsing courses, departments, professors and GEs needs no account. Your Planner, starred
             courses, your own instructor ratings and your Academic History are saved to your UCSD account
             and shown only to you. Housing is for signed-in UCSD students only, so a lister&rsquo;s place and
-            contact details are never public.
+            contact details are never public. The{" "}
+            <Link href="/privacy" className="font-semibold text-[#182B49] underline underline-offset-2 dark:text-[#FFCD00]">Privacy Policy</Link>{" "}
+            has the details, including how to delete what you saved.
           </p>
           <p className="mt-5 text-sm">
             <Link href="/" className="font-semibold text-[#182B49] hover:underline dark:text-[#FFCD00]">Back to the courses →</Link>
