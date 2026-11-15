@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { CalendarDays, LogIn, Moon, Sun } from "lucide-react";
 import ContactMenu from "./ContactMenu";
-import { LegalNotice } from "./LegalFooter";
+import { FOOTER_LINK, LegalNotice } from "./LegalFooter";
+import SupportPopup, { SupportButton } from "./SupportPopup";
 import SearchBox from "./SearchBox";
 import TridentMark from "./TridentMark";
 import { useTheme } from "./theme";
@@ -202,9 +203,12 @@ export default function PlatShell({
               </p>
             }
             extra={[{ href: "/about#letter", label: "How the letter grade works" }]}
+            action={<SupportButton className={`font-semibold ${FOOTER_LINK}`} />}
           />
         </div>
       </footer>
+
+      <SupportPopup />
     </div>
   );
 }

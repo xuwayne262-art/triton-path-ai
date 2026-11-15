@@ -38,6 +38,7 @@ const PUBLIC_FILES = new Set([
   "/sitemap.xml",
   "/manifest.webmanifest",
   "/apple-touch-icon.png",
+  "/support/zelle-qr.jpg", // the donation note's QR code (src/lib/support.ts)
 ]);
 
 /** Exact pages and read-only endpoints anyone may open. */

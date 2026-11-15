@@ -17,7 +17,10 @@ const FOCUS =
  * and the legal pages. It sits in the page's flow after everything else, so
  * it never covers a control; on a phone the links stack one per line.
  */
-export function LegalNotice({ before, extra = [] }: { before?: React.ReactNode; extra?: readonly LegalLink[] }) {
+/** How the footer's links look; a button placed among them (`action`) uses it too. */
+export const FOOTER_LINK = `text-gray-700 underline-offset-2 hover:text-gray-900 hover:underline dark:text-gray-300 dark:hover:text-white ${FOCUS}`;
+
+export function LegalNotice({ before, extra = [], action }: { before?: React.ReactNode; extra?: readonly LegalLink[]; action?: React.ReactNode }) {
   // "Contact" stays last, after any page-specific links.
   const links = [...FOOTER_LINKS.filter((l) => l.label !== "Contact"), ...extra, ...FOOTER_LINKS.filter((l) => l.label === "Contact")];
   return (
@@ -33,11 +36,12 @@ export function LegalNotice({ before, extra = [] }: { before?: React.ReactNode; 
         <ul className="flex flex-col gap-2.5 text-[13px] font-semibold sm:flex-row sm:flex-wrap sm:gap-x-5 lg:flex-col lg:gap-2">
           {links.map((l) => (
             <li key={l.href}>
-              <Link href={l.href} className={`text-gray-700 underline-offset-2 hover:text-gray-900 hover:underline dark:text-gray-300 dark:hover:text-white ${FOCUS}`}>
+              <Link href={l.href} className={FOOTER_LINK}>
                 {l.label}
               </Link>
             </li>
           ))}
+          {action && <li>{action}</li>}
         </ul>
       </nav>
     </div>

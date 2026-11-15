@@ -112,6 +112,12 @@ export default function PrivacyPage() {
         <LegalSubheading id="messages">Messages you send us</LegalSubheading>
         <p>If you email or message us, we receive your message and contact details and use them to reply.</p>
 
+        <LegalSubheading id="donations">Donations</LegalSubheading>
+        <p>
+          If you donate with Zelle, the payment goes from your bank to the person who runs UCSDPlans. UCSDPlans never
+          sees your bank details. Zelle shows the recipient your name and the amount, as it does for any payment.
+        </p>
+
         <LegalSubheading id="technical">Technical information</LegalSubheading>
         <p>
           When you visit, our host receives what any website receives: your IP address, browser type, the page you
@@ -227,8 +233,8 @@ export default function PrivacyPage() {
         <p>There are no analytics, advertising or social media cookies.</p>
         <p>
           <span className="font-semibold">Browser storage.</span> Your browser keeps a copy of your plan, starred courses
-          and ratings, and settings such as the theme, the quarter you chose, recently viewed courses, your housing view
-          and the addresses you checked. Plan with AI keeps a pause timer and a request carried over from another page in
+          and ratings, and settings such as the theme, the quarter you chose, recently viewed courses, your housing view,
+          the addresses you checked and when you last closed the donation note. Plan with AI keeps a pause timer and a request carried over from another page in
           the tab’s session storage. These stay on your device. Clearing them in your browser’s settings removes the
           local copies but not what is saved with your account.
         </p>
