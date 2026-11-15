@@ -276,7 +276,12 @@ export function buildTerm(term, rawDir, { shared = readShared(), guidance = new 
 
   const header = coverage.term_summary;
   const name = termName || `${{ FA: "Fall", WI: "Winter", SP: "Spring" }[term.slice(0, 2)] || term} 20${term.slice(2)}`;
-  const version = `${term}@${String(header.last_full_refresh_at || "").replace(" ", "T").replace(/\+00$/, "Z")}`;
+  // When the capture was read; fetch-public-term.mjs writes it beside raw/.
+  // UCSD updates seats without moving its refresh time, so this, not the
+  // refresh, is how old the seat counts are, and it is part of the version.
+  const captureFile = path.join(rawDir, "..", "coverage.json");
+  const retrieved = fs.existsSync(captureFile) ? readJson(captureFile).retrieved_at ?? null : null;
+  const version = `${term}@${String(header.last_full_refresh_at || "").replace(" ", "T").replace(/\+00$/, "Z")}${retrieved ? `~${retrieved}` : ""}`;
   return {
     coverage,
     newCourses,
@@ -288,6 +293,7 @@ export function buildTerm(term, rawDir, { shared = readShared(), guidance = new 
         v: version,
         source: "UC San Diego Class Planner, public schedule (classplanner.apps.ucsd.edu)",
         refreshed: header.last_full_refresh_at || null,
+        retrieved,
         counts: {
           listings: coverage.public_search_listings,
           courses: coverage.observed.course_count,
@@ -363,7 +369,7 @@ export function changesSince(previousDir, built) {
  */
 export function sameAsPublished(built, outDir) {
   if (!fs.existsSync(path.join(outDir, "index.json"))) return false;
-  const plain = (file) => JSON.stringify({ ...file, v: undefined, meta: file.meta ? { ...file.meta, v: undefined, refreshed: undefined } : undefined });
+  const plain = (file) => JSON.stringify({ ...file, v: undefined, meta: file.meta ? { ...file.meta, v: undefined, refreshed: undefined, retrieved: undefined } : undefined });
   if (plain(readJson(path.join(outDir, "index.json"))) !== plain(built.index)) return false;
   const dir = path.join(outDir, "subject");
   const published = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith(".json")) : [];
@@ -478,6 +484,7 @@ function main() {
     path: path.relative(PLAT, outDir).split(path.sep).join("/"),
     v: built.version,
     refreshed: meta.refreshed,
+    retrieved: meta.retrieved ?? null,
     counts: meta.counts,
     summary: meta.summary,
     features: meta.features,

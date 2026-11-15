@@ -86,8 +86,10 @@ export default function PlatShell({
   const span = meta?.seatsNewest ? seatSpan([meta.seatsAsOf, meta.seatsNewest]) : null;
   const seatTimes = entry?.features.seatTimes ?? meta?.features?.seatTimes ?? true;
   const schedule = refreshed ? `, schedule refreshed ${refreshed}` : "";
+  // A public-schedule quarter's seats are as old as UCSDPlans' last read of it.
+  const readOn = seatTimes ? null : refreshedLabel(entry?.retrieved);
   const seats = !seatTimes
-    ? "UCSD gives no time for each seat count."
+    ? readOn ? `Seats were read from that schedule on ${readOn}; UCSD gives no time for each count.` : "UCSD gives no time for each seat count."
     : span
       ? `Seat counts were taken ${spanLabel(span)}, ${new Date(span.newest).getUTCFullYear()}; each section shows its own time.`
       : "Each seat count shows its time where Class Planner gives one.";

@@ -150,6 +150,8 @@ export default function CourseDetailPage({
   const title = detail?.t ?? row?.t;
   const termLabel = term ? termLabelFor(term) : "This term";
   const features = subject?.features ?? termEntry(term)?.features ?? { rooms: true, seatTimes: true, booking: true };
+  // When UCSDPlans last read a public-schedule quarter: how old its seats are.
+  const seatsReadOn = features.seatTimes ? null : refreshedLabel(termEntry(term)?.retrieved);
 
   // ── The section choice ─────────────────────────────────────────────────
   const families = useMemo(() => groupSections(detail?.sec ?? []), [detail]);
@@ -656,7 +658,8 @@ export default function CourseDetailPage({
                 <p className="mt-2 rounded-xl bg-slate-50 px-4 py-3 text-sm leading-relaxed text-gray-700 dark:bg-white/5 dark:text-gray-200">
                   {seatsNow.enrolled.toLocaleString()} of {seatsNow.capacity.toLocaleString()} seats taken across{" "}
                   {talliedRows(detail?.sec ?? []).some((s) => s[TYPE] === "LE") ? "all lectures" : "all sections"} in UCSD&rsquo;s
-                  public {termLabel} schedule. UCSD does not say when it counted them; a daily count starts a trend here.
+                  public {termLabel} schedule{seatsReadOn ? `, as UCSDPlans read it on ${seatsReadOn}` : ""}. UCSD does not
+                  say when it counted them; a daily count starts a trend here.
                 </p>
               </section>
             )}

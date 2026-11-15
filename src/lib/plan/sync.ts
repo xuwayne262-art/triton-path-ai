@@ -3,6 +3,7 @@ import {
   cleanDocs, cleanPlanner, cleanRatings, cleanShortlist, isBlankPlanner, type PlanDocs,
 } from "./record";
 import { adoptLegacy, mergeDocs, sameJson } from "./merge";
+import { sessionSignedIn } from "@/lib/auth/clientSession";
 
 /**
  * Keeps this browser's copy of the plan in step with the account's.
@@ -83,6 +84,12 @@ export interface SyncEnv {
   setTimeout: (fn: () => void, ms: number) => unknown;
   clearTimeout: (id: unknown) => void;
   now: () => number;
+  /**
+   * Whether anyone is signed in, if the page already knows. False skips the
+   * request a signed-out visitor could only get a 401 for (every public
+   * course page used to log one); null, or no answer, asks the account.
+   */
+  signedIn?: () => Promise<boolean | null>;
 }
 
 function parse(raw: string | null): unknown {
@@ -261,6 +268,7 @@ export function createSync(env: SyncEnv) {
   async function pull() {
     lastPull = env.now();
     if (status === "idle") setStatus("loading");
+    if ((await env.signedIn?.()) === false) return setStatus("signed-out");
     const res = await call();
     if (!res) return;
     const remote = readRemote(await res.json().catch(() => null));
@@ -457,6 +465,7 @@ function browserEngine() {
     setTimeout: (fn, ms) => window.setTimeout(fn, ms),
     clearTimeout: (id) => window.clearTimeout(id as number),
     now: () => Date.now(),
+    signedIn: sessionSignedIn,
   });
   e.subscribe(() => {
     shown = e.status();

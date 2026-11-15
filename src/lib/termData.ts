@@ -150,6 +150,8 @@ export interface TermIndexFile {
     v: string;
     source: string;
     refreshed: string | null;
+    /** When UCSDPlans read the term, ISO-8601: how old its seat counts are (UCSD updates them without a refresh). */
+    retrieved?: string | null;
     counts: Record<string, number>;
     summary: { courses: number | null; sections: number | null; meetings: number | null };
     features: TermFeatures;
@@ -403,6 +405,8 @@ export function overlayIndex(base: PlatIndex, file: TermIndexFile, entry: TermEn
       termName: entry.name,
       offered: courses.filter((c) => c.o).length,
       refreshed: file.meta.refreshed,
+      // This term's read time, not Fall's: its seats are as old as this.
+      ...(file.meta.retrieved ? { retrieved: file.meta.retrieved } : {}),
       counts: file.meta.summary,
       sources: [
         ...shared.sources.filter((s) => !/Class Planner/.test(s)),

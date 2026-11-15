@@ -1,4 +1,4 @@
-import { seatStore } from "@/lib/seats/store";
+import { SeatHistoryNotSetUp, seatStore } from "@/lib/seats/store";
 
 /**
  * `/api/seats?course=CSE%2012&term=FA26` — one course's daily seat counts,
@@ -33,7 +33,16 @@ export async function GET(request: Request): Promise<Response> {
       { headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400" } },
     );
   } catch (err) {
+    if (err instanceof SeatHistoryNotSetUp) {
+      // The table was never created: the same as no store, not a failure every
+      // visitor's browser should log. Said once per instance, for the operator.
+      if (!warned) console.error(`[seats] ${err.message}`);
+      warned = true;
+      return Response.json({ term, points: [] }, { headers: { "Cache-Control": "public, s-maxage=3600" } });
+    }
     console.error(`[seats] history failed (store=${store.name}): ${err instanceof Error ? err.message : String(err)}`);
     return Response.json({ term, points: [] }, { status: 502 });
   }
 }
+
+let warned = false;

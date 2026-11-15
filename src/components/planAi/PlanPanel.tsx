@@ -75,7 +75,7 @@ export default function PlanPanel({
       .then((d) => {
         if (!live) return;
         const perSection = d.meta.features?.seatTimes ?? true;
-        setSeats({ oldest: perSection ? d.meta.seatsAsOf ?? null : null, snapshot: perSection ? null : refreshedLabel(d.meta.refreshed) });
+        setSeats({ oldest: perSection ? d.meta.seatsAsOf ?? null : null, snapshot: perSection ? null : refreshedLabel(d.meta.retrieved ?? d.meta.refreshed) });
       })
       .catch(() => { if (live) setSeats(null); });
     return () => { live = false; };

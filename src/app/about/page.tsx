@@ -136,8 +136,9 @@ export default function AboutPage() {
             {publicOnly.length > 0 && (
               <p>
                 {publicOnly.map((t) => t.name).join(" and ")} {publicOnly.length === 1 ? "comes" : "come"} from
-                Class Planner&rsquo;s public schedule, which does not say when each section was counted. Those seat
-                counts are a snapshot from the day UCSD refreshed the schedule.
+                Class Planner&rsquo;s public schedule, which does not say when each section was counted. UCSD updates
+                those seats between its full refreshes, so UCSDPlans reads them again about twice a day and shows the
+                day it last did.
               </p>
             )}
             <p>Before you enroll, check the section in TSS, which has the live numbers.</p>

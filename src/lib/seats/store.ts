@@ -37,6 +37,12 @@ const env = (...names: string[]): string => {
 export const SEAT_TABLE = "seat_history";
 const MIGRATION = "supabase/004_seat_history.sql";
 
+/**
+ * The database is reachable but has no seat_history table: the feature is not
+ * set up, which is not an outage. Readers treat it like having no store.
+ */
+export class SeatHistoryNotSetUp extends Error {}
+
 const toPoint = (r: { day?: unknown; enrolled?: unknown; capacity?: unknown; waitlist?: unknown }): SeatPoint | null => {
   const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : Number(v));
   if (typeof r.day !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(r.day)) return null;
@@ -53,10 +59,11 @@ function supabaseStore(url: string, key: string): SeatStore {
     const res = await fetch(input, { ...init, cache: "no-store" });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
-      const missing = /PGRST205|Could not find the table/i.test(detail)
-        ? `. Seat history is not set up in this database yet. Run ${MIGRATION} in the Supabase SQL editor.`
-        : "";
-      throw new Error(`Supabase ${init.method ?? "GET"} ${res.status}: ${detail.slice(0, 300)}${missing}`);
+      const message = `Supabase ${init.method ?? "GET"} ${res.status}: ${detail.slice(0, 300)}`;
+      if (/PGRST205|Could not find the table/i.test(detail)) {
+        throw new SeatHistoryNotSetUp(`${message}. Seat history is not set up in this database yet. Run ${MIGRATION} in the Supabase SQL editor.`);
+      }
+      throw new Error(message);
     }
     return res;
   };

@@ -9,7 +9,7 @@ import {
   captureTerm, readListings, readPage, pageFiles, verifyCapture, zeroedImport,
 } from "../../scripts/lib/public-term.mjs";
 import {
-  buildTerm, changesSince, departmentGuidance, primaryMeeting, publishTerm, seatTotals, unitsNumber,
+  buildTerm, changesSince, departmentGuidance, primaryMeeting, publishTerm, sameAsPublished, seatTotals, unitsNumber,
 } from "../../scripts/build-term-data.mjs";
 import { listingTuples } from "./termData";
 import { decide } from "../../scripts/watch-public-terms.mjs";
@@ -284,17 +284,21 @@ describe("building the term from the capture", () => {
 });
 
 describe("watching UCSD for changes", () => {
+  const READ = "2026-11-16T08:00:00.000Z";
   const manifest = {
     terms: [
       { code: "FA26", path: null, refreshed: "2026-10-24 15:49:38+00", summary: { courses: 2347, sections: 9013, meetings: 13011 } },
-      { code: "WI27", path: "terms/WI27", refreshed: "2026-11-06 01:38:11+00", summary: { courses: 2262, sections: 7552, meetings: 11693 } },
+      { code: "WI27", path: "terms/WI27", refreshed: "2026-11-06 01:38:11+00", retrieved: READ, summary: { courses: 2262, sections: 7552, meetings: 11693 } },
     ],
   };
   const wi27 = { term_code: "WI27", configured: true, course_count: 2262, section_count: 7552, meeting_count: 11693, last_full_refresh_at: "2026-11-06 01:38:11+00" };
   const fa26 = { term_code: "FA26", configured: true, course_count: 2347, section_count: 9016, meeting_count: 13016, last_full_refresh_at: "2026-10-27 16:12:31+00" };
+  /** An hour after Winter's seats were read, unless said otherwise. */
+  const hoursLater = (h: number) => Date.parse(READ) + h * 3_600_000;
+  const at = (terms: object[], seen: object = {}, now = hoursLater(1)) => decide(terms, manifest, seen, now);
 
   test("nothing new: no rebuild; Fall's own changes are reported, never rebuilt", () => {
-    const d = decide([wi27, fa26], manifest);
+    const d = at([wi27, fa26]);
     assert.equal(d.update, false);
     assert.deepEqual(d.terms, []);
     assert.match(d.reason, /FA26 changed at UCSD .* kept as built/);
@@ -302,18 +306,31 @@ describe("watching UCSD for changes", () => {
 
   test("a refresh or a count change rebuilds that quarter, once", () => {
     const refreshed = { ...wi27, last_full_refresh_at: "2026-11-07 01:40:00+00" };
-    assert.deepEqual(decide([refreshed, fa26], manifest).terms, ["WI27"]);
-    assert.deepEqual(decide([refreshed, fa26], manifest, { WI27: "2026-11-07 01:40:00+00" }).terms, [], "already seen");
-    assert.deepEqual(decide([{ ...wi27, section_count: 7555 }], manifest).terms, ["WI27"]);
+    assert.deepEqual(at([refreshed, fa26]).terms, ["WI27"]);
+    assert.deepEqual(at([refreshed, fa26], { WI27: "2026-11-07 01:40:00+00" }).terms, [], "already seen");
+    assert.deepEqual(at([{ ...wi27, section_count: 7555 }]).terms, ["WI27"]);
+  });
+
+  test("seats are read again every 12 hours, since UCSD updates them without a refresh", () => {
+    const due = at([wi27, fa26], {}, hoursLater(12));
+    assert.deepEqual(due.terms, ["WI27"]);
+    assert.match(due.reason, /WI27: seats last read 12 h ago/);
+    assert.deepEqual(at([wi27, fa26], {}, hoursLater(11)).terms, [], "not yet");
+    // A re-read that published nothing is remembered in the state, not repeated every half hour.
+    const checked = { checked: { WI27: new Date(hoursLater(12)).toISOString() } };
+    assert.deepEqual(at([wi27, fa26], checked, hoursLater(13)).terms, []);
+    // A quarter built before read times were kept is read now.
+    const old = { terms: manifest.terms.map((t) => (t.code === "WI27" ? { ...t, retrieved: undefined } : t)) };
+    assert.match(decide([wi27, fa26], old, {}, hoursLater(1)).reason, /seats last read at an unknown time/);
   });
 
   test("a next quarter is added once it is listed in earnest; summer sessions are not quarters", () => {
     const spring = { term_code: "SP27", configured: true, course_count: 2100, section_count: 7000, meeting_count: 11000, last_full_refresh_at: "2027-02-12 01:00:00+00" };
-    assert.deepEqual(decide([spring, wi27], manifest).terms, ["SP27"]);
-    const partial = decide([{ ...spring, course_count: 300 }, wi27], manifest);
+    assert.deepEqual(at([spring, wi27]).terms, ["SP27"]);
+    const partial = at([{ ...spring, course_count: 300 }, wi27]);
     assert.deepEqual(partial.terms, []);
     assert.match(partial.reason, /waiting for at least 1131/);
-    assert.deepEqual(decide([{ ...spring, term_code: "S127" }, wi27], manifest).terms, []);
+    assert.deepEqual(at([{ ...spring, term_code: "S127" }, wi27]).terms, []);
   });
 });
 
@@ -325,6 +342,20 @@ describe("publishing a term", () => {
     publishTerm(built, out);
     const changes = changesSince(out, built)!;
     assert.deepEqual([changes.coursesAdded, changes.coursesWithdrawn, changes.sectionsAdded, changes.sectionsWithdrawn, changes.sectionsChanged], [[], [], 0, 0, 0]);
+  });
+
+  test("records when the capture was read; a later read with the same seats is not news", () => {
+    const capture = fs.mkdtempSync(path.join(os.tmpdir(), "cap-"));
+    fs.cpSync(RAW, path.join(capture, "raw"), { recursive: true });
+    const coverage = JSON.parse(fs.readFileSync(path.join(SNAPSHOT, "coverage.json"), "utf8"));
+    fs.writeFileSync(path.join(capture, "coverage.json"), JSON.stringify({ ...coverage, retrieved_at: "2026-11-16T08:00:00.000Z" }));
+    const read = buildTerm("WI27", path.join(capture, "raw"));
+    assert.equal(read.index.meta.retrieved, "2026-11-16T08:00:00.000Z");
+    assert.equal(read.version, "WI27@2026-11-06T01:38:11Z~2026-11-16T08:00:00.000Z");
+    assert.equal(built.index.meta.retrieved, null, "the release snapshot predates read times");
+    const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "pub-")), "WI27");
+    publishTerm(built, out);
+    assert.equal(sameAsPublished(read, out), true, "same seats, later read: the published files stay");
   });
 
   test("additions, withdrawals and changes are counted by term", () => {

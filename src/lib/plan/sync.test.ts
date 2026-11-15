@@ -385,3 +385,50 @@ describe("when the account cannot be reached", () => {
     assert.equal(account.puts.length, 0);
   });
 });
+
+describe("a visitor the page already knows is signed out", () => {
+  /** A browser whose page has asked Auth.js, with every request to the account counted. */
+  function visitor(signedIn: boolean | null) {
+    let requests = 0;
+    const store = new Map<string, string>();
+    const sync = createSync({
+      storage: {
+        getItem: (k) => store.get(k) ?? null,
+        setItem: (k, v) => { store.set(k, v); },
+        removeItem: (k) => { store.delete(k); },
+      },
+      fetch: async () => {
+        requests += 1;
+        return Response.json({ error: "Sign in" }, { status: 401 });
+      },
+      emit: () => {},
+      setTimeout: () => ({}),
+      clearTimeout: () => {},
+      now: () => 0,
+      signedIn: async () => signedIn,
+    });
+    return { sync, requests: () => requests, store };
+  }
+
+  test("never asks the account, so a public page logs no 401", async () => {
+    const v = visitor(false);
+    v.sync.start();
+    await v.sync.whenIdle();
+    assert.equal(v.requests(), 0);
+    assert.equal(v.sync.status(), "signed-out");
+    // A star clicked while signed out stays in this browser and sends nothing.
+    v.store.set(SHORTLIST_KEY, JSON.stringify(["CSE 12"]));
+    v.sync.noteLocalChange();
+    v.sync.refresh();
+    await v.sync.whenIdle();
+    assert.equal(v.requests(), 0);
+  });
+
+  test("asks the account as before when Auth.js could not be reached", async () => {
+    const v = visitor(null);
+    v.sync.start();
+    await v.sync.whenIdle();
+    assert.equal(v.requests(), 1);
+    assert.equal(v.sync.status(), "signed-out");
+  });
+});

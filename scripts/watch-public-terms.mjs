@@ -8,8 +8,12 @@
  *   - UCSD's count of its courses, sections or meetings is not the one it was
  *     built from (something added or withdrawn); or
  *   - UCSD has refreshed it since the refresh last seen (the state file the
- *     workflow keeps in its cache; the published one otherwise) — seats and
- *     instructors change without moving any count.
+ *     workflow keeps in its cache; the published one otherwise); or
+ *   - its seats were last read more than SEATS_MAX_AGE_HOURS ago. UCSD updates
+ *     seats in place without moving its refresh time or any count: Winter 2027
+ *     enrollment filled CSE 12 to 85 of 395 while the refresh still said Nov 6
+ *     and the site still said 0. A re-read that finds nothing new publishes
+ *     nothing; the state file remembers it, so it is not repeated every run.
  * A later quarter appearing is added once it lists at least half as many
  * courses as the newest one the site serves: quarters are often published
  * department by department, and a half-listed one would tell students their
@@ -37,9 +41,14 @@ const flag = (name) => {
   return i >= 0 ? argv[i + 1] : null;
 };
 const COUNTS = [["course_count", "courses"], ["section_count", "sections"], ["meeting_count", "meetings"]];
+export const SEATS_MAX_AGE_HOURS = 12;
 
-/** The decision, from UCSD's terms, the published manifest and the last-seen refresh per term. Pure, for the tests. */
-export function decide(ucsdTerms, manifest, seen = {}) {
+/**
+ * The decision, from UCSD's terms, the published manifest, the last-seen
+ * refresh per term and `seen.checked` (when each term was last re-read), as of
+ * `now`. Pure, for the tests.
+ */
+export function decide(ucsdTerms, manifest, seen = {}, now = Date.now()) {
   const served = new Map(manifest.terms.map((t) => [t.code, t]));
   const newest = manifest.terms.reduce((best, t) => (termRank(t.code) > termRank(best.code) ? t : best), manifest.terms[0]);
   const newestCourses = newest?.summary?.courses ?? newest?.counts?.courses ?? 0;
@@ -67,9 +76,14 @@ export function decide(ucsdTerms, manifest, seen = {}) {
       if (moved.length || refreshed) reasons.push(`${code} changed at UCSD (${moved.join(", ") || `refreshed ${t.last_full_refresh_at}`}) but is kept as built ${mine.refreshed}: its rooms came from routes that now need a sign-in`);
       continue;
     }
-    if (moved.length || refreshed) {
+    const lastRead = Math.max(Date.parse(mine.retrieved ?? "") || 0, Date.parse(seen.checked?.[code] ?? "") || 0);
+    const hours = lastRead ? Math.floor((now - lastRead) / 3_600_000) : null;
+    const stale = hours === null || hours >= SEATS_MAX_AGE_HOURS;
+    if (moved.length || refreshed || stale) {
       terms.push(code);
-      reasons.push(`${code}: ${moved.length ? moved.join(", ") : `UCSD refreshed it at ${t.last_full_refresh_at}`}`);
+      reasons.push(`${code}: ${moved.length ? moved.join(", ")
+        : refreshed ? `UCSD refreshed it at ${t.last_full_refresh_at}`
+        : `seats last read ${hours === null ? "at an unknown time" : `${hours} h ago`}`}`);
     }
   }
   return { update: terms.length > 0, terms, reason: reasons.join("; ") || "no quarter changed" };
@@ -82,13 +96,17 @@ async function main() {
   const { terms } = JSON.parse(await request("/terms"));
   if (!Array.isArray(terms)) throw new Error("UCSD's terms response has no terms list");
   const result = decide(terms, manifest, seen);
-  // What UCSD said this time, for the workflow to keep once a rebuild has gone through.
+  // What UCSD said this time, and which terms this run re-reads, for the
+  // workflow to keep once the rebuild has gone through.
   result.ucsd = Object.fromEntries(terms.map((t) => [t.term_code, t.last_full_refresh_at ?? null]));
+  const checkedNow = Object.fromEntries(result.terms.map((code) => [code, new Date().toISOString()]));
   console.log(JSON.stringify(result));
   if (process.env.GITHUB_OUTPUT) {
     fs.appendFileSync(process.env.GITHUB_OUTPUT, `update=${result.update}\nterms=${result.terms.join(" ")}\nreason=${result.reason.replace(/\n/g, " ")}\n`);
   }
-  if (flag("save-seen")) fs.writeFileSync(flag("save-seen"), JSON.stringify({ ...seen, ...result.ucsd }));
+  if (flag("save-seen")) {
+    fs.writeFileSync(flag("save-seen"), JSON.stringify({ ...seen, ...result.ucsd, checked: { ...(seen.checked ?? {}), ...checkedNow } }));
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

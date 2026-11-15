@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { sessionSignedIn } from "@/lib/auth/clientSession";
 
 /**
  * Whether someone is signed in, for the pages anyone can open.
@@ -11,27 +12,12 @@ import { useEffect, useState, useSyncExternalStore } from "react";
  * "Sign in to save"), never what data is shown, so nothing depends on it
  * being right before it arrives. Null while unknown.
  */
-let asked: Promise<boolean> | null = null;
-
-function ask(): Promise<boolean> {
-  if (!asked) {
-    asked = fetch("/api/auth/session", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((s: { user?: { email?: string } } | null) => Boolean(s?.user?.email))
-      .catch(() => {
-        // Unknown is not "signed out": forget the failure so the next page asks again.
-        asked = null;
-        return false;
-      });
-  }
-  return asked;
-}
-
 export function useSignedIn(): boolean | null {
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   useEffect(() => {
     let live = true;
-    ask().then((v) => { if (live) setSignedIn(v); });
+    // An unreachable Auth.js shows "Sign in", as it always has; the next page asks again.
+    sessionSignedIn().then((v) => { if (live) setSignedIn(v === true); });
     return () => { live = false; };
   }, []);
   return signedIn;
