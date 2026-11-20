@@ -26,21 +26,21 @@
       "code": "WI27",
       "name": "Winter 2027",
       "path": "terms/WI27",
-      "v": "WI27@2026-11-19T16:15:46Z~2026-11-20T12:26:47.007Z",
-      "refreshed": "2026-11-19 16:15:46+00",
-      "retrieved": "2026-11-20T12:26:47.007Z",
+      "v": "WI27@2026-11-20T16:21:47Z~2026-11-20T20:38:36.936Z",
+      "refreshed": "2026-11-20 16:21:47+00",
+      "retrieved": "2026-11-20T20:38:36.936Z",
       "counts": {
-        "listings": 2444,
-        "courses": 2318,
-        "sections": 7711,
-        "meetings": 11871,
+        "listings": 2437,
+        "courses": 2311,
+        "sections": 7730,
+        "meetings": 11866,
         "subjects": 184,
         "pages": 51
       },
       "summary": {
-        "courses": 2327,
-        "sections": 7741,
-        "meetings": 11916
+        "courses": 2320,
+        "sections": 7761,
+        "meetings": 11913
       },
       "features": {
         "rooms": false,
